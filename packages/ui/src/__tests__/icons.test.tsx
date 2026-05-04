@@ -20,6 +20,6 @@ describe("Icons", () => {
   });
 
   test("complete set count", () => {
-    expect(Object.keys(Icons).length).toBe(31);
+    expect(Object.keys(Icons).length).toBe(32);
   });
 });

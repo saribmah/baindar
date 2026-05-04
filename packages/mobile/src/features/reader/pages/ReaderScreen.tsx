@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -8,21 +8,29 @@ import {
   FloatingToolbarButton,
   IconButton,
   Icons,
+  SelectionToolbar,
   Sheet,
   Skeleton,
   color,
   font,
   useTheme,
   useThemeColors,
+  type HighlightColor,
   type Theme,
   type ThemeColors,
 } from "@baindar/ui";
 import type { Document, DocumentManifest, DocumentSectionSummary, EpubTocItem } from "@baindar/sdk";
 import { useSdk } from "../../../sdk/sdk.provider.tsx";
-import { EpubHtmlBody } from "../EpubHtmlBody.tsx";
+import {
+  EpubHtmlBody,
+  floatingBgFor,
+  type EpubHtmlBodyHandle,
+  type SelectionState,
+} from "../EpubHtmlBody.tsx";
 import type { AssetCache } from "../inlineAssets.ts";
 import { NotesSheet } from "../NotesSheet.tsx";
 import { useReaderHighlights } from "../useReaderHighlights.ts";
+import { useProfile } from "../../profile";
 
 type NotesContext = {
   sections?: ReadonlyArray<DocumentSectionSummary>;
@@ -110,6 +118,7 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
   const { theme, cycleTheme } = useTheme();
   const palette = useThemeColors();
   const scrollRef = useRef<ScrollView>(null);
+  const bodyRef = useRef<EpubHtmlBodyHandle>(null);
   const [position, setPosition] = useState<string | null>(null);
   const [tocState, setTocState] = useState<TocContext | null>(null);
   const [notesState, setNotesState] = useState<NotesContext | null>(null);
@@ -119,6 +128,9 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
   const [aiQuote, setAiQuote] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [fontScale, setFontScale] = useState<ReaderFontScale>("standard");
+  const [selection, setSelection] = useState<SelectionState | null>(null);
+  const { profile } = useProfile();
+  const defaultColor: HighlightColor = profile?.defaultHighlightColor ?? "pink";
 
   const toggleFontScale = useCallback(() => {
     setFontScale((curr) => (curr === "standard" ? "large" : "standard"));
@@ -151,6 +163,7 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
         contentContainerStyle={[shellStyles.bodyContent, { paddingBottom: insets.bottom + 120 }]}
       >
         <ReaderBody
+          ref={bodyRef}
           doc={doc}
           theme={theme}
           palette={palette}
@@ -166,8 +179,28 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
             setAiPrompt("What does this passage mean?");
             setAiOpen(true);
           }}
+          onSelectionChange={setSelection}
         />
       </ScrollView>
+
+      {selection && (
+        <View
+          pointerEvents="box-none"
+          style={[shellStyles.selectionToolbarWrap, { bottom: insets.bottom + 96 }]}
+        >
+          <SelectionToolbar
+            variant="actions"
+            activeColor={defaultColor}
+            foregroundColor={palette.text}
+            style={{ backgroundColor: floatingBgFor(theme), borderColor: palette.border }}
+            onCopy={() => bodyRef.current?.copySelection()}
+            onHighlight={() => bodyRef.current?.highlightSelection(defaultColor)}
+            onPickColor={(nextColor) => bodyRef.current?.highlightSelection(nextColor)}
+            onAsk={() => bodyRef.current?.askSelection()}
+            onAddNote={() => bodyRef.current?.addNoteFromSelection()}
+          />
+        </View>
+      )}
 
       <View style={[shellStyles.toolbarWrap, { bottom: insets.bottom + 24 }]}>
         <FloatingToolbar>
@@ -257,27 +290,35 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
 }
 
 // ─── Reader body ─────────────────────────────────────────────────────────
-function ReaderBody({
-  doc,
-  theme,
-  palette,
-  onPosition,
-  onTocChange,
-  onNotesChange,
-  fontScale,
-  onScrollToOffset,
-  onAskSelection,
-}: {
-  doc: Document;
-  theme: Theme;
-  palette: ThemeColors;
-  onPosition: (p: string | null) => void;
-  onTocChange: (s: TocContext | null) => void;
-  onNotesChange: (s: NotesContext | null) => void;
-  fontScale: ReaderFontScale;
-  onScrollToOffset: (offset: number) => void;
-  onAskSelection: (quote: string) => void;
-}) {
+const ReaderBody = forwardRef<
+  EpubHtmlBodyHandle,
+  {
+    doc: Document;
+    theme: Theme;
+    palette: ThemeColors;
+    onPosition: (p: string | null) => void;
+    onTocChange: (s: TocContext | null) => void;
+    onNotesChange: (s: NotesContext | null) => void;
+    fontScale: ReaderFontScale;
+    onScrollToOffset: (offset: number) => void;
+    onAskSelection: (quote: string) => void;
+    onSelectionChange: (selection: SelectionState | null) => void;
+  }
+>(function ReaderBody(
+  {
+    doc,
+    theme,
+    palette,
+    onPosition,
+    onTocChange,
+    onNotesChange,
+    fontScale,
+    onScrollToOffset,
+    onAskSelection,
+    onSelectionChange,
+  },
+  ref,
+) {
   const params = useLocalSearchParams<{
     chapter?: string;
     highlight?: string;
@@ -451,6 +492,7 @@ function ReaderBody({
         {currentSection.title}
       </Text>
       <EpubHtmlBody
+        ref={ref}
         html={chapterHtml}
         assetBase={`${baseUrl}/documents/${documentId}/`}
         theme={theme}
@@ -468,6 +510,7 @@ function ReaderBody({
         targetRequestId={target?.requestId}
         onTargetHighlight={onScrollToOffset}
         onAskSelection={onAskSelection}
+        onSelectionChange={onSelectionChange}
       />
       <ChapterNav
         canPrev={order > 0}
@@ -479,7 +522,7 @@ function ReaderBody({
       />
     </>
   );
-}
+});
 
 // ─── Chapter navigation row ─────────────────────────────────────────────
 function ChapterNav({
@@ -747,6 +790,12 @@ const shellStyles = StyleSheet.create({
     gap: 12,
   },
   toolbarWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  selectionToolbarWrap: {
     position: "absolute",
     left: 0,
     right: 0,

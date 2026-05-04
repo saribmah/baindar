@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
 import { Button, IconButton, Icons, SelectionToolbar, useTheme } from "@baindar/ui";
 import { useProfile } from "../profile";
 import { useHighlightLayer, type HighlightColor } from "./useHighlightLayer";
@@ -7,6 +7,24 @@ const TOOLBAR_OFFSET_Y = 12;
 const TOOLBAR_HEIGHT_ESTIMATE = 58;
 const NOTE_POPOVER_WIDTH = 360;
 const NOTE_POPOVER_GAP = 14;
+
+function subscribeCoarsePointer(callback: () => void): () => void {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return () => undefined;
+  }
+  const mq = window.matchMedia("(pointer: coarse)");
+  mq.addEventListener?.("change", callback);
+  return () => mq.removeEventListener?.("change", callback);
+}
+
+function getCoarsePointerSnapshot(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(pointer: coarse)").matches;
+}
+
+function useIsCoarsePointer(): boolean {
+  return useSyncExternalStore(subscribeCoarsePointer, getCoarsePointerSnapshot, () => false);
+}
 
 export type HighlightLayerProps = {
   containerRef: RefObject<HTMLElement | null>;
@@ -163,7 +181,42 @@ function SelectionToolbarPositioned({
   onAddNote: () => void;
   activeColor: HighlightColor;
 }) {
-  // Prefer above the selection; if there's no room, fall back to below.
+  const isCoarse = useIsCoarsePointer();
+
+  const toolbar = (
+    <SelectionToolbar
+      variant="actions"
+      onCopy={onCopy}
+      onHighlight={onHighlight}
+      onPickColor={onPickColor}
+      onAsk={onAsk}
+      onAddNote={onAddNote}
+      activeColor={activeColor}
+    />
+  );
+
+  if (isCoarse) {
+    // On touch devices the OS shows its own selection callout adjacent to the
+    // selection, which would cover an inline toolbar. Pin ours to the bottom
+    // of the viewport, well clear of the native callout and the bottom nav.
+    return (
+      <div
+        style={{
+          position: "fixed",
+          left: "50%",
+          transform: "translateX(-50%)",
+          bottom: "calc(96px + env(safe-area-inset-bottom, 0px))",
+          zIndex: 30,
+          maxWidth: "calc(100vw - 16px)",
+        }}
+      >
+        {toolbar}
+      </div>
+    );
+  }
+
+  // Desktop: place above the selection when room exists, otherwise below.
+  // Add iOS-style clearance so we never collide with platform popups.
   const above = rect.top - TOOLBAR_OFFSET_Y - TOOLBAR_HEIGHT_ESTIMATE >= 8;
   const top = above
     ? rect.top - TOOLBAR_OFFSET_Y - TOOLBAR_HEIGHT_ESTIMATE
@@ -180,15 +233,7 @@ function SelectionToolbarPositioned({
         zIndex: 30,
       }}
     >
-      <SelectionToolbar
-        variant="actions"
-        onCopy={onCopy}
-        onHighlight={onHighlight}
-        onPickColor={onPickColor}
-        onAsk={onAsk}
-        onAddNote={onAddNote}
-        activeColor={activeColor}
-      />
+      {toolbar}
     </div>
   );
 }

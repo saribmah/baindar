@@ -30,7 +30,7 @@ export function DashboardContent({
       {pending.length > 0 && (
         <section>
           <SectionHeading title="Processing" meta={`${pending.length} queued`} />
-          <div className="mt-3 grid gap-3 xl:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
             {pending.slice(0, 3).map((doc) => (
               <ProgressCard key={doc.id} doc={doc} />
             ))}

@@ -48,7 +48,7 @@ export function Dashboard() {
         shelves={shelves}
       />
 
-      <section className="min-w-0 flex-1 px-6 py-8 lg:px-12">
+      <section className="min-w-0 flex-1 px-6 pb-8 pt-16 lg:px-12 lg:py-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-7">
           <DashboardHeader
             reader={reader}

@@ -52,7 +52,7 @@ export function SettingsPage() {
         shelves={shelves}
       />
 
-      <section className="min-w-0 flex-1 overflow-y-auto px-6 py-8 lg:px-16">
+      <section className="min-w-0 flex-1 overflow-y-auto px-6 pb-8 pt-16 lg:px-16 lg:py-8">
         <div className="mx-auto max-w-5xl">
           <div className="mb-6 flex items-center gap-5">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-bd-surface-raised font-display text-2xl font-medium text-bd-fg-subtle">

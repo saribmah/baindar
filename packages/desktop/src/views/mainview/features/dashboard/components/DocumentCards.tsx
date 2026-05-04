@@ -21,8 +21,12 @@ export function ContinueCard({
   const subtitle = getProgressLabel(doc) ?? doc.originalFilename;
 
   return (
-    <Card className="group flex items-center gap-4 px-4 py-4">
-      <button type="button" onClick={onOpen} className="contents text-left">
+    <Card className="group flex min-w-0 items-center gap-4 px-4 py-4">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-4 border-0 bg-transparent p-0 text-left"
+      >
         <DocumentCover doc={doc} width={52} height={70} />
         <div className="min-w-0 flex-1">
           <div className="t-label-s mb-1 text-bd-fg-muted">{KIND_LABEL[doc.kind]}</div>
@@ -38,15 +42,17 @@ export function ContinueCard({
 
 export function ProgressCard({ doc }: { doc: Document }) {
   return (
-    <Card className="flex items-center gap-4 px-4 py-4">
+    <Card className="flex min-w-0 items-center gap-4 px-4 py-4">
       <DocumentCover doc={doc} width={52} height={70} />
       <div className="min-w-0 flex-1">
         <div className="t-label-l truncate text-bd-fg">{doc.title}</div>
-        <div className="t-body-s mt-1 text-bd-fg-muted">
+        <div className="t-body-s mt-1 truncate text-bd-fg-muted">
           {doc.status === "failed" ? (doc.errorReason ?? "Failed") : "Processing..."}
         </div>
       </div>
-      <Chip variant="outline">{KIND_LABEL[doc.kind]}</Chip>
+      <Chip variant="outline" className="shrink-0">
+        {KIND_LABEL[doc.kind]}
+      </Chip>
     </Card>
   );
 }

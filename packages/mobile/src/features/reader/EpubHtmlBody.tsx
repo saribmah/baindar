@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import {
@@ -21,10 +29,18 @@ import type { ReaderHighlights } from "./useReaderHighlights.ts";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
-type SelectionState = {
+export type SelectionState = {
   rect: Rect;
   charRange: { start: number; end: number };
   text: string;
+};
+
+export type EpubHtmlBodyHandle = {
+  copySelection: () => void;
+  highlightSelection: (color?: HighlightColor) => void;
+  askSelection: () => void;
+  addNoteFromSelection: () => void;
+  clearSelection: () => void;
 };
 
 type WebMessage =
@@ -34,10 +50,6 @@ type WebMessage =
   | { type: "selection"; rect: Rect; charRange: { start: number; end: number }; text: string }
   | { type: "tap-highlight"; id: string; rect: Rect }
   | { type: "target-highlight"; id: string; rect: Rect };
-
-const TOOLBAR_HEIGHT = 58;
-const TOOLBAR_WIDTH = 178;
-const TOOLBAR_MARGIN = 8;
 
 export type EpubHtmlBodyProps = {
   html: string;
@@ -57,27 +69,32 @@ export type EpubHtmlBodyProps = {
   targetRequestId?: string | null;
   onTargetHighlight?: (offsetY: number) => void;
   onAskSelection?: (quote: string) => void;
+  onSelectionChange?: (selection: SelectionState | null) => void;
 };
 
-export function EpubHtmlBody({
-  html,
-  assetBase,
-  theme,
-  highlights,
-  notesByHighlightId,
-  fontSize = 17,
-  contentKey,
-  authedFetch,
-  assetCache,
-  onCreateHighlight,
-  onUpdateColor,
-  onSetNote,
-  onRemoveHighlight,
-  targetHighlightId,
-  targetRequestId,
-  onTargetHighlight,
-  onAskSelection,
-}: EpubHtmlBodyProps) {
+export const EpubHtmlBody = forwardRef<EpubHtmlBodyHandle, EpubHtmlBodyProps>(function EpubHtmlBody(
+  {
+    html,
+    assetBase,
+    theme,
+    highlights,
+    notesByHighlightId,
+    fontSize = 17,
+    contentKey,
+    authedFetch,
+    assetCache,
+    onCreateHighlight,
+    onUpdateColor,
+    onSetNote,
+    onRemoveHighlight,
+    targetHighlightId,
+    targetRequestId,
+    onTargetHighlight,
+    onAskSelection,
+    onSelectionChange,
+  },
+  ref,
+) {
   const palette = themeColors(theme);
   const { profile } = useProfile();
   const defaultColor: HighlightColor = profile?.defaultHighlightColor ?? "pink";
@@ -143,6 +160,10 @@ export function EpubHtmlBody({
     );
     setSelection(null);
   }, []);
+
+  useEffect(() => {
+    onSelectionChange?.(selection);
+  }, [selection, onSelectionChange]);
 
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
@@ -248,6 +269,27 @@ export function EpubHtmlBody({
     });
   }, [selection, clearWebSelection, onCreateHighlight, defaultColor]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      copySelection: handleCopySelection,
+      highlightSelection: (c?: HighlightColor) => {
+        void handleHighlightSelection(c ?? defaultColor);
+      },
+      askSelection: handleAskSelection,
+      addNoteFromSelection: handleAddNote,
+      clearSelection: clearWebSelection,
+    }),
+    [
+      handleCopySelection,
+      handleHighlightSelection,
+      handleAskSelection,
+      handleAddNote,
+      clearWebSelection,
+      defaultColor,
+    ],
+  );
+
   const handleChangeFocusedColor = useCallback(
     async (c: HighlightColor) => {
       if (!focused) return;
@@ -296,8 +338,6 @@ export function EpubHtmlBody({
     return <View style={{ height: 400 }} />;
   }
 
-  const toolbarPos = selection ? toolbarPosition(selection.rect, height) : null;
-
   return (
     <View
       style={{ position: "relative" }}
@@ -313,29 +353,6 @@ export function EpubHtmlBody({
         showsVerticalScrollIndicator={false}
         androidLayerType="software"
       />
-
-      {selection && toolbarPos && (
-        <View
-          pointerEvents="box-none"
-          style={[styles.toolbarWrap, { top: toolbarPos.top, left: toolbarPos.left }]}
-        >
-          <SelectionToolbar
-            variant="actions"
-            activeColor={defaultColor}
-            foregroundColor={palette.text}
-            style={{ backgroundColor: floatingBgFor(theme), borderColor: palette.border }}
-            onCopy={handleCopySelection}
-            onHighlight={() => {
-              void handleHighlightSelection(defaultColor);
-            }}
-            onPickColor={(nextColor) => {
-              void handleHighlightSelection(nextColor);
-            }}
-            onAsk={handleAskSelection}
-            onAddNote={handleAddNote}
-          />
-        </View>
-      )}
 
       <Sheet
         visible={focused !== null}
@@ -390,18 +407,7 @@ export function EpubHtmlBody({
       </Sheet>
     </View>
   );
-}
-
-function toolbarPosition(rect: Rect, webHeight: number): { top: number; left: number } | null {
-  if (!Number.isFinite(rect.top) || !Number.isFinite(rect.left)) return null;
-  const above = rect.top - TOOLBAR_HEIGHT - TOOLBAR_MARGIN >= 0;
-  const top = above
-    ? rect.top - TOOLBAR_HEIGHT - TOOLBAR_MARGIN
-    : Math.min(rect.top + rect.height + TOOLBAR_MARGIN, webHeight - TOOLBAR_HEIGHT - 8);
-  const center = rect.left + rect.width / 2;
-  const left = Math.max(8, center - TOOLBAR_WIDTH / 2);
-  return { top, left };
-}
+});
 
 function FocusedHighlightCard({
   highlight,
@@ -581,17 +587,13 @@ function noteBgFor(theme: Theme): string {
   return color.paper[100];
 }
 
-function floatingBgFor(theme: Theme): string {
+export function floatingBgFor(theme: Theme): string {
   if (theme === "dark") return color.night[800];
   if (theme === "sepia") return color.sepia[50];
   return color.paper[50];
 }
 
 const styles = StyleSheet.create({
-  toolbarWrap: {
-    position: "absolute",
-    width: TOOLBAR_WIDTH,
-  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",

@@ -42,6 +42,12 @@ export const Close = (p: IconProps) => (
   </Icon>
 );
 
+export const Menu = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M4 7h16M4 12h16M4 17h16" />
+  </Icon>
+);
+
 export const Back = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M15 5l-7 7 7 7" />

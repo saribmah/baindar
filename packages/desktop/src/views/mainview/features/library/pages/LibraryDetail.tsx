@@ -210,7 +210,7 @@ export function LibraryDetail() {
             <Stats manifest={manifest} highlights={highlights.length} currentOrder={currentOrder} />
           </aside>
 
-          <section className="min-w-0 flex-1 overflow-y-auto px-6 py-8 lg:px-14 lg:py-10">
+          <section className="min-w-0 flex-1 overflow-y-auto px-6 pb-8 pt-16 lg:px-14 lg:py-10">
             <div className="lg:hidden">
               <Button
                 variant="ghost"

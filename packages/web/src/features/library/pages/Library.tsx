@@ -80,7 +80,7 @@ export function Library() {
         onCreateShelf={() => openCreateShelf()}
       />
 
-      <section className="min-w-0 flex-1 overflow-hidden px-6 py-8 lg:px-12">
+      <section className="min-w-0 flex-1 overflow-hidden px-6 pb-8 pt-16 lg:px-12 lg:py-8">
         <div className="mx-auto flex h-full max-w-7xl flex-col">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>

@@ -119,7 +119,7 @@ export function Notes() {
       />
 
       <section className="flex min-w-0 flex-1 overflow-hidden">
-        <div className="min-w-0 flex-1 overflow-y-auto px-6 py-8 lg:px-12">
+        <div className="min-w-0 flex-1 overflow-y-auto px-6 pb-8 pt-16 lg:px-12 lg:py-8">
           <div className="mx-auto max-w-5xl">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
               <div>

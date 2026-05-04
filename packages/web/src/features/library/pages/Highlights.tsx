@@ -60,7 +60,7 @@ export function Highlights() {
       />
 
       <section className="flex min-w-0 flex-1 overflow-hidden">
-        <div className="min-w-0 flex-1 overflow-y-auto px-6 py-8 lg:px-12">
+        <div className="min-w-0 flex-1 overflow-y-auto px-6 pb-8 pt-16 lg:px-12 lg:py-8">
           <div className="mx-auto max-w-5xl">
             <div>
               <div className="t-label-s text-bd-fg-muted">
