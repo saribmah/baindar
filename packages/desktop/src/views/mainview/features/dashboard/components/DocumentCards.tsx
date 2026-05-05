@@ -7,17 +7,7 @@ import { DocumentActionsMenu } from "./DocumentActionsMenu";
 import { DocumentCover } from "./DocumentCover";
 import { ProgressLine } from "./ProgressLine";
 
-export function ContinueCard({
-  doc,
-  onOpen,
-  onRename,
-  onDelete,
-}: {
-  doc: Document;
-  onOpen: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-}) {
+export function ContinueCard({ doc, onOpen }: { doc: Document; onOpen: () => void }) {
   const subtitle = getProgressLabel(doc) ?? doc.originalFilename;
 
   return (
@@ -35,7 +25,6 @@ export function ContinueCard({
           <ProgressLine doc={doc} />
         </div>
       </button>
-      <DocumentActionsMenu onRename={onRename} onDelete={onDelete} />
     </Card>
   );
 }

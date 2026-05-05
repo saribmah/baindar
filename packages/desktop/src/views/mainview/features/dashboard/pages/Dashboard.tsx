@@ -71,6 +71,11 @@ export function Dashboard() {
               onUpload={uploadDocument}
               uploading={uploading}
               onOpen={(doc) => navigate(`/read/${doc.id}`)}
+              onOpenDetails={(doc) => navigate(`/library/${doc.id}`)}
+              onSeeAllInProgress={() =>
+                navigate(`/library/shelves/${encodeURIComponent("smart:reading")}`)
+              }
+              onSeeAllRecent={() => navigate("/library")}
               onRename={setRenameTarget}
               onDelete={setDeleteTarget}
             />

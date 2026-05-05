@@ -4,7 +4,6 @@ import { Button, Chip, ChipButton, Icons, Skeleton } from "@baindar/ui";
 import type { Document, DocumentManifest, Highlight, Note } from "@baindar/sdk";
 import { useProfileName } from "../../profile";
 import { KIND_LABEL, HIGHLIGHT_COLOR } from "../constants";
-import { DocumentShelfChips } from "../components/DocumentShelfChips";
 import { LibraryCover } from "../components/LibraryCover";
 import { AppSidebar } from "../components/AppSidebar";
 import {
@@ -28,7 +27,7 @@ import {
   sourceLabel,
 } from "../utils/document";
 
-type DetailTab = "contents" | "about" | "notes" | "highlights";
+type DetailTab = "contents" | "notes" | "highlights";
 
 export function LibraryDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,16 +35,8 @@ export function LibraryDetail() {
   const reader = useProfileName();
   const { client } = useSdk();
   const { documents, uploading, uploadDocument } = useLibraryDocuments();
-  const {
-    shelves,
-    customShelves,
-    memberships,
-    workingShelfId,
-    createShelf,
-    addDocumentToShelf,
-    toggleDocumentShelf,
-    refreshDocumentShelves,
-  } = useLibraryShelves(documents);
+  const { shelves, createShelf, addDocumentToShelf, refreshDocumentShelves } =
+    useLibraryShelves(documents);
   const [doc, setDoc] = useState<Document | null>(null);
   const [manifest, setManifest] = useState<DocumentManifest | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
@@ -235,7 +226,6 @@ export function LibraryDetail() {
             <div className="mt-8 flex gap-1 overflow-x-auto border-b border-bd-border lg:mt-0">
               {[
                 { id: "contents", name: "Contents", count: manifest?.sections.length ?? 0 },
-                { id: "about", name: "About", count: null },
                 { id: "notes", name: "Notes", count: notes.length },
                 { id: "highlights", name: "Highlights", count: highlights.length },
               ].map((tab) => (
@@ -278,24 +268,12 @@ export function LibraryDetail() {
                 highlights={highlights}
                 onOpen={(highlight) => navigate(readerHighlightPath(doc.id, highlight))}
               />
-            ) : activeTab === "about" ? (
-              <AboutTab doc={doc} manifest={manifest} />
             ) : (
-              <div className="grid gap-8 pt-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
-                <Contents manifest={manifest} currentOrder={currentOrder} />
-                <div className="flex flex-col gap-6">
-                  <DocumentShelfChips
-                    shelves={customShelves}
-                    selectedShelves={memberships[doc.id] ?? []}
-                    workingShelfId={workingShelfId}
-                    onToggle={(shelf, selected) => {
-                      void toggleDocumentShelf(shelf, doc.id, selected);
-                    }}
-                    onCreate={() => setCreateShelfOpen(true)}
-                  />
-                  <RecentNotes notes={notes} highlightsById={highlightsById} />
-                </div>
-              </div>
+              <Contents
+                manifest={manifest}
+                currentOrder={currentOrder}
+                onOpenSection={(order) => navigate(`/read/${doc.id}?chapter=${order}`)}
+              />
             )}
           </section>
         </section>
@@ -361,29 +339,27 @@ function Stats({
 function Contents({
   manifest,
   currentOrder,
+  onOpenSection,
 }: {
   manifest: DocumentManifest | null;
   currentOrder: number;
+  onOpenSection: (order: number) => void;
 }) {
   if (!manifest) return <Skeleton height={360} className="rounded-xl" />;
 
   return (
-    <section>
-      <div className="mb-2 flex items-baseline justify-between gap-4">
-        <span className="t-label-s text-bd-fg-muted">Contents</span>
-        <span className="t-body-s text-bd-fg-muted">
-          {manifest.chapterCount} chapters · {formatWordCount(manifest.wordCount)}
-        </span>
-      </div>
+    <section className="pt-6">
       <div>
         {manifest.sections.map((section) => {
           const current = section.order === currentOrder;
           const read = section.order < currentOrder;
           return (
-            <div
+            <button
               key={section.sectionKey}
+              type="button"
+              onClick={() => onOpenSection(section.order)}
               className={[
-                "flex items-center gap-4 border-b border-bd-border py-3",
+                "flex w-full items-center gap-4 border-0 border-b border-bd-border bg-transparent py-3 text-left",
                 current ? "rounded-md bg-bd-surface-raised px-3" : "",
               ].join(" ")}
             >
@@ -402,59 +378,11 @@ function Contents({
               </div>
               {current && <Chip variant="active">Continue</Chip>}
               {read && !current && <Icons.Check size={14} color="var(--success)" />}
-            </div>
+            </button>
           );
         })}
       </div>
     </section>
-  );
-}
-
-function RecentNotes({
-  notes,
-  highlightsById,
-}: {
-  notes: Note[];
-  highlightsById: Map<string, Highlight>;
-}) {
-  return (
-    <aside className="border-bd-border xl:border-l xl:pl-7">
-      <div className="mb-2 flex items-baseline justify-between gap-4">
-        <span className="t-label-s text-bd-fg-muted">Recent notes · {notes.length}</span>
-        <span className="t-body-s font-semibold text-bd-accent">View all</span>
-      </div>
-      {notes.length === 0 ? (
-        <p className="t-body-m border-t border-bd-border py-4 text-bd-fg-subtle">
-          Notes you write while reading will collect here.
-        </p>
-      ) : (
-        notes.slice(0, 5).map((note) => {
-          const highlight = note.highlightId ? highlightsById.get(note.highlightId) : undefined;
-          const accent = highlight ? HIGHLIGHT_COLOR[highlight.color] : "var(--bd-border-strong)";
-          return (
-            <div key={note.id} className="flex flex-col gap-1.5 border-b border-bd-border py-3">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full" style={{ background: accent }} />
-                <span className="t-body-s text-[11px] text-bd-fg-muted">
-                  {new Date(note.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-              {highlight && (
-                <blockquote
-                  className="m-0 border-l-2 pl-3 font-reading text-[13px] leading-6 text-bd-fg"
-                  style={{ borderColor: accent }}
-                >
-                  "{highlight.textSnippet}"
-                </blockquote>
-              )}
-              <p className="t-body-s pl-3 text-bd-fg-subtle">
-                <span className="italic">{note.body}</span>
-              </p>
-            </div>
-          );
-        })
-      )}
-    </aside>
   );
 }
 
@@ -591,19 +519,6 @@ function readerNotePath(documentId: string, note: Note & { highlight?: Highlight
   params.set("note", note.id);
   params.set("target", "1");
   return `/read/${documentId}?${params.toString()}`;
-}
-
-function AboutTab({ doc, manifest }: { doc: Document; manifest: DocumentManifest | null }) {
-  return (
-    <section className="max-w-2xl pt-6">
-      <div className="t-label-s text-bd-fg-muted">About</div>
-      <h2 className="t-display-xs mt-1 text-bd-fg">{doc.title}</h2>
-      <p className="t-body-m mt-3 leading-7 text-bd-fg-subtle">
-        {sourceLabel(doc, manifest)} ·{" "}
-        {manifest ? formatWordCount(manifest.wordCount) : "Processing metadata"}
-      </p>
-    </section>
-  );
 }
 
 function DetailSkeleton() {

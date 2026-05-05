@@ -7,6 +7,7 @@ import {
   Chip,
   ChipButton,
   Icons,
+  Sheet,
   Skeleton,
   color,
   font,
@@ -18,10 +19,7 @@ import {
 import type { Document, DocumentManifest, Highlight, Note } from "@baindar/sdk";
 import { useSdk } from "../../../sdk/sdk.provider";
 import { HIGHLIGHT_COLOR, KIND_LABEL } from "../constants";
-import { DocumentShelfChips } from "../components/DocumentShelfChips";
 import { LibraryCover } from "../components/LibraryCover";
-import { CreateShelfSheet } from "../components/ShelfSheets";
-import { useLibraryShelves } from "../hooks/useLibraryShelves";
 import { buildLibraryStyles, type LibraryStyles } from "../library.styles";
 import {
   estimateMinutes,
@@ -31,13 +29,19 @@ import {
   sourceLabel,
 } from "../utils/document";
 
-type DetailTab = "contents" | "notes" | "about";
+type DetailTab = "contents" | "notes" | "highlights";
 type NoteFilter = "all" | "attached" | "standalone";
 type ReaderNoteParams = {
   id: string;
   chapter?: string;
   highlight?: string;
   note: string;
+  target: string;
+};
+type ReaderHighlightParams = {
+  id: string;
+  chapter?: string;
+  highlight: string;
   target: string;
 };
 
@@ -54,20 +58,11 @@ export function LibraryDetailScreen() {
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [createShelfOpen, setCreateShelfOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>("contents");
   const [noteFilter, setNoteFilter] = useState<NoteFilter>("all");
   const [noteDraft, setNoteDraft] = useState("");
   const [savingNote, setSavingNote] = useState(false);
-  const docList = useMemo(() => (doc ? [doc] : null), [doc]);
-  const {
-    customShelves,
-    memberships,
-    workingShelfId,
-    createShelf,
-    addDocumentToShelf,
-    toggleDocumentShelf,
-  } = useLibraryShelves(docList);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -102,6 +97,30 @@ export function LibraryDetailScreen() {
   const openReader = useCallback(() => {
     if (doc) router.push(`/read/${doc.id}`);
   }, [doc, router]);
+  const openSection = useCallback(
+    (order: number) => {
+      if (!doc) return;
+      router.push({ pathname: "/read/[id]", params: { id: doc.id, chapter: String(order) } });
+    },
+    [doc, router],
+  );
+  const openHighlight = useCallback(
+    (highlight: Highlight) => {
+      if (!doc) return;
+      router.push({
+        pathname: "/read/[id]",
+        params: readerHighlightParams(doc.id, highlight),
+      });
+    },
+    [doc, router],
+  );
+  const openNoteInReader = useCallback(
+    (note: Note & { highlight?: Highlight }) => {
+      if (!doc) return;
+      router.push({ pathname: "/read/[id]", params: readerNoteParams(doc.id, note) });
+    },
+    [doc, router],
+  );
   const highlightsById = useMemo(() => {
     const map = new Map<string, Highlight>();
     for (const highlight of highlights) map.set(highlight.id, highlight);
@@ -146,6 +165,26 @@ export function LibraryDetailScreen() {
     }
   }, [client, doc, noteDraft]);
 
+  const saveEditedNote = useCallback(
+    async (body: string) => {
+      if (!editingNote) return;
+      const res = await client.note.update({ id: editingNote.id, body });
+      if (res.data) {
+        setNotes((prev) => prev.map((note) => (note.id === res.data.id ? res.data : note)));
+      }
+      setEditingNote(null);
+    },
+    [client, editingNote],
+  );
+
+  const deleteEditedNote = useCallback(async () => {
+    if (!editingNote) return;
+    const idToDelete = editingNote.id;
+    await client.note.delete({ id: idToDelete });
+    setNotes((prev) => prev.filter((note) => note.id !== idToDelete));
+    setEditingNote(null);
+  }, [client, editingNote]);
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -163,14 +202,6 @@ export function LibraryDetailScreen() {
           >
             <Icons.Back size={16} color={palette.fg} />
           </Pressable>
-          <View style={styles.actions}>
-            <Pressable accessibilityRole="button" style={styles.iconButton}>
-              <Icons.Bookmark size={16} color={palette.fg} />
-            </Pressable>
-            <Pressable accessibilityRole="button" style={styles.iconButton}>
-              <Icons.Share size={16} color={palette.fg} />
-            </Pressable>
-          </View>
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
@@ -199,31 +230,18 @@ export function LibraryDetailScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.detailShelves}>
-              <Text style={styles.eyebrow}>On shelves · {memberships[doc.id]?.length ?? 0}</Text>
-              <DocumentShelfChips
-                shelves={customShelves}
-                selectedShelves={memberships[doc.id] ?? []}
-                workingShelfId={workingShelfId}
-                onToggle={(shelf, selected) => {
-                  void toggleDocumentShelf(shelf, doc.id, selected);
-                }}
-                onCreate={() => setCreateShelfOpen(true)}
-              />
-            </View>
-
             <View style={styles.tabStrip}>
               {[
                 { key: "contents", label: "Contents", count: manifest?.sections.length ?? 0 },
-                { key: "about", label: "About", count: null },
                 { key: "notes", label: "Notes", count: notes.length },
+                { key: "highlights", label: "Highlights", count: highlights.length },
               ].map((tab) => (
                 <ChipButton
                   key={tab.key}
                   variant={activeTab === tab.key ? "active" : "filled"}
                   onPress={() => setActiveTab(tab.key as DetailTab)}
                 >
-                  {tab.count === null ? tab.label : `${tab.label} · ${tab.count}`}
+                  {`${tab.label} · ${tab.count}`}
                 </ChipButton>
               ))}
             </View>
@@ -241,32 +259,27 @@ export function LibraryDetailScreen() {
                 onDraftChange={setNoteDraft}
                 onFilterChange={setNoteFilter}
                 onSave={createStandaloneNote}
-                onOpenReader={(note) => {
-                  if (doc) {
-                    router.push({
-                      pathname: "/read/[id]",
-                      params: readerNoteParams(doc.id, note),
-                    });
-                  }
-                }}
+                onEdit={setEditingNote}
+                onOpenReader={openNoteInReader}
               />
-            ) : activeTab === "about" ? (
-              <View style={detailNoteStyles.about}>
-                <Text style={styles.eyebrow}>About</Text>
-                <Text style={detailNoteStyles.aboutTitle}>{doc.title}</Text>
-                <Text style={detailNoteStyles.aboutText}>
-                  {sourceLabel(doc, manifest)} ·{" "}
-                  {manifest ? formatWordCount(manifest.wordCount) : "Processing metadata"}
-                </Text>
-              </View>
+            ) : activeTab === "highlights" ? (
+              <HighlightsTab
+                highlights={highlights}
+                styles={styles}
+                emptyTitle="No highlights yet"
+                emptyText="Marked passages will collect here."
+                onOpen={openHighlight}
+              />
             ) : manifest ? (
               manifest.sections.map((section) => {
                 const current = section.order === currentOrder;
                 const read = section.order < currentOrder;
                 return (
-                  <View
+                  <Pressable
                     key={section.sectionKey}
+                    accessibilityRole="button"
                     style={[styles.sectionRow, current ? styles.sectionRowCurrent : null]}
+                    onPress={() => openSection(section.order)}
                   >
                     <Text style={styles.sectionNum}>
                       {String(section.order + 1).padStart(2, "0")}
@@ -279,7 +292,7 @@ export function LibraryDetailScreen() {
                     </View>
                     {read && <Icons.Check size={14} color={color.status.success} />}
                     {current && <Icons.Chevron size={14} color={palette.fgSubtle} />}
-                  </View>
+                  </Pressable>
                 );
               })
             ) : (
@@ -288,17 +301,13 @@ export function LibraryDetailScreen() {
           </>
         )}
       </ScrollView>
-      <CreateShelfSheet
-        visible={createShelfOpen}
-        onClose={() => setCreateShelfOpen(false)}
-        onCreate={async (draft) => {
-          if (!doc) return;
-          const shelf = await createShelf(draft);
-          if (shelf) {
-            await addDocumentToShelf(shelf, doc.id);
-            setCreateShelfOpen(false);
-          }
-        }}
+      <EditNoteSheet
+        visible={editingNote !== null}
+        note={editingNote}
+        palette={palette}
+        onClose={() => setEditingNote(null)}
+        onSave={saveEditedNote}
+        onDelete={deleteEditedNote}
       />
     </View>
   );
@@ -316,6 +325,7 @@ function NotesTab({
   onDraftChange,
   onFilterChange,
   onSave,
+  onEdit,
   onOpenReader,
 }: {
   notes: Array<Note & { highlight?: Highlight }>;
@@ -329,6 +339,7 @@ function NotesTab({
   onDraftChange: (value: string) => void;
   onFilterChange: (filter: NoteFilter) => void;
   onSave: () => void;
+  onEdit: (note: Note) => void;
   onOpenReader: (note: Note & { highlight?: Highlight }) => void;
 }) {
   return (
@@ -390,7 +401,9 @@ function NotesTab({
             note={note}
             detailNoteStyles={detailNoteStyles}
             palette={palette}
+            onEdit={() => onEdit(note)}
             onOpen={() => onOpenReader(note)}
+            onAsk={() => onOpenReader(note)}
           />
         ))
       )}
@@ -413,21 +426,82 @@ function readerNoteParams(
   };
 }
 
+function readerHighlightParams(documentId: string, highlight: Highlight): ReaderHighlightParams {
+  const order = sectionOrderFromKey(highlight.sectionKey);
+  return {
+    id: documentId,
+    ...(order !== null ? { chapter: String(order) } : {}),
+    highlight: highlight.id,
+    target: "1",
+  };
+}
+
+function HighlightsTab({
+  highlights,
+  styles,
+  emptyTitle,
+  emptyText,
+  onOpen,
+}: {
+  highlights: Highlight[];
+  styles: LibraryStyles;
+  emptyTitle: string;
+  emptyText: string;
+  onOpen: (highlight: Highlight) => void;
+}) {
+  if (highlights.length === 0) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+        <Text style={styles.emptyText}>{emptyText}</Text>
+      </View>
+    );
+  }
+  return (
+    <View>
+      {highlights.map((highlight) => (
+        <Pressable
+          key={highlight.id}
+          accessibilityRole="button"
+          style={styles.highlightItem}
+          onPress={() => onOpen(highlight)}
+        >
+          <View style={styles.highlightMeta}>
+            <View
+              style={[styles.highlightDot, { backgroundColor: HIGHLIGHT_COLOR[highlight.color] }]}
+            />
+            <Text style={styles.highlightDate}>
+              {new Date(highlight.createdAt).toLocaleDateString()}
+            </Text>
+          </View>
+          <Text style={[styles.quote, { borderLeftColor: HIGHLIGHT_COLOR[highlight.color] }]}>
+            {`"${highlight.textSnippet}"`}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 function DetailNoteItem({
   note,
   detailNoteStyles,
   palette,
+  onEdit,
   onOpen,
+  onAsk,
 }: {
   note: Note & { highlight?: Highlight };
   detailNoteStyles: DetailNoteStyles;
   palette: ThemeColors;
+  onEdit: () => void;
   onOpen: () => void;
+  onAsk: () => void;
 }) {
   const attached = Boolean(note.highlight);
   const accent = note.highlight ? HIGHLIGHT_COLOR[note.highlight.color] : palette.fgMuted;
   return (
-    <Pressable accessibilityRole="button" style={detailNoteStyles.item} onPress={onOpen}>
+    <View style={detailNoteStyles.item}>
       <View style={detailNoteStyles.meta}>
         {attached ? (
           <View style={[detailNoteStyles.dot, { backgroundColor: accent }]} />
@@ -446,7 +520,20 @@ function DetailNoteItem({
         <Icons.Note size={13} color={palette.fgSubtle} />
         <Text style={detailNoteStyles.noteText}>{note.body}</Text>
       </View>
-    </Pressable>
+      <View style={[detailNoteStyles.actions, attached ? detailNoteStyles.actionsAttached : null]}>
+        <Pressable accessibilityRole="button" onPress={onEdit}>
+          <Text style={detailNoteStyles.action}>Edit</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={onOpen}>
+          <Text style={detailNoteStyles.action}>
+            {attached ? "Open in book" : "Attach to passage"}
+          </Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={onAsk}>
+          <Text style={detailNoteStyles.actionAsk}>Ask Baindar</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -553,27 +640,160 @@ const buildDetailNoteStyles = (palette: ThemeColors) =>
       lineHeight: 20,
       color: palette.fg,
     },
-    about: {
-      paddingTop: 8,
-      paddingBottom: 20,
+    actions: {
+      flexDirection: "row",
+      gap: 14,
+      marginTop: 4,
     },
-    aboutTitle: {
-      marginTop: 6,
-      fontFamily: font.nativeFamily.display,
-      fontSize: 24,
-      fontWeight: "400",
-      color: palette.fg,
+    actionsAttached: {
+      marginLeft: 18,
     },
-    aboutText: {
-      marginTop: 8,
+    action: {
       fontFamily: font.nativeFamily.ui,
-      fontSize: 14,
-      lineHeight: 21,
-      color: palette.fgSubtle,
+      fontSize: 12,
+      color: palette.fgMuted,
+    },
+    actionAsk: {
+      fontFamily: font.nativeFamily.ui,
+      fontSize: 12,
+      fontWeight: "600",
+      color: palette.accent,
     },
   });
 
 type DetailNoteStyles = ReturnType<typeof buildDetailNoteStyles>;
+
+function EditNoteSheet({
+  visible,
+  note,
+  palette,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  visible: boolean;
+  note: Note | null;
+  palette: ThemeColors;
+  onClose: () => void;
+  onSave: (body: string) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const styles = useThemedStyles(buildEditNoteStyles);
+  const [body, setBody] = useState("");
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setBody(note?.body ?? "");
+  }, [note, visible]);
+
+  const handleClose = () => {
+    setBody("");
+    onClose();
+  };
+
+  const handleSave = async () => {
+    const trimmed = body.trim();
+    if (!trimmed) return;
+    setWorking(true);
+    try {
+      await onSave(trimmed);
+      setBody("");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setWorking(true);
+    try {
+      await onDelete();
+      setBody("");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <Sheet visible={visible} onClose={handleClose} style={styles.sheet}>
+      <Text style={styles.eyebrow}>Edit note</Text>
+      <Text style={styles.title}>Keep the thought clear.</Text>
+      <TextInput
+        value={body}
+        multiline
+        placeholder="What did you think?"
+        placeholderTextColor={palette.fgMuted}
+        style={styles.input}
+        onChangeText={setBody}
+      />
+      <View style={styles.actions}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={working}
+          style={styles.deleteButton}
+          onPress={handleDelete}
+        >
+          Delete
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={working}
+          style={{ flex: 1 }}
+          onPress={handleClose}
+        >
+          Cancel
+        </Button>
+        <Button disabled={working || !body.trim()} style={{ flex: 2 }} onPress={handleSave}>
+          Save note
+        </Button>
+      </View>
+    </Sheet>
+  );
+}
+
+const buildEditNoteStyles = (palette: ThemeColors) =>
+  StyleSheet.create({
+    sheet: {
+      paddingHorizontal: 24,
+    },
+    eyebrow: {
+      fontFamily: font.nativeFamily.ui,
+      fontSize: 11,
+      fontWeight: "600",
+      letterSpacing: 0.44,
+      textTransform: "uppercase",
+      color: palette.fgMuted,
+    },
+    title: {
+      fontFamily: font.nativeFamily.display,
+      fontSize: 24,
+      fontWeight: "400",
+      lineHeight: 28,
+      color: palette.fg,
+    },
+    input: {
+      minHeight: 132,
+      borderWidth: 1.5,
+      borderColor: palette.action,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontFamily: font.nativeFamily.reading,
+      fontSize: 15,
+      lineHeight: 23,
+      color: palette.fg,
+      textAlignVertical: "top",
+    },
+    actions: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    deleteButton: {
+      flex: 1,
+    },
+  });
 
 function DetailSkeleton() {
   return (

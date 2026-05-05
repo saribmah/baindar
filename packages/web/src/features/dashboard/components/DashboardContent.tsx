@@ -11,6 +11,9 @@ export function DashboardContent({
   uploading,
   onUpload,
   onOpen,
+  onOpenDetails,
+  onSeeAllInProgress,
+  onSeeAllRecent,
   onRename,
   onDelete,
 }: {
@@ -20,6 +23,9 @@ export function DashboardContent({
   uploading: boolean;
   onUpload: (file: File) => void;
   onOpen: (doc: Document) => void;
+  onOpenDetails: (doc: Document) => void;
+  onSeeAllInProgress: () => void;
+  onSeeAllRecent: () => void;
   onRename: (doc: Document) => void;
   onDelete: (doc: Document) => void;
 }) {
@@ -41,18 +47,13 @@ export function DashboardContent({
       <section>
         <SectionHeading
           title="Pick up where you left off"
-          meta={`${inProgress.length} in progress`}
+          meta="See all"
+          onMetaClick={onSeeAllInProgress}
         />
         <div className="mt-3 grid gap-3 xl:grid-cols-3">
           {inProgress.length > 0 ? (
             inProgress.map((doc) => (
-              <ContinueCard
-                key={doc.id}
-                doc={doc}
-                onOpen={() => onOpen(doc)}
-                onRename={() => onRename(doc)}
-                onDelete={() => onDelete(doc)}
-              />
+              <ContinueCard key={doc.id} doc={doc} onOpen={() => onOpen(doc)} />
             ))
           ) : (
             <Card className="px-5 py-6 xl:col-span-3">
@@ -65,13 +66,13 @@ export function DashboardContent({
       </section>
 
       <section>
-        <SectionHeading title="Recently added" meta={`See all ${recent.length}`} />
+        <SectionHeading title="Recently added" meta="See all" onMetaClick={onSeeAllRecent} />
         <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
           {recent.map((doc) => (
             <RecentDocumentCard
               key={doc.id}
               doc={doc}
-              onOpen={() => onOpen(doc)}
+              onOpen={() => onOpenDetails(doc)}
               onRename={() => onRename(doc)}
               onDelete={() => onDelete(doc)}
             />

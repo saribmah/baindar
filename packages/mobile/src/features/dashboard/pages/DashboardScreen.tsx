@@ -123,6 +123,16 @@ export function DashboardScreen() {
             uploading={uploading}
             onUpload={uploadDocument}
             onOpen={(doc) => router.push(`/read/${doc.id}`)}
+            onOpenDetails={(doc) =>
+              router.push({ pathname: "/library/[id]", params: { id: doc.id } })
+            }
+            onSeeAllInProgress={() =>
+              router.push({
+                pathname: "/library/shelves/[id]",
+                params: { id: "smart:reading" },
+              })
+            }
+            onSeeAllRecent={() => router.push("/library")}
             onMore={openDocumentMenu}
           />
         )}

@@ -13,6 +13,9 @@ export function DashboardContent({
   uploading,
   onUpload,
   onOpen,
+  onOpenDetails,
+  onSeeAllInProgress,
+  onSeeAllRecent,
   onMore,
 }: {
   inProgress: Document[];
@@ -21,6 +24,9 @@ export function DashboardContent({
   uploading: boolean;
   onUpload: () => void;
   onOpen: (doc: Document) => void;
+  onOpenDetails: (doc: Document) => void;
+  onSeeAllInProgress: () => void;
+  onSeeAllRecent: () => void;
   onMore: (doc: Document) => void;
 }) {
   const styles = useThemedStyles(buildDashboardStyles);
@@ -40,16 +46,15 @@ export function DashboardContent({
       )}
 
       <View style={styles.section}>
-        <SectionHeader title="Pick up where you left off" meta="See all" />
+        <SectionHeader
+          title="Pick up where you left off"
+          meta="See all"
+          onMetaPress={onSeeAllInProgress}
+        />
         <View style={styles.stack}>
           {inProgress.length > 0 ? (
             inProgress.map((doc) => (
-              <DocumentRow
-                key={doc.id}
-                doc={doc}
-                onPress={() => onOpen(doc)}
-                onMore={() => onMore(doc)}
-              />
+              <DocumentRow key={doc.id} doc={doc} onPress={() => onOpen(doc)} />
             ))
           ) : (
             <Card style={styles.emptyCard}>
@@ -62,13 +67,13 @@ export function DashboardContent({
       </View>
 
       <View style={styles.section}>
-        <SectionHeader title="Recently added" meta={`${recent.length} items`} />
+        <SectionHeader title="Recently added" meta="See all" onMetaPress={onSeeAllRecent} />
         <View style={styles.recentGrid}>
           {recent.map((doc) => (
             <RecentCard
               key={doc.id}
               doc={doc}
-              onPress={() => onOpen(doc)}
+              onPress={() => onOpenDetails(doc)}
               onMore={() => onMore(doc)}
             />
           ))}
