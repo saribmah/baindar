@@ -21,6 +21,15 @@ export default defineConfig({
         target: "http://localhost:8787",
         changeOrigin: true,
       },
+      // Cloudflare Agents (Durable Object WebSockets) live on the worker at
+      // /agents/*. ws:true forwards the WebSocket upgrade through the proxy
+      // so the SPA can stay same-origin in dev. Regex prefix is scoped to
+      // `/agents/` so SPA routes like `/agents-test` aren't intercepted.
+      "^/agents/": {
+        target: "http://localhost:8787",
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
   preview: {

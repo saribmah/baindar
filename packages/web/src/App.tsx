@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { Outlet, BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@baindar/ui";
+import { AgentsTestPage } from "./features/agents";
 import { RequireAuth, SignIn, SignUp } from "./features/auth";
 import { Dashboard } from "./features/dashboard";
 import { Landing } from "./features/landing";
@@ -21,6 +22,7 @@ export function App() {
         <Route index element={<Landing />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/agents-test" element={<AgentsTestPage />} />
         <Route element={<RequireAuth />}>
           <Route element={<SignedInShell />}>
             <Route path="/dashboard" element={<Dashboard />} />

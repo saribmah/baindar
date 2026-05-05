@@ -12,7 +12,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const inSignIn = segments[0] === "signin";
   const inSignUp = segments[0] === "signup";
   const inLanding = pathname === "/";
-  const inPublicRoute = inLanding || inSignIn || inSignUp;
+  const inAgentsTest = pathname === "/agents-test";
+  const inPublicRoute = inLanding || inSignIn || inSignUp || inAgentsTest;
   const isAuthed = !!session.data?.user;
 
   // Track whether we've ever resolved a session. Better Auth flips

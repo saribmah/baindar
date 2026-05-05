@@ -8,6 +8,10 @@ export { openApiDocumentation } from "./app/app";
 // dispatches uploads to the matching binding.
 export { EpubWorkflow } from "./document/formats/epub/workflow";
 
+// Agent (Durable Object) class exports so wrangler can locate them via
+// `class_name` in wrangler.jsonc → durable_objects.bindings.
+export { CounterAgent } from "./agent/counter";
+
 const hostnameOf = (value: string | null | undefined): string | null => {
   if (!value) return null;
   try {

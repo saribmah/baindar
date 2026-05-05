@@ -45,6 +45,20 @@
 					"class_name": "EpubWorkflow"
 				}
 			],
+			"durable_objects": {
+				"bindings": [
+					{
+						"name": "CounterAgent",
+						"class_name": "CounterAgent"
+					}
+				]
+			},
+			"migrations": [
+				{
+					"tag": "v1",
+					"new_sqlite_classes": ["CounterAgent"]
+				}
+			],
 			"secrets": {
 				"required": [
 					"BETTER_AUTH_SECRET",
@@ -106,6 +120,20 @@
 					"binding": "EPUB_PROCESSOR",
 					"name": "baindar-epub-processor",
 					"class_name": "EpubWorkflow"
+				}
+			],
+			"durable_objects": {
+				"bindings": [
+					{
+						"name": "CounterAgent",
+						"class_name": "CounterAgent"
+					}
+				]
+			},
+			"migrations": [
+				{
+					"tag": "v1",
+					"new_sqlite_classes": ["CounterAgent"]
 				}
 			],
 			"secrets": {
