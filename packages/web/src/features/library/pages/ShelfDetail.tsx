@@ -9,7 +9,6 @@ import { AppSidebar } from "../components/AppSidebar";
 import { AddBooksDialog, CreateShelfDialog, EditShelfDialog } from "../components/ShelfDialogs";
 import { SpineFan } from "../components/ShelfArtwork";
 import { useLibraryDocuments } from "../hooks/useLibraryDocuments";
-import { useLibraryHighlights } from "../hooks/useLibraryHighlights";
 import { useLibraryShelves } from "../hooks/useLibraryShelves";
 import { useSdk } from "../../../sdk";
 import { progressPercent, sourceLabel, statusLabel } from "../utils/document";
@@ -25,8 +24,7 @@ export function ShelfDetail() {
   const navigate = useNavigate();
   const reader = useProfileName();
   const { client } = useSdk();
-  const { documents, counts, uploading, uploadDocument } = useLibraryDocuments();
-  const { highlights } = useLibraryHighlights(documents);
+  const { documents, uploading, uploadDocument } = useLibraryDocuments();
   const {
     shelves,
     customShelves,
@@ -104,8 +102,6 @@ export function ShelfDetail() {
   return (
     <main className="flex h-dvh min-h-screen overflow-hidden bg-bd-bg text-bd-fg">
       <AppSidebar
-        totalCount={counts.all}
-        highlightsCount={highlights?.length ?? 0}
         reader={reader}
         uploading={uploading}
         onUpload={uploadDocument}

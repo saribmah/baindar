@@ -153,6 +153,7 @@ export function useDashboardDocuments() {
     toast,
     query,
     setQuery,
+    refresh,
     uploadDocument,
     renameDocument,
     deleteDocument,

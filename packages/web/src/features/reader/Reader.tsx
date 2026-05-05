@@ -265,20 +265,15 @@ function ReaderShell({
   }, []);
 
   const jumpToReaderTarget = useCallback(
-    (order: number, highlightId?: string | null) => {
-      const next = new URLSearchParams(searchParams);
+    (order: number, highlightId?: string | null, noteId?: string | null) => {
+      const next = new URLSearchParams();
       next.set("chapter", String(order));
-      next.delete("note");
-      if (highlightId) {
-        next.set("highlight", highlightId);
-        next.set("target", String(Date.now()));
-      } else {
-        next.delete("highlight");
-        next.delete("target");
-      }
+      if (highlightId) next.set("highlight", highlightId);
+      if (noteId) next.set("note", noteId);
+      next.set("target", String(Date.now()));
       setSearchParams(next);
     },
-    [searchParams, setSearchParams],
+    [setSearchParams],
   );
 
   return (
@@ -430,8 +425,8 @@ function ReaderShell({
             sections={toc?.sections}
             currentOrder={currentOrder}
             refreshToken={refresh?.refreshToken ?? 0}
-            onJumpToTarget={(order, highlightId) => {
-              jumpToReaderTarget(order, highlightId);
+            onJumpToTarget={(order, highlightId, noteId) => {
+              jumpToReaderTarget(order, highlightId, noteId);
               setNotesOpen(false);
             }}
             onClose={() => setNotesOpen(false)}
@@ -908,7 +903,7 @@ function NotesRail({
   sections?: ReadonlyArray<DocumentSectionSummary>;
   currentOrder?: number;
   refreshToken: number;
-  onJumpToTarget: (order: number, highlightId?: string | null) => void;
+  onJumpToTarget: (order: number, highlightId?: string | null, noteId?: string | null) => void;
 }) {
   const { client } = useSdk();
   const [items, setItems] = useState<ReadonlyArray<Note> | null>(null);
@@ -979,7 +974,7 @@ function NotesRail({
                 boxShadow: isCurrent ? "inset 0 0 0 1px var(--bd-border-strong)" : undefined,
               }}
               onClick={() => {
-                if (info) onJumpToTarget(info.order, targetHighlightId);
+                if (info) onJumpToTarget(info.order, targetHighlightId, n.id);
               }}
             >
               <div className="flex items-center gap-2">

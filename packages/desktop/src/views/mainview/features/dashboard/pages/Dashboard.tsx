@@ -4,7 +4,6 @@ import { Icons, Toast } from "@baindar/ui";
 import type { Document } from "@baindar/sdk";
 import { useProfileName } from "../../profile";
 import { AppSidebar } from "../../library/components/AppSidebar";
-import { useLibraryHighlights } from "../../library/hooks/useLibraryHighlights";
 import { useLibraryShelves } from "../../library/hooks/useLibraryShelves";
 import { DashboardContent } from "../components/DashboardContent";
 import { DropDashboard, FilteredEmpty } from "../components/DashboardEmptyStates";
@@ -34,14 +33,11 @@ export function Dashboard() {
     renameDocument,
     deleteDocument,
   } = useDashboardDocuments();
-  const { highlights } = useLibraryHighlights(documents);
   const { shelves } = useLibraryShelves(documents);
 
   return (
     <main className="flex min-h-screen bg-bd-bg text-bd-fg">
       <AppSidebar
-        totalCount={documents?.length ?? 0}
-        highlightsCount={highlights?.length ?? 0}
         reader={reader}
         onUpload={uploadDocument}
         uploading={uploading}

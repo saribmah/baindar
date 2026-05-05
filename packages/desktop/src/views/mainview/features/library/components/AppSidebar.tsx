@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Button, IconButton, Icons, Wordmark } from "@baindar/ui";
+import { Button, Icons, Wordmark } from "@baindar/ui";
 import type { Shelf } from "@baindar/sdk";
 import { ProfileMenuButton } from "../../profile";
 import { UploadDropTarget } from "./UploadDropTarget";
@@ -12,14 +12,9 @@ type NavItem = {
   icon: IconComponent;
   name: string;
   to?: string;
-  count?: number;
 };
 
 export function AppSidebar({
-  totalCount,
-  highlightsCount,
-  notesCount,
-  conversationsCount = 0,
   reader,
   uploading,
   onUpload,
@@ -27,10 +22,6 @@ export function AppSidebar({
   activeShelfId,
   onCreateShelf,
 }: {
-  totalCount: number;
-  highlightsCount: number;
-  notesCount?: number;
-  conversationsCount?: number;
   reader: string;
   uploading: boolean;
   onUpload: (file: File) => void;
@@ -41,8 +32,6 @@ export function AppSidebar({
   const [shelvesOpen, setShelvesOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const customShelfCount =
-    typeof shelves?.length === "number" ? Math.max(shelves.length - 2, 0) : null;
 
   useEffect(() => {
     setMobileOpen(false);
@@ -64,10 +53,10 @@ export function AppSidebar({
 
   const items: NavItem[] = [
     { icon: Icons.Home, name: "Home", to: "/dashboard" },
-    { icon: Icons.Library, name: "Library", to: "/library", count: totalCount },
-    { icon: Icons.Sparkles, name: "Conversations", count: conversationsCount },
-    { icon: Icons.Highlight, name: "Highlights", to: "/highlights", count: highlightsCount },
-    { icon: Icons.Note, name: "Notes", to: "/notes", count: notesCount },
+    { icon: Icons.Library, name: "Library", to: "/library" },
+    { icon: Icons.Sparkles, name: "Conversations" },
+    { icon: Icons.Highlight, name: "Highlights", to: "/highlights" },
+    { icon: Icons.Note, name: "Notes", to: "/notes" },
   ];
 
   return (
@@ -99,14 +88,14 @@ export function AppSidebar({
       >
         <div className="flex items-center justify-between lg:block">
           <Wordmark size="md" />
-          <IconButton
+          <button
+            type="button"
             aria-label="Close menu"
-            size="sm"
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border-0 bg-transparent text-bd-fg-subtle hover:bg-bd-surface-hover lg:hidden"
           >
-            <Icons.Close size={18} />
-          </IconButton>
+            <Icons.Close size={18} color="currentColor" />
+          </button>
         </div>
 
         <UploadDropTarget uploading={uploading} onFile={onUpload}>
@@ -148,7 +137,6 @@ export function AppSidebar({
                 <Icons.Chevron size={11} color="currentColor" />
               </span>
               SHELVES
-              {customShelfCount !== null && ` · ${customShelfCount}`}
             </button>
             {onCreateShelf && (
               <button
@@ -201,9 +189,6 @@ function SidebarNavItem({ item }: { item: NavItem }) {
     <>
       <Icon size={18} color={active ? "var(--bd-fg)" : "var(--bd-fg-subtle)"} />
       <span className="t-label-m flex-1">{item.name}</span>
-      {item.count !== undefined && (
-        <span className="font-mono text-[11px] text-bd-fg-muted">{item.count}</span>
-      )}
     </>
   );
 
@@ -279,7 +264,6 @@ function SidebarShelfItem({
             >
               {shelf.name}
             </span>
-            <span className="font-mono text-[11px] text-bd-fg-muted">{shelf.itemCount}</span>
           </>
         );
       }}

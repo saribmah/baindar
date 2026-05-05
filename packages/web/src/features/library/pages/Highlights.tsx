@@ -16,7 +16,7 @@ const colorFilters: ColorFilter[] = ["all", "pink", "yellow", "blue", "green", "
 export function Highlights() {
   const navigate = useNavigate();
   const reader = useProfileName();
-  const { documents, counts, uploading, uploadDocument } = useLibraryDocuments();
+  const { documents, uploading, uploadDocument } = useLibraryDocuments();
   const { highlights, error } = useLibraryHighlights(documents);
   const { shelves } = useLibraryShelves(documents);
   const [filter, setFilter] = useState<ColorFilter>("all");
@@ -51,8 +51,6 @@ export function Highlights() {
   return (
     <main className="flex h-dvh min-h-screen overflow-hidden bg-bd-bg text-bd-fg">
       <AppSidebar
-        totalCount={counts.all}
-        highlightsCount={highlights?.length ?? 0}
         reader={reader}
         uploading={uploading}
         onUpload={uploadDocument}

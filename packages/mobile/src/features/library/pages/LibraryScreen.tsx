@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useWindowDimensions } from "react-native";
-import { FlatList, Pressable, ScrollView, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -33,12 +33,32 @@ export function LibraryScreen() {
   const styles = useThemedStyles(buildLibraryStyles);
   const palette = useThemeColors();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [createShelfOpen, setCreateShelfOpen] = useState(false);
   const [createShelfDocument, setCreateShelfDocument] = useState<Document | null>(null);
   const [sheetDocument, setSheetDocument] = useState<Document | null>(null);
   const itemWidth = Math.floor((width - 48 - 28) / 3);
-  const { documents, filteredDocuments, counts, error, toast, query, setQuery, filter, setFilter } =
-    useLibraryDocuments();
+  const {
+    documents,
+    filteredDocuments,
+    counts,
+    error,
+    toast,
+    query,
+    setQuery,
+    filter,
+    setFilter,
+    refresh,
+  } = useLibraryDocuments();
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const {
     shelves,
     customShelves,
@@ -70,6 +90,13 @@ export function LibraryScreen() {
           styles.grid,
           { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 110 },
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.fgMuted}
+          />
+        }
         ListHeaderComponent={
           <>
             <View style={styles.header}>

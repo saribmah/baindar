@@ -62,6 +62,9 @@ export function useHighlightLayer({
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
   // ---- Fetch on chapter change --------------------------------------------
+  // `targetRequestId` is included so that an in-reader nav (rail/sheet click)
+  // refetches the section's highlights/notes — without this, a same-chapter
+  // jump leaves us with stale data and can leave the DOM unwrapped.
   useEffect(() => {
     if (!enabled || sectionKey === null) {
       setHighlights([]);
@@ -93,7 +96,7 @@ export function useHighlightLayer({
     return () => {
       cancelled = true;
     };
-  }, [client, documentId, sectionKey, enabled]);
+  }, [client, documentId, sectionKey, enabled, targetRequestId]);
 
   // ---- Selection tracking --------------------------------------------------
   useEffect(() => {

@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { ActionSheetIOS, Alert, Platform, ScrollView, Text, View } from "react-native";
+import {
+  ActionSheetIOS,
+  Alert,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Icons, Toast, color, useThemedStyles } from "@baindar/ui";
+import { Icons, Toast, color, useThemeColors, useThemedStyles } from "@baindar/ui";
 import type { Document } from "@baindar/sdk";
 import { useProfileName } from "../../profile";
 import { DashboardContent } from "../components/DashboardContent";
@@ -18,7 +26,9 @@ export function DashboardScreen() {
   const router = useRouter();
   const reader = useProfileName();
   const styles = useThemedStyles(buildDashboardStyles);
+  const palette = useThemeColors();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Document | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
   const {
@@ -33,10 +43,20 @@ export function DashboardScreen() {
     toast,
     query,
     setQuery,
+    refresh,
     uploadDocument,
     renameDocument,
     deleteDocument,
   } = useDashboardDocuments();
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const openDocumentMenu = (doc: Document) => {
     const actions = ["Rename", "Delete", "Cancel"];
@@ -71,6 +91,13 @@ export function DashboardScreen() {
           { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 98 },
         ]}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.fgMuted}
+          />
+        }
       >
         <DashboardHeader
           reader={reader}

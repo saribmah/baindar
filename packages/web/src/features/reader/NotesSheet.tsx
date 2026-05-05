@@ -8,7 +8,7 @@ export type NotesSheetProps = {
   sections?: ReadonlyArray<DocumentSectionSummary>;
   currentOrder?: number;
   refreshToken: number;
-  onJumpToTarget?: (order: number, highlightId?: string | null) => void;
+  onJumpToTarget?: (order: number, highlightId?: string | null, noteId?: string | null) => void;
   onClose: () => void;
 };
 
@@ -165,7 +165,7 @@ export function NotesSheet({
                   <button
                     type="button"
                     onClick={() => {
-                      if (info) onJumpToTarget?.(info.order, targetHighlightId);
+                      if (info) onJumpToTarget?.(info.order, targetHighlightId, n.id);
                     }}
                     className={`block w-full rounded-xl p-3 text-left transition-colors ${cardBg} ${
                       isCurrent ? activeRing : ""

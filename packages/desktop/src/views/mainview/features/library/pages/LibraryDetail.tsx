@@ -35,7 +35,7 @@ export function LibraryDetail() {
   const navigate = useNavigate();
   const reader = useProfileName();
   const { client } = useSdk();
-  const { documents, counts, uploading, uploadDocument } = useLibraryDocuments();
+  const { documents, uploading, uploadDocument } = useLibraryDocuments();
   const {
     shelves,
     customShelves,
@@ -164,9 +164,6 @@ export function LibraryDetail() {
   return (
     <main className="flex h-dvh min-h-screen overflow-hidden bg-bd-bg text-bd-fg">
       <AppSidebar
-        totalCount={counts.all}
-        highlightsCount={highlights.length}
-        notesCount={notes.length}
         reader={reader}
         uploading={uploading}
         onUpload={uploadDocument}

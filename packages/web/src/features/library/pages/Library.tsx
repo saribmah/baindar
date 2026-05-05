@@ -11,7 +11,6 @@ import { AppSidebar } from "../components/AppSidebar";
 import { CreateShelfDialog } from "../components/ShelfDialogs";
 import { ShelfCard } from "../components/ShelfArtwork";
 import { useLibraryDocuments } from "../hooks/useLibraryDocuments";
-import { useLibraryHighlights } from "../hooks/useLibraryHighlights";
 import { useLibraryShelves } from "../hooks/useLibraryShelves";
 import { progressPercent, sourceLabel, statusLabel } from "../utils/document";
 import { CUSTOM_SHELF_LIMIT, shelfPath } from "../utils/shelf";
@@ -40,7 +39,6 @@ export function Library() {
     renameDocument,
     deleteDocument,
   } = useLibraryDocuments();
-  const { highlights } = useLibraryHighlights(documents);
   const {
     shelves,
     customShelves,
@@ -71,8 +69,6 @@ export function Library() {
   return (
     <main className="flex h-dvh min-h-screen overflow-hidden bg-bd-bg text-bd-fg">
       <AppSidebar
-        totalCount={counts.all}
-        highlightsCount={highlights?.length ?? 0}
         reader={reader}
         uploading={uploading}
         onUpload={uploadDocument}

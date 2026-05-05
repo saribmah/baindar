@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Button, Chip, ChipButton, Icons } from "@baindar/ui";
 import { ProfileHighlightColor, ProfileTheme } from "@baindar/sdk";
 import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
-import { useLibraryHighlights } from "../../library/hooks/useLibraryHighlights";
 import { AppSidebar } from "../../library/components/AppSidebar";
 import { useLibraryShelves } from "../../library/hooks/useLibraryShelves";
 import { signOutProfile } from "../actions";
@@ -27,7 +26,6 @@ const highlightColors: { value: ProfileHighlightColor; cssVar: string }[] = [
 export function SettingsPage() {
   const reader = useProfileName();
   const { documents, counts, uploading, uploadDocument } = useLibraryDocuments();
-  const { highlights } = useLibraryHighlights(documents);
   const { shelves } = useLibraryShelves(documents);
   const { user } = useUserProfile();
   const { profile, update } = useProfile();
@@ -44,8 +42,6 @@ export function SettingsPage() {
   return (
     <main className="flex h-dvh min-h-screen overflow-hidden bg-bd-bg text-bd-fg">
       <AppSidebar
-        totalCount={counts.all}
-        highlightsCount={highlights?.length ?? 0}
         reader={reader}
         uploading={uploading}
         onUpload={uploadDocument}

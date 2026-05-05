@@ -33,7 +33,7 @@ export function Notes() {
   const navigate = useNavigate();
   const reader = useProfileName();
   const { client } = useSdk();
-  const { documents, counts, uploading, uploadDocument } = useLibraryDocuments();
+  const { documents, uploading, uploadDocument } = useLibraryDocuments();
   const { shelves } = useLibraryShelves(documents);
   const { highlights } = useLibraryHighlights(documents);
   const { notes, error, refresh } = useLibraryNotes(documents);
@@ -109,9 +109,6 @@ export function Notes() {
   return (
     <main className="flex h-dvh min-h-screen overflow-hidden bg-bd-bg text-bd-fg">
       <AppSidebar
-        totalCount={counts.all}
-        highlightsCount={highlights?.length ?? 0}
-        notesCount={notes?.length ?? undefined}
         reader={reader}
         uploading={uploading}
         onUpload={uploadDocument}
