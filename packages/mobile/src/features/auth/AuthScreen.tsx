@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Redirect, useRouter } from "expo-router";
-import { ScrollView, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Input, Monogram, useThemeColors, useThemedStyles } from "@baindar/ui";
 import { buildAuthStyles } from "./auth.styles";
@@ -95,74 +95,79 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 },
-      ]}
-      keyboardShouldPersistTaps="handled"
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <BackButton onPress={goBack} />
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <BackButton onPress={goBack} />
 
-      <View style={styles.intro}>
-        <Monogram
-          size="md"
-          backgroundColor={palette.action}
-          color={palette.actionFg}
-          style={styles.monogram}
-          textStyle={styles.monogramText}
-        />
-        <View>
-          <Text style={styles.title}>{copy.title}</Text>
-          <Text style={styles.lead}>{copy.lead}</Text>
-        </View>
-      </View>
-
-      <View style={styles.form}>
-        <SocialButton
-          provider="google"
-          onPress={() => authClient.signIn.social({ provider: "google" })}
-        />
-        <SocialButton
-          provider="apple"
-          onPress={() => authClient.signIn.social({ provider: "apple" })}
-        />
-        <OrDivider />
-
-        <View>
-          <Text style={styles.label}>EMAIL</Text>
-          <Input
-            placeholder="reader@baindar.app"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            value={email}
-            onChangeText={setEmail}
-            onSubmitEditing={requestOtp}
-            returnKeyType="send"
-            wrapStyle={styles.inputWrap}
-            style={styles.input}
+        <View style={styles.intro}>
+          <Monogram
+            size="md"
+            backgroundColor={palette.action}
+            color={palette.actionFg}
+            style={styles.monogram}
+            textStyle={styles.monogramText}
           />
+          <View>
+            <Text style={styles.title}>{copy.title}</Text>
+            <Text style={styles.lead}>{copy.lead}</Text>
+          </View>
         </View>
 
-        <Button size="lg" fullWidth disabled={busy || !email.includes("@")} onPress={requestOtp}>
-          {busy ? "Sending..." : copy.submit}
-        </Button>
+        <View style={styles.form}>
+          <SocialButton
+            provider="google"
+            onPress={() => authClient.signIn.social({ provider: "google" })}
+          />
+          <SocialButton
+            provider="apple"
+            onPress={() => authClient.signIn.social({ provider: "apple" })}
+          />
+          <OrDivider />
 
-        {error && <Text style={styles.error}>{error}</Text>}
-      </View>
+          <View>
+            <Text style={styles.label}>EMAIL</Text>
+            <Input
+              placeholder="reader@baindar.app"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              value={email}
+              onChangeText={setEmail}
+              onSubmitEditing={requestOtp}
+              returnKeyType="send"
+              wrapStyle={styles.inputWrap}
+              style={styles.input}
+            />
+          </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.switchText}>
-          {copy.switchLead}{" "}
-          <Text style={styles.switchLink} onPress={() => router.replace(copy.switchTo)}>
-            {copy.switchAction}
+          <Button size="lg" fullWidth disabled={busy || !email.includes("@")} onPress={requestOtp}>
+            {busy ? "Sending..." : copy.submit}
+          </Button>
+
+          {error && <Text style={styles.error}>{error}</Text>}
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.switchText}>
+            {copy.switchLead}{" "}
+            <Text style={styles.switchLink} onPress={() => router.replace(copy.switchTo)}>
+              {copy.switchAction}
+            </Text>
           </Text>
-        </Text>
-        <Text style={styles.legal}>By continuing, you agree to our Terms and Privacy.</Text>
-      </View>
-    </ScrollView>
+          <Text style={styles.legal}>By continuing, you agree to our Terms and Privacy.</Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

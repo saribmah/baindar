@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Redirect, usePathname, useSegments } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useThemeColors } from "@baindar/ui";
@@ -15,7 +15,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const inPublicRoute = inLanding || inSignIn || inSignUp;
   const isAuthed = !!session.data?.user;
 
-  if (session.isPending) {
+  // Track whether we've ever resolved a session. Better Auth flips
+  // `isPending` to true on background refetch (e.g. when the app returns
+  // from foreground). Returning a different element tree during refetch
+  // unmounts the navigation Stack and destroys local screen state — this
+  // is what was wiping the OTP screen mid-flow. After the first resolution,
+  // keep children mounted regardless of refetch state.
+  const hasResolvedRef = useRef(false);
+  if (!session.isPending) hasResolvedRef.current = true;
+  useEffect(() => {
+    if (!session.isPending) hasResolvedRef.current = true;
+  }, [session.isPending]);
+
+  if (session.isPending && !hasResolvedRef.current) {
     return (
       <View style={[styles.loading, { backgroundColor: palette.bg }]}>
         <ActivityIndicator color={palette.fgMuted} />

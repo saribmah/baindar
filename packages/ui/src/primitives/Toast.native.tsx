@@ -21,7 +21,9 @@ export function Toast({ iconStart, children, style }: ToastProps) {
     >
       {tintIcon(iconStart, palette.actionFg)}
       {typeof children === "string" ? (
-        <Text style={[styles.label, { color: palette.actionFg }]}>{children}</Text>
+        <Text style={[styles.label, { color: palette.actionFg }]} numberOfLines={3}>
+          {children}
+        </Text>
       ) : (
         children
       )}
@@ -36,17 +38,19 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: radius.pill,
+    borderRadius: radius["2xl"],
     shadowColor: "rgba(20,15,10,1)",
     shadowOpacity: 0.18,
     shadowRadius: 32,
     shadowOffset: { width: 0, height: 12 },
     elevation: 8,
-    alignSelf: "flex-start",
+    alignSelf: "stretch",
   },
   label: {
+    flex: 1,
     fontFamily: font.nativeFamily.ui,
     fontSize: 15,
     fontWeight: "500",
+    lineHeight: 20,
   },
 });

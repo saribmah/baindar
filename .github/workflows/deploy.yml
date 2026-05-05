@@ -1,11 +1,8 @@
 name: Deploy
 
 on:
-  # Manual-only by default. Once you've configured CLOUDFLARE_API_TOKEN and
-  # CLOUDFLARE_ACCOUNT_ID secrets and confirmed deploys work, uncomment the
-  # `push` trigger below to enable automatic deploys on merge to main.
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:

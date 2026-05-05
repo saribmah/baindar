@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { useTheme } from "../theme/ThemeProvider.native.tsx";
 import { radius } from "../tokens/radius.ts";
 
@@ -19,22 +28,30 @@ export function Sheet({ visible, onClose, showHandle = true, children, style }: 
   const backdropColor = theme === "dark" ? BACKDROP_DARK : BACKDROP_LIGHT;
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: backdropColor }]} onPress={onClose}>
-        <Pressable
-          style={[styles.sheet, { backgroundColor: palette.surface }, style]}
-          onPress={() => undefined}
-        >
-          {showHandle && (
-            <View style={[styles.handle, { backgroundColor: palette.borderStrong }]} />
-          )}
-          {children}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <Pressable style={[styles.backdrop, { backgroundColor: backdropColor }]} onPress={onClose}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: palette.surface }, style]}
+            onPress={() => undefined}
+          >
+            {showHandle && (
+              <View style={[styles.handle, { backgroundColor: palette.borderStrong }]} />
+            )}
+            {children}
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",

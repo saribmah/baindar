@@ -120,6 +120,7 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
   const scrollRef = useRef<ScrollView>(null);
   const bodyRef = useRef<EpubHtmlBodyHandle>(null);
   const [position, setPosition] = useState<string | null>(null);
+  const [authors, setAuthors] = useState<ReadonlyArray<string>>([]);
   const [tocState, setTocState] = useState<TocContext | null>(null);
   const [notesState, setNotesState] = useState<NotesContext | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
@@ -147,9 +148,16 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
         <IconButton aria-label="Close reader" size="sm" onPress={onClose}>
           <Icons.Close size={16} color={palette.text} />
         </IconButton>
-        <Text style={[shellStyles.title, { color: palette.text }]} numberOfLines={1}>
-          {doc.title}
-        </Text>
+        <View style={shellStyles.titleBlock}>
+          <Text style={[shellStyles.title, { color: palette.text }]} numberOfLines={1}>
+            {doc.title}
+          </Text>
+          {authors.length > 0 && (
+            <Text style={[shellStyles.subtitle, { color: palette.fgMuted }]} numberOfLines={1}>
+              {authors.join(", ")}
+            </Text>
+          )}
+        </View>
         {position && (
           <Text style={[shellStyles.position, { color: palette.fgMuted }]} numberOfLines={1}>
             {position}
@@ -168,6 +176,7 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
           theme={theme}
           palette={palette}
           onPosition={setPosition}
+          onAuthors={setAuthors}
           onTocChange={setTocState}
           onNotesChange={setNotesState}
           fontScale={fontScale}
@@ -204,19 +213,19 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
 
       <View style={[shellStyles.toolbarWrap, { bottom: insets.bottom + 24 }]}>
         <FloatingToolbar>
-          <FloatingToolbarButton aria-label={`Theme: ${theme}`} onPress={cycleTheme}>
-            {theme === "dark" ? (
-              <Icons.Sun size={20} color={palette.text} />
-            ) : (
-              <Icons.Moon size={20} color={palette.text} />
-            )}
-          </FloatingToolbarButton>
           <FloatingToolbarButton
             aria-label="Table of contents"
             disabled={!tocState}
             onPress={() => setTocOpen(true)}
           >
             <Icons.BookOpen size={20} color={palette.text} />
+          </FloatingToolbarButton>
+          <FloatingToolbarButton
+            aria-label="Notes"
+            disabled={!notesState}
+            onPress={() => setNotesOpen(true)}
+          >
+            <Icons.Note size={20} color={palette.text} />
           </FloatingToolbarButton>
           <FloatingToolbarButton
             aria-label="Ask Baindar"
@@ -226,7 +235,7 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
               setAiOpen(true);
             }}
           >
-            <Icons.Headphones size={20} color={palette.text} />
+            <Icons.Sparkles size={20} color={palette.text} />
           </FloatingToolbarButton>
           <FloatingToolbarButton
             aria-label={
@@ -236,12 +245,12 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
           >
             <Icons.Type size={20} color={palette.text} />
           </FloatingToolbarButton>
-          <FloatingToolbarButton
-            aria-label="Notes"
-            disabled={!notesState}
-            onPress={() => setNotesOpen(true)}
-          >
-            <Icons.Settings size={20} color={palette.text} />
+          <FloatingToolbarButton aria-label={`Theme: ${theme}`} onPress={cycleTheme}>
+            {theme === "dark" ? (
+              <Icons.Sun size={20} color={palette.text} />
+            ) : (
+              <Icons.Moon size={20} color={palette.text} />
+            )}
           </FloatingToolbarButton>
         </FloatingToolbar>
       </View>
@@ -297,6 +306,7 @@ const ReaderBody = forwardRef<
     theme: Theme;
     palette: ThemeColors;
     onPosition: (p: string | null) => void;
+    onAuthors: (authors: ReadonlyArray<string>) => void;
     onTocChange: (s: TocContext | null) => void;
     onNotesChange: (s: NotesContext | null) => void;
     fontScale: ReaderFontScale;
@@ -310,6 +320,7 @@ const ReaderBody = forwardRef<
     theme,
     palette,
     onPosition,
+    onAuthors,
     onTocChange,
     onNotesChange,
     fontScale,
@@ -428,6 +439,11 @@ const ReaderBody = forwardRef<
     onPosition(`${order + 1}/${manifest.chapterCount}`);
     return () => onPosition(null);
   }, [manifest, order, onPosition]);
+
+  // Publish authors so the header can render them under the title.
+  useEffect(() => {
+    onAuthors(manifest?.metadata.authors ?? []);
+  }, [manifest, onAuthors]);
 
   // Publish TOC for the floating toolbar.
   useEffect(() => {
@@ -750,12 +766,19 @@ const shellStyles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  title: {
+  titleBlock: {
     flex: 1,
     minWidth: 0,
+  },
+  title: {
     fontFamily: font.nativeFamily.ui,
     fontSize: 15,
     fontWeight: "500",
+  },
+  subtitle: {
+    marginTop: 1,
+    fontFamily: font.nativeFamily.ui,
+    fontSize: 12,
   },
   position: {
     fontFamily: font.nativeFamily.mono,

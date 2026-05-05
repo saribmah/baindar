@@ -288,19 +288,19 @@ function ReaderShell({
         style={{ background: "var(--bd-bg)", color: "var(--bd-fg)" }}
       >
         <header
-          className="z-10 flex h-16 shrink-0 items-center gap-5 border-b px-4 md:px-7"
+          className="z-10 flex h-16 shrink-0 items-center gap-5 border-b px-4 xl:px-7"
           style={{ background: "var(--bd-bg)", borderColor: "var(--bd-border)" }}
         >
           <IconButton aria-label="Close reader" size="sm" onClick={onClose}>
             <Icons.Close size={16} />
           </IconButton>
 
-          <div className="hidden sm:block">
+          <div className="hidden xl:block">
             <Wordmark size="sm" color="var(--bd-fg)" />
           </div>
           <span
             aria-hidden
-            className="hidden h-6 w-px sm:block"
+            className="hidden h-6 w-px xl:block"
             style={{ background: "var(--bd-border)" }}
           />
 
@@ -313,14 +313,14 @@ function ReaderShell({
 
           {progressLabel && (
             <div
-              className="hidden shrink-0 font-mono text-xs tabular-nums md:block"
+              className="shrink-0 font-mono text-xs tabular-nums"
               style={{ color: "var(--bd-fg-muted)" }}
             >
               {progressLabel}
             </div>
           )}
 
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1 xl:flex">
             <IconButton
               aria-label={
                 fontScale === "standard" ? "Use larger reader type" : "Use standard reader type"
@@ -339,9 +339,9 @@ function ReaderShell({
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_240px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[240px_minmax(0,1fr)_240px]">
           <aside
-            className="hidden min-h-0 overflow-hidden border-r px-6 py-8 lg:block"
+            className="hidden min-h-0 overflow-hidden border-r px-6 py-8 xl:block"
             style={{ borderColor: "var(--bd-border)" }}
           >
             {toc ? (
@@ -358,9 +358,9 @@ function ReaderShell({
 
           <section
             data-reader-scroll
-            className="min-h-0 overflow-y-auto px-6 py-8 md:px-10 md:py-14"
+            className="min-h-0 overflow-y-auto px-6 py-8 xl:px-10 xl:py-14"
           >
-            <article className="mx-auto max-w-[620px] pb-32 md:pb-12">
+            <article className="mx-auto max-w-[620px] pb-32 xl:pb-12">
               {withReaderFont(children, fontScale)}
             </article>
           </section>
@@ -381,7 +381,7 @@ function ReaderShell({
 
         <AskBaindarBar draft={askDraft} onDraftChange={setAskDraft} onSubmit={handleAskSubmit} />
 
-        <div className="fixed bottom-5 left-1/2 z-10 -translate-x-1/2 md:hidden">
+        <div className="fixed bottom-5 left-1/2 z-10 -translate-x-1/2 xl:hidden">
           <FloatingToolbar>
             {toc && (
               <FloatingToolbarButton
@@ -391,6 +391,9 @@ function ReaderShell({
                 <Icons.BookOpen size={20} />
               </FloatingToolbarButton>
             )}
+            <FloatingToolbarButton aria-label="Notes" onClick={() => setNotesOpen(true)}>
+              <Icons.Note size={20} />
+            </FloatingToolbarButton>
             <FloatingToolbarButton aria-label="Ask Baindar" onClick={() => openAsk()}>
               <Icons.Sparkles size={20} />
             </FloatingToolbarButton>
@@ -404,9 +407,6 @@ function ReaderShell({
             </FloatingToolbarButton>
             <FloatingToolbarButton aria-label={`Theme: ${theme}`} onClick={cycleTheme}>
               {theme === "dark" ? <Icons.Sun size={20} /> : <Icons.Moon size={20} />}
-            </FloatingToolbarButton>
-            <FloatingToolbarButton aria-label="Notes" onClick={() => setNotesOpen(true)}>
-              <Icons.Note size={20} />
             </FloatingToolbarButton>
           </FloatingToolbar>
         </div>
@@ -777,7 +777,7 @@ function AskBaindarBar({
   return (
     <form
       onSubmit={onSubmit}
-      className="hidden shrink-0 items-center gap-3 border-t px-7 py-3 md:flex"
+      className="hidden shrink-0 items-center gap-3 border-t px-7 py-3 xl:flex"
       style={{ background: "var(--bd-bg)", borderColor: "var(--bd-border)" }}
     >
       <Icons.Sparkles size={18} color="var(--bd-accent)" />
@@ -1042,7 +1042,7 @@ function ChapterNav({
   }, [handler]);
 
   return (
-    <nav className="mt-12 hidden justify-between gap-3 md:flex">
+    <nav className="mt-12 flex justify-between gap-3">
       <Button variant="secondary" disabled={!canPrev} onClick={onPrev}>
         ← {prevLabel}
       </Button>

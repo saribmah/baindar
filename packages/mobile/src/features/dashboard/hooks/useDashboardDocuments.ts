@@ -2,16 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as DocumentPicker from "expo-document-picker";
 import type { Document } from "@baindar/sdk";
 import { useSdk } from "../../../sdk/sdk.provider";
+import { uploadDocumentMultipart } from "../../../sdk/uploadDocument";
 import { filterDocuments, sortByCreatedAtDesc } from "../utils/document";
 
-type NativeUploadFile = File & {
-  uri: string;
-  name: string;
-  type: string;
-};
-
 export function useDashboardDocuments() {
-  const { client } = useSdk();
+  const { client, baseUrl, authedFetch } = useSdk();
   const [documents, setDocuments] = useState<Document[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -66,24 +61,19 @@ export function useDashboardDocuments() {
 
     setUploading(true);
     try {
-      const file = {
+      await uploadDocumentMultipart(baseUrl, authedFetch, {
         uri: asset.uri,
         name: asset.name,
         type: asset.mimeType ?? "application/octet-stream",
-      } as NativeUploadFile;
-      const res = await client.document.create({ file });
-      if (res.error) {
-        setError("Upload failed");
-      } else {
-        setToast(`Uploaded ${asset.name}`);
-        await refresh();
-      }
+      });
+      setToast(`Uploaded ${asset.name}`);
+      await refresh();
     } catch (err) {
       setError(String(err));
     } finally {
       setUploading(false);
     }
-  }, [client, refresh]);
+  }, [authedFetch, baseUrl, refresh]);
 
   const renameDocument = useCallback(
     async (doc: Document, title: string) => {
