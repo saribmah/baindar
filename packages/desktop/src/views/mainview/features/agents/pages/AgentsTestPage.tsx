@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAgent } from "agents/react";
+import { getAuthToken } from "../../auth";
 
 type CounterState = { count: number };
 
@@ -13,6 +14,13 @@ export function AgentsTestPage() {
     agent: "CounterAgent",
     name: "desktop-smoke",
     host: agentsHost,
+    // WebSocket APIs can't set Authorization on the upgrade — pass the bearer
+    // token via query string. The API promotes `?token=` to a Bearer header
+    // before Better Auth validates the session (see api/src/instance/bootstrap).
+    query: async (): Promise<Record<string, string | null>> => {
+      const token = getAuthToken();
+      return token ? { token } : {};
+    },
     onStateUpdate: (state) => setCount(state.count),
     onOpen: () => setConnected(true),
     onClose: () => setConnected(false),

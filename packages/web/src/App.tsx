@@ -22,8 +22,8 @@ export function App() {
         <Route index element={<Landing />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
-        <Route path="/agents-test" element={<AgentsTestPage />} />
         <Route element={<RequireAuth />}>
+          <Route path="/agents-test" element={<AgentsTestPage />} />
           <Route element={<SignedInShell />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/library" element={<Library />} />

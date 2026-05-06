@@ -7,11 +7,26 @@ import { Instance } from "./";
 
 export const bootstrap = createMiddleware<AppEnv>(async (c, next) => {
   const db = createDb(c.env);
-  const auth = await resolveAuthContext(c.req.raw.headers, c.env);
+  const headers = headersWithWsToken(c.req.raw);
+  const auth = await resolveAuthContext(headers, c.env);
   await Instance.provide({ auth, env: c.env, db }, async () => {
     await next();
   });
 });
+
+// Browsers and React Native expose no way to set Authorization on a WebSocket
+// upgrade. Accept the session token via `?token=` on WS upgrades only — never
+// on plain HTTP — and promote it to an Authorization header so Better Auth's
+// `getSession` validates it the same way it validates the bearer plugin.
+const headersWithWsToken = (req: Request): Headers => {
+  const headers = new Headers(req.headers);
+  if (headers.has("Authorization")) return headers;
+  if ((headers.get("Upgrade") ?? "").toLowerCase() !== "websocket") return headers;
+  const token = new URL(req.url).searchParams.get("token");
+  if (!token) return headers;
+  headers.set("Authorization", `Bearer ${token}`);
+  return headers;
+};
 
 const resolveAuthContext = async (
   headers: Headers,
