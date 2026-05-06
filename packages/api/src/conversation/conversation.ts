@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Agent } from "../agent/agent";
 import { Document } from "../document/document";
 import { NamedError } from "../utils/error";
 import { ConversationStorage } from "./storage";
@@ -93,6 +94,18 @@ export namespace Conversation {
   };
 
   export const remove = async (userId: string, id: string): Promise<void> => {
+    // Confirm ownership before touching the DO. We do the same check
+    // implicitly inside ConversationStorage.remove, but we want a
+    // matching gate before the destroy RPC so we don't accidentally
+    // wipe a stranger's chat DO storage.
+    await get(userId, id);
+
+    // Destroy the DO's persisted state first. If this fails the D1 row
+    // is still present, so the user can retry. The opposite order
+    // (delete row, then destroy) would orphan storage on a partial
+    // failure.
+    await Agent.destroy(id);
+
     const removed = await ConversationStorage.remove(id, userId);
     if (!removed) throw new NotFoundError({ id });
   };

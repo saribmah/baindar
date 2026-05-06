@@ -149,4 +149,20 @@ describe("Conversation feature", () => {
       });
     });
   });
+
+  it("wipes the chat DO storage on remove (and skips destroy on cross-user delete)", async () => {
+    const created = await runtime.runAs(userA, () => Conversation.create(userA, {}));
+
+    // Cross-user delete must NOT touch the DO — ownership check fails first.
+    await runtime.runAs(userB, async () => {
+      await expect(Conversation.remove(userB, created.id)).rejects.toMatchObject({
+        name: "ConversationNotFoundError",
+      });
+    });
+    expect(runtime.destroyedConversationIds).toHaveLength(0);
+
+    // Owner delete destroys the DO storage and removes the row.
+    await runtime.runAs(userA, () => Conversation.remove(userA, created.id));
+    expect(runtime.destroyedConversationIds).toEqual([created.id]);
+  });
 });

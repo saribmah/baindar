@@ -40,10 +40,15 @@ export const createTestRuntime = (users: TestUser[]) => {
       .run();
   }
 
+  // Spy: tests can read this to assert which conversation ids had
+  // their DO storage destroyed (Agent.destroy → ChatAgent.destroy()).
+  const destroyedConversationIds: string[] = [];
+
   const env = {
     DB: {} as unknown,
     BUCKET: createFakeR2Bucket(),
     EPUB_PROCESSOR: createFakeEpubProcessor(),
+    ChatAgent: createFakeChatAgentBinding(destroyedConversationIds),
   } as RuntimeEnv;
 
   const runAs = async <R>(userId: string, fn: () => Promise<R>): Promise<R> => {
@@ -71,7 +76,7 @@ export const createTestRuntime = (users: TestUser[]) => {
 
   const close = () => sqlite.close();
 
-  return { runAs, runAnonymous, close };
+  return { runAs, runAnonymous, close, destroyedConversationIds };
 };
 
 // In-memory R2Bucket fake. Implements only the surface our storage actually
@@ -134,6 +139,24 @@ const createFakeR2Bucket = (): R2Bucket => {
     },
   };
   return fake as unknown as R2Bucket;
+};
+
+// ChatAgent binding fake. Conversation.remove calls Agent.destroy →
+// env.ChatAgent.idFromName(...).get(...).destroy(). The fake records the
+// id passed to idFromName and a no-op destroy() resolves successfully.
+const createFakeChatAgentBinding = (destroyedIds: string[]): DurableObjectNamespace => {
+  const fake = {
+    idFromName: (name: string) => ({ __name: name }) as unknown as DurableObjectId,
+    get: (id: DurableObjectId) => {
+      const name = (id as unknown as { __name: string }).__name;
+      return {
+        destroy: async () => {
+          destroyedIds.push(name);
+        },
+      } as unknown as DurableObjectStub;
+    },
+  };
+  return fake as unknown as DurableObjectNamespace;
 };
 
 // Workflow binding fake. `Document.create` calls `Processor.trigger`, which

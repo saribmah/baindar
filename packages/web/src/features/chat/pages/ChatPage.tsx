@@ -1,11 +1,8 @@
-import { useState, type FormEvent } from "react";
-import type { Conversation } from "@baindar/sdk";
-import { useAgentChat } from "agents/ai-react";
-import { useAgent } from "agents/react";
 import { useSession } from "../../auth";
-import { useActiveConversation } from "../hooks/useActiveConversation";
-
-const agentsHost = import.meta.env.VITE_AGENTS_HOST || undefined;
+import { ChatPane } from "../components/ChatPane";
+import { ConversationsList } from "../components/ConversationsList";
+import { EmptyChatState } from "../components/EmptyChatState";
+import { useConversations } from "../hooks/useConversations";
 
 export function ChatPage() {
   const session = useSession();
@@ -19,13 +16,14 @@ export function ChatPage() {
     );
   }
 
-  return <ChatGate />;
+  return <ChatLayout />;
 }
 
-function ChatGate() {
-  const conversation = useActiveConversation();
+function ChatLayout() {
+  const { conversations, selected, selectedId, status, error, select, create, rename, remove } =
+    useConversations();
 
-  if (conversation.status === "loading") {
+  if (status === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-bd-bg text-bd-fg-muted">
         <p>Loading chat…</p>
@@ -33,93 +31,33 @@ function ChatGate() {
     );
   }
 
-  if (conversation.status === "error") {
+  if (status === "error") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-bd-bg text-bd-fg">
-        <p className="text-sm text-red-400">{conversation.message}</p>
+        <p className="text-sm text-red-400">{error ?? "Something went wrong."}</p>
       </main>
     );
   }
 
-  return <ChatExperience conversation={conversation.conversation} />;
-}
-
-function ChatExperience({ conversation }: { conversation: Conversation }) {
-  const [draft, setDraft] = useState("");
-
-  const agent = useAgent({
-    agent: "ChatAgent",
-    name: conversation.id,
-    host: agentsHost,
-  });
-
-  const { messages, sendMessage, status, clearHistory } = useAgentChat({ agent });
-
-  const isStreaming = status === "streaming" || status === "submitted";
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const text = draft.trim();
-    if (!text || isStreaming) return;
-    void sendMessage({ text });
-    setDraft("");
-  };
-
   return (
-    <main className="mx-auto flex h-screen max-w-2xl flex-col bg-bd-bg text-bd-fg">
-      <header className="flex items-center justify-between border-b border-bd-border px-4 py-3">
-        <h1 className="text-base font-semibold">{conversation.title}</h1>
-        <button
-          type="button"
-          className="text-xs text-bd-fg-muted hover:text-bd-fg"
-          onClick={clearHistory}
-        >
-          clear
-        </button>
-      </header>
-
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {messages.length === 0 ? (
-          <p className="text-center text-sm text-bd-fg-muted">Ask anything about your binder.</p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {messages.map((m) => (
-              <li
-                key={m.id}
-                className={
-                  m.role === "user"
-                    ? "self-end max-w-[85%] rounded-lg bg-bd-bg-muted px-3 py-2"
-                    : "self-start max-w-[85%] rounded-lg border border-bd-border px-3 py-2"
-                }
-              >
-                <p className="text-xs uppercase tracking-wide text-bd-fg-muted">{m.role}</p>
-                <div className="mt-1 whitespace-pre-wrap text-sm">
-                  {m.parts.map((part, i) =>
-                    part.type === "text" ? <span key={i}>{part.text}</span> : null,
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t border-bd-border p-3">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Message…"
-          className="flex-1 rounded border border-bd-border bg-transparent px-3 py-2 text-sm outline-none focus:border-bd-fg-muted"
-        />
-        <button
-          type="submit"
-          disabled={!draft.trim() || isStreaming}
-          className="rounded border border-bd-border px-4 py-2 text-sm hover:bg-bd-bg-muted disabled:opacity-50"
-        >
-          {isStreaming ? "…" : "Send"}
-        </button>
-      </form>
-    </main>
+    <div className="flex h-screen bg-bd-bg text-bd-fg">
+      <ConversationsList
+        conversations={conversations}
+        selectedId={selectedId}
+        onSelect={select}
+        onCreate={() => void create()}
+        onRename={(id, title) => void rename(id, title)}
+        onDelete={(id) => void remove(id)}
+      />
+      {selected ? (
+        // `key` forces a fresh ChatPane (and a fresh agent connection)
+        // when the user switches conversations. Without it, useAgent's
+        // hook reuses the existing WebSocket and the wrong DO would
+        // receive the next message.
+        <ChatPane key={selected.id} conversation={selected} />
+      ) : (
+        <EmptyChatState onCreate={() => void create()} />
+      )}
+    </div>
   );
 }
