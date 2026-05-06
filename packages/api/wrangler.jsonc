@@ -18,7 +18,12 @@
 				"EMAIL_FROM": "",
 				// Default off; the `dev:test` script overrides via
 				// `wrangler dev --var TEST_MODE:true`. Production never sets this.
-				"TEST_MODE": "false"
+				"TEST_MODE": "false",
+				// Chat agent model. Empty `ANTHROPIC_BASE_URL` falls back to the
+				// `@ai-sdk/anthropic` default (the official API). Override per env
+				// to point at a proxy or alternative provider.
+				"ANTHROPIC_BASE_URL": "https://opencode.ai/zen/go/v1",
+				"ANTHROPIC_MODEL": "minimax-m2.7"
 			},
 			"d1_databases": [
 				{
@@ -104,7 +109,11 @@
 				"EMAIL_FROM": "no-reply@baindar.com",
 				// Production keeps TEST_MODE off. The flag is part of the env
 				// shape so `Config.isTestMode()` type-checks against both envs.
-				"TEST_MODE": "false"
+				"TEST_MODE": "false",
+				// Chat agent model. Empty `ANTHROPIC_BASE_URL` uses the SDK's
+				// default (the official Anthropic API).
+				"ANTHROPIC_BASE_URL": "",
+				"ANTHROPIC_MODEL": "claude-sonnet-4-6"
 			},
 			"d1_databases": [
 				{

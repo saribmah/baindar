@@ -16,9 +16,13 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     options?: { abortSignal?: AbortSignal },
   ): Promise<Response | undefined> {
-    const anthropic = createAnthropic({ apiKey: this.env.ANTHROPIC_API_KEY });
+    const anthropic = createAnthropic({
+      apiKey: this.env.ANTHROPIC_API_KEY,
+      // Empty string in wrangler.jsonc → fall back to the SDK's default base URL.
+      baseURL: this.env.ANTHROPIC_BASE_URL || undefined,
+    });
     const result = streamText({
-      model: anthropic("claude-sonnet-4-6"),
+      model: anthropic(this.env.ANTHROPIC_MODEL),
       system: SYSTEM_PROMPT,
       messages: await convertToModelMessages(this.messages),
       abortSignal: options?.abortSignal,
