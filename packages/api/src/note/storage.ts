@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { note } from "../db/schema";
 import { Instance } from "../instance";
 import type { Note } from "./note";
@@ -85,6 +85,27 @@ export namespace NoteStorage {
       .from(note)
       .where(and(...conds))
       .orderBy(asc(note.createdAt));
+    return rows.map(toEntity);
+  };
+
+  // Corpus-wide list. No documentId required; orders by recency so the chat
+  // agent's "what notes did I take recently" queries surface the most useful
+  // rows first. Caller is expected to enforce a sane limit.
+  export type ListAllQuery = {
+    documentId?: string;
+    limit?: number;
+  };
+
+  export const listAll = async (userId: string, query: ListAllQuery): Promise<Note.Entity[]> => {
+    const conds = [eq(note.userId, userId)];
+    if (query.documentId !== undefined) conds.push(eq(note.documentId, query.documentId));
+    const limit = query.limit ?? 50;
+    const rows = await Instance.db
+      .select(entitySelect)
+      .from(note)
+      .where(and(...conds))
+      .orderBy(desc(note.createdAt))
+      .limit(limit);
     return rows.map(toEntity);
   };
 
