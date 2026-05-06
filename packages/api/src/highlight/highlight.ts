@@ -104,6 +104,19 @@ export namespace Highlight {
     return HighlightStorage.list(userId, query);
   };
 
+  // Corpus-wide list across the user's full binder. Used by the chat agent's
+  // listing tools where there is no parent document scope. Distinct from
+  // `list` (which requires a documentId) so route-level callers keep their
+  // ownership-via-Document.get check.
+  export const ListAllQuery = z.object({
+    documentId: z.string().min(1).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  });
+  export type ListAllQuery = z.infer<typeof ListAllQuery>;
+
+  export const listAll = async (userId: string, query: ListAllQuery): Promise<Entity[]> =>
+    HighlightStorage.listAll(userId, query);
+
   export const get = async (userId: string, id: string): Promise<Entity> => {
     const entity = await HighlightStorage.get(id, userId);
     if (!entity) throw new NotFoundError({ id });

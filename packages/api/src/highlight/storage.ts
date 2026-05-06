@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { highlight } from "../db/schema";
 import { Instance } from "../instance";
 import type { Highlight } from "./highlight";
@@ -94,6 +94,30 @@ export namespace HighlightStorage {
       .from(highlight)
       .where(and(...conds))
       .orderBy(asc(highlight.createdAt));
+    return rows.map(toEntity);
+  };
+
+  // Corpus-wide list. No documentId required; orders by recency so the chat
+  // agent's "recent highlights" queries surface the most useful rows first.
+  // Caller is expected to enforce a sane limit.
+  export type ListAllQuery = {
+    documentId?: string;
+    limit?: number;
+  };
+
+  export const listAll = async (
+    userId: string,
+    query: ListAllQuery,
+  ): Promise<Highlight.Entity[]> => {
+    const conds = [eq(highlight.userId, userId)];
+    if (query.documentId !== undefined) conds.push(eq(highlight.documentId, query.documentId));
+    const limit = query.limit ?? 50;
+    const rows = await Instance.db
+      .select(entitySelect)
+      .from(highlight)
+      .where(and(...conds))
+      .orderBy(desc(highlight.createdAt))
+      .limit(limit);
     return rows.map(toEntity);
   };
 
