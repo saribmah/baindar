@@ -73,7 +73,7 @@ export function ChatUserTurn({ attachment, children, style }: ChatUserTurnProps)
         {attachment && <ChatAttachmentBlock attachment={attachment} />}
         <View style={styles.userBubble}>
           {typeof children === "string" ? (
-            <Text style={styles.userText}>{children}</Text>
+            <ChatMarkdown textStyle={styles.userText}>{children}</ChatMarkdown>
           ) : (
             children
           )}
@@ -133,7 +133,9 @@ export function ChatAssistantTurn({
       ))}
       <View style={styles.assistantBody}>
         {typeof children === "string" ? (
-          <Text style={[styles.assistantText, { color: palette.fg }]}>{children}</Text>
+          <ChatMarkdown textStyle={[styles.assistantText, { color: palette.fg }]}>
+            {children}
+          </ChatMarkdown>
         ) : (
           children
         )}
@@ -148,6 +150,102 @@ export function ChatAssistantTurn({
         </View>
       )}
       {actions && actions.length > 0 && <ChatActions actions={actions} />}
+    </View>
+  );
+}
+
+export type ChatMarkdownProps = {
+  children: string;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+};
+
+type MarkdownBlock =
+  | { type: "paragraph"; text: string }
+  | { type: "heading"; text: string; level: 1 | 2 | 3 }
+  | { type: "quote"; text: string }
+  | { type: "code"; text: string }
+  | { type: "list"; ordered: boolean; items: string[] };
+
+export function ChatMarkdown({ children, style, textStyle }: ChatMarkdownProps) {
+  const palette = useThemeColors();
+  const blocks = parseMarkdownBlocks(children);
+  return (
+    <View style={[styles.markdown, style]}>
+      {blocks.map((block, index) => {
+        if (block.type === "heading") {
+          return (
+            <Text
+              key={index}
+              style={[
+                styles.markdownHeading,
+                block.level === 1 && styles.markdownHeading1,
+                block.level === 2 && styles.markdownHeading2,
+                { color: palette.fg },
+              ]}
+            >
+              {renderInlineMarkdown(block.text, [
+                styles.markdownHeadingText,
+                { color: palette.fg },
+              ])}
+            </Text>
+          );
+        }
+        if (block.type === "quote") {
+          return (
+            <View key={index} style={[styles.markdownQuote, { borderLeftColor: color.wine[100] }]}>
+              <Text style={[styles.markdownQuoteText, { color: palette.fgSubtle }]}>
+                {renderInlineMarkdown(block.text, [
+                  styles.markdownQuoteText,
+                  { color: palette.fgSubtle },
+                ])}
+              </Text>
+            </View>
+          );
+        }
+        if (block.type === "code") {
+          return (
+            <View
+              key={index}
+              style={[
+                styles.markdownCodeBlock,
+                { backgroundColor: palette.surfaceRaised, borderColor: palette.border },
+              ]}
+            >
+              <Text style={[styles.markdownCodeText, { color: palette.fg }]}>{block.text}</Text>
+            </View>
+          );
+        }
+        if (block.type === "list") {
+          return (
+            <View key={index} style={styles.markdownList}>
+              {block.items.map((item, itemIndex) => (
+                <View key={`${index}-${itemIndex}`} style={styles.markdownListItem}>
+                  <Text style={[styles.markdownListMarker, { color: palette.fgMuted }]}>
+                    {block.ordered ? `${itemIndex + 1}.` : "•"}
+                  </Text>
+                  <Text style={[styles.markdownText, { color: palette.fg }, textStyle]}>
+                    {renderInlineMarkdown(item, [
+                      styles.markdownText,
+                      { color: palette.fg },
+                      textStyle,
+                    ])}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          );
+        }
+        return (
+          <Text key={index} style={[styles.markdownText, { color: palette.fg }, textStyle]}>
+            {renderInlineMarkdown(block.text, [
+              styles.markdownText,
+              { color: palette.fg },
+              textStyle,
+            ])}
+          </Text>
+        );
+      })}
     </View>
   );
 }
@@ -594,6 +692,129 @@ function turnCountLabel(turnCount: number | undefined): string | null {
   return `${turnCount} ${turnCount === 1 ? "turn" : "turns"}`;
 }
 
+function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
+  const blocks: MarkdownBlock[] = [];
+  const lines = markdown.replaceAll("\r\n", "\n").split("\n");
+  let paragraph: string[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+  let code: string[] | null = null;
+
+  const flushParagraph = () => {
+    const text = paragraph.join(" ").trim();
+    if (text) blocks.push({ type: "paragraph", text });
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (list && list.items.length > 0) blocks.push({ type: "list", ...list });
+    list = null;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("```")) {
+      flushParagraph();
+      flushList();
+      if (code) {
+        blocks.push({ type: "code", text: code.join("\n").trimEnd() });
+        code = null;
+      } else {
+        code = [];
+      }
+      continue;
+    }
+
+    if (code) {
+      code.push(line);
+      continue;
+    }
+
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+    if (heading) {
+      const marks = heading[1] ?? "#";
+      flushParagraph();
+      flushList();
+      blocks.push({
+        type: "heading",
+        level: marks.length as 1 | 2 | 3,
+        text: heading[2] ?? "",
+      });
+      continue;
+    }
+
+    const unordered = /^[-*+]\s+(.+)$/.exec(trimmed);
+    const ordered = /^\d+[.)]\s+(.+)$/.exec(trimmed);
+    if (unordered || ordered) {
+      flushParagraph();
+      const nextOrdered = ordered !== null;
+      if (!list || list.ordered !== nextOrdered) flushList();
+      list ??= { ordered: nextOrdered, items: [] };
+      list.items.push((ordered?.[1] ?? unordered?.[1] ?? "").trim());
+      continue;
+    }
+
+    const quote = /^>\s?(.+)$/.exec(trimmed);
+    if (quote) {
+      flushParagraph();
+      flushList();
+      blocks.push({ type: "quote", text: quote[1] ?? "" });
+      continue;
+    }
+
+    flushList();
+    paragraph.push(trimmed);
+  }
+
+  flushParagraph();
+  flushList();
+  if (code) blocks.push({ type: "code", text: code.join("\n").trimEnd() });
+  return blocks;
+}
+
+function renderInlineMarkdown(text: string, fallbackStyle?: StyleProp<TextStyle>) {
+  const nodes: ReactNode[] = [];
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_)/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > cursor) nodes.push(text.slice(cursor, match.index));
+    const token = match[0];
+    const content = token.replace(/^(`|\*\*|__|\*|_)/, "").replace(/(`|\*\*|__|\*|_)$/, "");
+
+    if (token.startsWith("`")) {
+      nodes.push(
+        <Text key={`${match.index}-code`} style={[styles.markdownInlineCode, fallbackStyle]}>
+          {content}
+        </Text>,
+      );
+    } else if (token.startsWith("**") || token.startsWith("__")) {
+      nodes.push(
+        <Text key={`${match.index}-strong`} style={styles.markdownStrong}>
+          {content}
+        </Text>,
+      );
+    } else {
+      nodes.push(
+        <Text key={`${match.index}-em`} style={styles.markdownEmphasis}>
+          {content}
+        </Text>,
+      );
+    }
+    cursor = match.index + token.length;
+  }
+
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes.length > 0 ? nodes : text;
+}
+
 const styles = StyleSheet.create({
   thread: {
     flex: 1,
@@ -677,13 +898,85 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   assistantBody: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "flex-start",
   },
   assistantText: {
     fontFamily: font.nativeFamily.reading,
     fontSize: 15,
     lineHeight: 25,
+  },
+  markdown: {
+    width: "100%",
+    gap: 8,
+  },
+  markdownText: {
+    fontFamily: font.nativeFamily.reading,
+    fontSize: 15,
+    lineHeight: 25,
+  },
+  markdownHeading: {
+    marginTop: 8,
+    fontFamily: font.nativeFamily.display,
+    fontWeight: "600",
+    lineHeight: 24,
+  },
+  markdownHeading1: {
+    fontSize: 21,
+  },
+  markdownHeading2: {
+    fontSize: 18,
+  },
+  markdownHeadingText: {
+    fontFamily: font.nativeFamily.display,
+    fontWeight: "600",
+  },
+  markdownQuote: {
+    borderLeftWidth: 2,
+    paddingLeft: 12,
+  },
+  markdownQuoteText: {
+    fontFamily: font.nativeFamily.reading,
+    fontSize: 14,
+    fontStyle: "italic",
+    lineHeight: 22,
+  },
+  markdownList: {
+    gap: 6,
+  },
+  markdownListItem: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  markdownListMarker: {
+    width: 18,
+    fontFamily: font.nativeFamily.ui,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 23,
+    textAlign: "right",
+  },
+  markdownCodeBlock: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  markdownCodeText: {
+    fontFamily: font.nativeFamily.mono,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  markdownInlineCode: {
+    borderRadius: 4,
+    backgroundColor: color.paper[200],
+    fontFamily: font.nativeFamily.mono,
+    fontSize: 12,
+  },
+  markdownStrong: {
+    fontWeight: "700",
+  },
+  markdownEmphasis: {
+    fontStyle: "italic",
   },
   caret: {
     width: 9,

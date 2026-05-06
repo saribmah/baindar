@@ -7,6 +7,8 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Icons } from "../icons/index.ts";
 import { cx } from "../utils/cx.ts";
 import type {
@@ -56,7 +58,9 @@ export function ChatUserTurn({ attachment, children, className, ...rest }: ChatU
     <div className={cx("bd-chat-user-turn", className)} {...rest}>
       <div className="bd-chat-user-stack">
         {attachment && <ChatAttachmentBlock attachment={attachment} />}
-        <div className="bd-chat-user-bubble">{children}</div>
+        <div className="bd-chat-user-bubble">
+          {typeof children === "string" ? <ChatMarkdown>{children}</ChatMarkdown> : children}
+        </div>
       </div>
     </div>
   );
@@ -102,7 +106,7 @@ export function ChatAssistantTurn({
         <ChatToolCard key={tool.id ?? index} tool={tool} />
       ))}
       <div className="bd-chat-assistant-body">
-        {children}
+        {typeof children === "string" ? <ChatMarkdown>{children}</ChatMarkdown> : children}
         {streaming && <span className="bd-chat-caret" aria-hidden />}
       </div>
       {footerCitations && footerCitations.length > 0 && (
@@ -123,6 +127,28 @@ export function ChatStreamingTurn({ children }: { children: ReactNode }) {
     <ChatAssistantTurn sub="streaming" streaming actions={[]}>
       {children}
     </ChatAssistantTurn>
+  );
+}
+
+export type ChatMarkdownProps = DivProps & {
+  children: string;
+};
+
+const markdownComponents: Components = {
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  ),
+};
+
+export function ChatMarkdown({ children, className, ...rest }: ChatMarkdownProps) {
+  return (
+    <div className={cx("bd-chat-markdown", className)} {...rest}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        {children}
+      </ReactMarkdown>
+    </div>
   );
 }
 

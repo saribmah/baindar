@@ -112,11 +112,113 @@
   font-size: 15px;
   line-height: 1.65;
 }
-.bd-chat-assistant-body p {
+.bd-chat-markdown {
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+.bd-chat-markdown > :first-child {
+  margin-top: 0;
+}
+.bd-chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+.bd-chat-markdown p {
   margin: 0 0 12px;
 }
-.bd-chat-assistant-body p:last-child {
-  margin-bottom: 0;
+.bd-chat-markdown h1,
+.bd-chat-markdown h2,
+.bd-chat-markdown h3 {
+  margin: 18px 0 8px;
+  color: var(--bd-fg);
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+.bd-chat-markdown h1 {
+  font-size: 24px;
+}
+.bd-chat-markdown h2 {
+  font-size: 20px;
+}
+.bd-chat-markdown h3 {
+  font-size: 17px;
+}
+.bd-chat-markdown ul,
+.bd-chat-markdown ol {
+  margin: 0 0 14px;
+  padding-left: 1.35em;
+}
+.bd-chat-markdown li {
+  margin: 4px 0;
+  padding-left: 2px;
+}
+.bd-chat-markdown blockquote {
+  margin: 0 0 14px;
+  border-left: 2px solid var(--wine-200);
+  color: var(--bd-fg-subtle);
+  font-style: italic;
+  padding-left: 14px;
+}
+.bd-chat-markdown code {
+  border-radius: 5px;
+  background: var(--bd-surface-raised);
+  color: var(--bd-fg);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 1px 5px;
+}
+.bd-chat-markdown pre {
+  overflow-x: auto;
+  margin: 0 0 14px;
+  border: 1px solid var(--bd-border);
+  border-radius: 12px;
+  background: var(--bd-surface-raised);
+  padding: 12px 14px;
+}
+.bd-chat-markdown pre code {
+  display: block;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  white-space: pre;
+}
+.bd-chat-markdown table {
+  width: 100%;
+  margin: 0 0 14px;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.bd-chat-markdown th,
+.bd-chat-markdown td {
+  border-bottom: 1px solid var(--bd-border);
+  padding: 7px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+.bd-chat-markdown th {
+  color: var(--bd-fg);
+  font-weight: 700;
+}
+.bd-chat-markdown a {
+  color: var(--wine-700);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.bd-chat-user-bubble .bd-chat-markdown {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.bd-chat-user-bubble .bd-chat-markdown p {
+  margin-bottom: 8px;
+}
+.bd-chat-user-bubble .bd-chat-markdown code {
+  background: color-mix(in oklab, var(--paper-50) 15%, transparent);
+  color: var(--paper-50);
 }
 .bd-chat-caret {
   display: inline-block;

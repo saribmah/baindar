@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Conversation } from "@baindar/sdk";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
@@ -10,6 +10,7 @@ import {
   ChatToolCard,
   ChatUserTurn,
   Icons,
+  useSmoothText,
   type ChatAction,
   type ChatToolCall,
   type ChatToolKind,
@@ -25,6 +26,8 @@ type Props = {
 
 export function ConversationChatPane({ conversation, onClear }: Props) {
   const [draft, setDraft] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const agent = useAgent({
     agent: "ChatAgent",
     name: conversation.id,
@@ -32,11 +35,34 @@ export function ConversationChatPane({ conversation, onClear }: Props) {
   });
   const { messages, sendMessage, status, clearHistory } = useAgentChat({ agent });
   const isStreaming = status === "streaming" || status === "submitted";
+  const latestMessage = messages[messages.length - 1];
+  const latestMessageText = latestMessage ? messageText(latestMessage.parts) : "";
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto", force = false) => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl || (!force && !stickToBottomRef.current)) return;
+
+    requestAnimationFrame(() => {
+      scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior });
+    });
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+    const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 96;
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom(isStreaming ? "auto" : "smooth");
+  }, [isStreaming, latestMessage?.id, latestMessageText, messages.length, scrollToBottom]);
 
   const handleSubmit = (value: string) => {
     if (isStreaming) return;
     void sendMessage({ text: value });
     setDraft("");
+    scrollToBottom("smooth", true);
   };
 
   const clear = () => {
@@ -64,7 +90,11 @@ export function ConversationChatPane({ conversation, onClear }: Props) {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-7 lg:px-12">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto px-5 py-7 lg:px-12"
+        onScroll={handleScroll}
+      >
         <ChatThread className="mx-auto max-w-[760px]">
           {messages.length === 0 ? (
             <EmptyConversation />
@@ -75,6 +105,7 @@ export function ConversationChatPane({ conversation, onClear }: Props) {
                 role={message.role}
                 parts={message.parts}
                 streaming={isStreaming && message.id === messages[messages.length - 1]?.id}
+                onContentChange={() => scrollToBottom("auto")}
               />
             ))
           )}
@@ -119,12 +150,20 @@ function MessageTurn({
   role,
   parts,
   streaming,
+  onContentChange,
 }: {
   role: string;
   parts: ReadonlyArray<unknown>;
   streaming: boolean;
+  onContentChange?: () => void;
 }) {
   const text = messageText(parts);
+  const visibleText = useSmoothText(text, streaming && role !== "user");
+  const renderedText = streaming && role !== "user" ? visibleText : text;
+
+  useEffect(() => {
+    if (streaming) onContentChange?.();
+  }, [onContentChange, renderedText, streaming]);
 
   if (role === "user") {
     return <ChatUserTurn>{text}</ChatUserTurn>;
@@ -161,7 +200,7 @@ function MessageTurn({
       actions={actions}
       streaming={streaming}
     >
-      {text || "Reading your binder..."}
+      {renderedText || "Reading your binder..."}
     </ChatAssistantTurn>
   );
 }
