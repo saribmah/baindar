@@ -106,10 +106,16 @@
 			}
 		},
 		"production": {
-			// Explicit env-level name. Inherited from the root for most
-			// blocks, but the `containers` validator requires a top-level
-			// name on the env that owns the container.
-			"name": "baindar",
+			// Explicit env-level name required by the `containers` validator
+			// (it doesn't accept inherited names from the root). The value
+			// MUST match what wrangler was already auto-deriving — per
+			// https://developers.cloudflare.com/workers/wrangler/environments/
+			// "Cloudflare effectively creates a new Worker with the name
+			// `<top-level-name>-<environment-name>`" for named envs without
+			// their own name. Picking anything else would deploy a brand-new
+			// worker, leaving the existing routes + DO storage stranded on
+			// the old `baindar-production`.
+			"name": "baindar-production",
 			"workers_dev": false,
 			"routes": [
 				{ "pattern": "baindar.com", "custom_domain": true },
