@@ -37,6 +37,40 @@
           "createdAt"
         ]
       },
+      "Conversation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "primaryDocId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "lastActivityAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "primaryDocId",
+          "createdAt",
+          "lastActivityAt"
+        ]
+      },
       "DocumentProgress": {
         "type": "object",
         "properties": {
@@ -952,6 +986,201 @@
           },
           "404": {
             "description": "Not found"
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ]
+      }
+    },
+    "/conversations": {
+      "post": {
+        "operationId": "conversation.create",
+        "summary": "Create a conversation",
+        "description": "Creates a chat thread owned by the caller. With `primaryDocId` set, the conversation is tagged as 'started from this document' (used for reader-side resume lookups and sidebar badging). Without it, the conversation is unscoped. Title defaults to 'Untitled' when omitted.",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "description": "Primary document not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "primaryDocId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "conversation.list",
+        "summary": "List the caller's conversations",
+        "description": "Returns conversations owned by the caller, ordered by most recent activity.",
+        "responses": {
+          "200": {
+            "description": "Conversations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Conversation"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          }
+        }
+      }
+    },
+    "/conversations/{id}": {
+      "get": {
+        "operationId": "conversation.get",
+        "summary": "Get a single conversation",
+        "responses": {
+          "200": {
+            "description": "Conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "description": "Conversation not found"
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "conversation.update",
+        "summary": "Rename a conversation",
+        "description": "Updates the conversation title. `primaryDocId` is immutable after create.",
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "description": "Conversation not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "conversation.delete",
+        "summary": "Delete a conversation",
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "description": "Conversation not found"
           }
         },
         "parameters": [

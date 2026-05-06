@@ -29,6 +29,13 @@
       "when": 1777776377569,
       "tag": "0003_elite_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1778041486404,
+      "tag": "0004_wealthy_talos",
+      "breakpoints": true
     }
   ]
 }

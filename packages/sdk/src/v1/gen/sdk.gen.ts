@@ -9,6 +9,16 @@ import {
 } from "./client";
 import { client } from "./client.gen";
 import {
+  type ConversationCreateErrors,
+  type ConversationCreateResponses,
+  type ConversationDeleteErrors,
+  type ConversationDeleteResponses,
+  type ConversationGetErrors,
+  type ConversationGetResponses,
+  type ConversationListErrors,
+  type ConversationListResponses,
+  type ConversationUpdateErrors,
+  type ConversationUpdateResponses,
   type DocumentCreateErrors,
   type DocumentCreateResponses,
   type DocumentDeleteErrors,
@@ -196,6 +206,141 @@ export class Example extends HeyApiClient {
       url: "/example/{id}",
       ...options,
       ...params,
+    });
+  }
+}
+
+export class Conversation extends HeyApiClient {
+  /**
+   * List the caller's conversations
+   *
+   * Returns conversations owned by the caller, ordered by most recent activity.
+   */
+  public list<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<
+      ConversationListResponses,
+      ConversationListErrors,
+      ThrowOnError
+    >({ url: "/conversations", ...options });
+  }
+
+  /**
+   * Create a conversation
+   *
+   * Creates a chat thread owned by the caller. With `primaryDocId` set, the conversation is tagged as 'started from this document' (used for reader-side resume lookups and sidebar badging). Without it, the conversation is unscoped. Title defaults to 'Untitled' when omitted.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      title?: string;
+      primaryDocId?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "title" },
+            { in: "body", key: "primaryDocId" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).post<
+      ConversationCreateResponses,
+      ConversationCreateErrors,
+      ThrowOnError
+    >({
+      url: "/conversations",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete a conversation
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "id" }] }]);
+    return (options?.client ?? this.client).delete<
+      ConversationDeleteResponses,
+      ConversationDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/conversations/{id}",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Get a single conversation
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "id" }] }]);
+    return (options?.client ?? this.client).get<
+      ConversationGetResponses,
+      ConversationGetErrors,
+      ThrowOnError
+    >({
+      url: "/conversations/{id}",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Rename a conversation
+   *
+   * Updates the conversation title. `primaryDocId` is immutable after create.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      title: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "body", key: "title" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).patch<
+      ConversationUpdateResponses,
+      ConversationUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/conversations/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     });
   }
 }
@@ -1324,6 +1469,11 @@ export class ApiClient extends HeyApiClient {
   private _example?: Example;
   get example(): Example {
     return (this._example ??= new Example({ client: this.client }));
+  }
+
+  private _conversation?: Conversation;
+  get conversation(): Conversation {
+    return (this._conversation ??= new Conversation({ client: this.client }));
   }
 
   private _document?: Document;

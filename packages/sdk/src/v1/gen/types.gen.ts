@@ -10,6 +10,14 @@ export type Example = {
   createdAt: string;
 };
 
+export type Conversation = {
+  id: string;
+  title: string;
+  primaryDocId: string | null;
+  createdAt: string;
+  lastActivityAt: string;
+};
+
 export type DocumentProgress = {
   sectionKey: string;
   progressPercent: number | null;
@@ -266,6 +274,161 @@ export type ExampleGetResponses = {
 };
 
 export type ExampleGetResponse = ExampleGetResponses[keyof ExampleGetResponses];
+
+export type ConversationListData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/conversations";
+};
+
+export type ConversationListErrors = {
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+};
+
+export type ConversationListResponses = {
+  /**
+   * Conversations
+   */
+  200: {
+    items: Array<Conversation>;
+  };
+};
+
+export type ConversationListResponse = ConversationListResponses[keyof ConversationListResponses];
+
+export type ConversationCreateData = {
+  body: {
+    title?: string;
+    primaryDocId?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/conversations";
+};
+
+export type ConversationCreateErrors = {
+  /**
+   * Invalid input
+   */
+  400: unknown;
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * Primary document not found
+   */
+  404: unknown;
+};
+
+export type ConversationCreateResponses = {
+  /**
+   * Created
+   */
+  201: Conversation;
+};
+
+export type ConversationCreateResponse =
+  ConversationCreateResponses[keyof ConversationCreateResponses];
+
+export type ConversationDeleteData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/conversations/{id}";
+};
+
+export type ConversationDeleteErrors = {
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * Conversation not found
+   */
+  404: unknown;
+};
+
+export type ConversationDeleteResponses = {
+  /**
+   * Deleted
+   */
+  204: void;
+};
+
+export type ConversationDeleteResponse =
+  ConversationDeleteResponses[keyof ConversationDeleteResponses];
+
+export type ConversationGetData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/conversations/{id}";
+};
+
+export type ConversationGetErrors = {
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * Conversation not found
+   */
+  404: unknown;
+};
+
+export type ConversationGetResponses = {
+  /**
+   * Conversation
+   */
+  200: Conversation;
+};
+
+export type ConversationGetResponse = ConversationGetResponses[keyof ConversationGetResponses];
+
+export type ConversationUpdateData = {
+  body: {
+    title: string;
+  };
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/conversations/{id}";
+};
+
+export type ConversationUpdateErrors = {
+  /**
+   * Invalid input
+   */
+  400: unknown;
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * Conversation not found
+   */
+  404: unknown;
+};
+
+export type ConversationUpdateResponses = {
+  /**
+   * Updated
+   */
+  200: Conversation;
+};
+
+export type ConversationUpdateResponse =
+  ConversationUpdateResponses[keyof ConversationUpdateResponses];
 
 export type DocumentListData = {
   body?: never;
