@@ -106,6 +106,10 @@
 			}
 		},
 		"production": {
+			// Explicit env-level name. Inherited from the root for most
+			// blocks, but the `containers` validator requires a top-level
+			// name on the env that owns the container.
+			"name": "baindar",
 			"workers_dev": false,
 			"routes": [
 				{ "pattern": "baindar.com", "custom_domain": true },
