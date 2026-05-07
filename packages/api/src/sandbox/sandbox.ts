@@ -104,8 +104,7 @@ export namespace Sandbox {
     const sandboxId = sandboxIdForUser(userId);
     if (clientFactoryForTests) return clientFactoryForTests(sandboxId);
     const { getSandbox } = await import("@cloudflare/sandbox");
-    const namespace = Instance.env.Sandbox as DurableObjectNamespace<CloudflareSandbox>;
-    return getSandbox(namespace, sandboxId);
+    return getSandbox(Instance.env.Sandbox, sandboxId);
   };
 
   const mountOptionsForUser = (userId: string): MountBucketOptions => {
