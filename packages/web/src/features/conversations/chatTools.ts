@@ -9,7 +9,10 @@ export function chatToolFromPart(part: unknown): ChatToolCall | null {
     kind: toolKind(toolName),
     state: toolState(record.state),
     query: toolQuery(toolName, record.input),
-    error: typeof record.errorText === "string" ? record.errorText : undefined,
+    error:
+      typeof record.errorText === "string" && record.errorText.trim()
+        ? truncate(record.errorText.trim(), 96)
+        : undefined,
     results: toolResults(record.output),
   };
 }
@@ -65,5 +68,5 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function truncate(value: string, max: number): string {
-  return value.length > max ? `${value.slice(0, max - 1)}...` : value;
+  return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
 }

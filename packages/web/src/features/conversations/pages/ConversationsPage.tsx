@@ -122,7 +122,7 @@ export function ConversationsPage() {
             </div>
 
             {selected ? (
-              <div className="hidden min-h-0 border-l border-bd-border lg:flex">
+              <div className="hidden min-h-0 min-w-0 overflow-hidden border-l border-bd-border lg:flex">
                 <ConversationChatPane key={selected.id} conversation={selected} />
               </div>
             ) : (

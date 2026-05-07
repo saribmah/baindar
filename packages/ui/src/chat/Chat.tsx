@@ -306,7 +306,7 @@ export function ChatToolCard({ tool, onToggle, className, ...rest }: ChatToolCar
         <config.Icon size={14} className="bd-chat-tool-icon" />
         <span className="bd-chat-tool-title">{title}</span>
         {subtitle && <span className="bd-chat-tool-sub">· {subtitle}</span>}
-        <span className="bd-chat-tool-spacer" />
+        {!subtitle && <span className="bd-chat-tool-spacer" />}
         <ChatToolStatus state={tool.state} />
         {expandable && (
           <button

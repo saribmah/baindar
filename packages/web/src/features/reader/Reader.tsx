@@ -432,7 +432,7 @@ function ReaderShell({
           </section>
 
           <aside
-            className="hidden min-h-0 overflow-hidden border-l xl:block"
+            className="hidden min-h-0 min-w-0 overflow-hidden border-l xl:block"
             style={{ borderColor: "var(--bd-border)" }}
           >
             {aiOpen ? (

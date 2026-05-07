@@ -61,7 +61,7 @@ export function ConversationChatPane({
     host: agentsHost,
   });
   const { messages, sendMessage, status, clearHistory } = useAgentChat<unknown, BaindarChatMessage>(
-    { agent },
+    { agent, credentials: "include" },
   );
   const isStreaming = status === "streaming" || status === "submitted";
   const latestMessage = messages[messages.length - 1];
@@ -132,7 +132,7 @@ export function ConversationChatPane({
   };
 
   return (
-    <section className="flex h-full min-h-0 flex-1 flex-col bg-bd-bg text-bd-fg">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bd-bg text-bd-fg">
       <div className="border-b border-bd-border px-6 py-5 lg:px-12">
         <div className="mx-auto flex max-w-[760px] items-center gap-4">
           <div className="min-w-0 flex-1">
@@ -166,7 +166,7 @@ export function ConversationChatPane({
         className="min-h-0 flex-1 overflow-y-auto px-5 py-7 lg:px-12"
         onScroll={handleScroll}
       >
-        <ChatThread className="mx-auto max-w-[760px]">
+        <ChatThread className="mx-auto w-full max-w-[760px]">
           {messages.length === 0 ? (
             <EmptyConversation />
           ) : (
@@ -185,7 +185,7 @@ export function ConversationChatPane({
       </div>
 
       <div className="border-t border-bd-border px-5 py-4 lg:px-12">
-        <div className="mx-auto max-w-[760px]">
+        <div className="mx-auto w-full max-w-[760px]">
           <ChatComposer
             value={draft}
             onValueChange={setDraft}

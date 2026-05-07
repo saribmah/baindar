@@ -22,4 +22,18 @@ describe("chatToolFromPart", () => {
     });
     expect(JSON.stringify(tool)).not.toContain("rg -n pets");
   });
+
+  test("keeps failed tool errors short enough for the chat rail", () => {
+    const tool = chatToolFromPart({
+      type: "tool-runBash",
+      toolCallId: "call-2",
+      state: "output-error",
+      errorText:
+        "Failed to execute command 'bash' /tmp/baindar/very/long/path/that/should/not/stretch/the/chat/panel/with/a/long/error/message",
+    });
+
+    expect(tool?.state).toBe("error");
+    expect(tool?.error?.length).toBeLessThanOrEqual(96);
+    expect(tool?.error?.endsWith("...")).toBe(true);
+  });
 });
