@@ -66,7 +66,7 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
         tools,
         // Allow up to 8 model→tool→model loops per turn so the agent can chain
         // (e.g. listDocuments → match by title → listNotes for that document).
-        stopWhen: stepCountIs(8),
+        stopWhen: stepCountIs(20),
         onFinish,
       });
       return result.toUIMessageStreamResponse();

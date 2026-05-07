@@ -87,6 +87,14 @@ export const buildAgentTools = ({ userId }: { userId: string }) => {
       description:
         "Run bash in the user's prepared Linux sandbox. The user's document R2 prefix is mounted read-only at /mnt/baindar/documents. Use listDocuments first; each document id is the directory name under /mnt/baindar/documents/{documentId}. Use rg, find, jq, cat/head, and Python heredocs for document search and analysis.",
       inputSchema: z.object({
+        description: z
+          .string()
+          .trim()
+          .min(3)
+          .max(64)
+          .describe(
+            'Required 3-4 word, user-facing description of the command intent. This is shown in the UI, so avoid shell syntax. Example: "Search lease terms".',
+          ),
         command: z
           .string()
           .min(1)

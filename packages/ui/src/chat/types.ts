@@ -6,6 +6,7 @@ export type ChatToolKind =
   | "searchLibrary"
   | "webSearch"
   | "summarize"
+  | "runBash"
   | "runPython"
   | "notes"
   | "highlights"

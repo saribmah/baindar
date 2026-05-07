@@ -15,9 +15,8 @@ import {
   type ChatAction,
   type ChatReference,
   type ChatToolCall,
-  type ChatToolKind,
-  type ChatToolState,
 } from "@baindar/ui";
+import { chatToolFromPart } from "../chatTools";
 import {
   messageReferences,
   messageText,
@@ -248,7 +247,7 @@ function MessageTurn({
     );
   }
 
-  const tools = parts.map(toolFromPart).filter((tool): tool is ChatToolCall => tool !== null);
+  const tools = parts.map(chatToolFromPart).filter((tool): tool is ChatToolCall => tool !== null);
   const actions: ReadonlyArray<ChatAction> = text
     ? [
         {
@@ -284,57 +283,6 @@ function MessageTurn({
   );
 }
 
-function toolFromPart(part: unknown): ChatToolCall | null {
-  const record = asRecord(part);
-  if (typeof record.type !== "string" || !record.type.startsWith("tool-")) return null;
-  const toolName = record.type.slice("tool-".length);
-  return {
-    id: typeof record.toolCallId === "string" ? record.toolCallId : toolName,
-    kind: toolKind(toolName),
-    state: toolState(record.state),
-    query: toolQuery(record.input),
-    error: typeof record.errorText === "string" ? record.errorText : undefined,
-    results: toolResults(record.output),
-  };
-}
-
-function toolKind(toolName: string): ChatToolKind {
-  if (toolName.includes("Document")) return "documents";
-  if (toolName.includes("Note")) return "notes";
-  if (toolName.includes("Highlight")) return "highlights";
-  if (toolName.includes("Python")) return "runPython";
-  if (toolName.includes("search")) return "searchLibrary";
-  return "generic";
-}
-
-function toolState(state: unknown): ChatToolState {
-  if (state === "output-available") return "success";
-  if (state === "output-error") return "error";
-  if (state === "input-streaming" || state === "input-available") return "running";
-  return "pending";
-}
-
-function toolQuery(input: unknown): string | undefined {
-  const record = asRecord(input);
-  const query = record.query ?? record.title ?? record.documentId ?? record.id;
-  if (typeof query === "string" && query.trim()) return truncate(query.trim(), 72);
-  if (Object.keys(record).length > 0) return truncate(JSON.stringify(record), 72);
-  return undefined;
-}
-
-function toolResults(output: unknown): ChatToolCall["results"] {
-  if (!Array.isArray(output)) return undefined;
-  return output.slice(0, 3).map((item, index) => {
-    const record = asRecord(item);
-    const label = record.title ?? record.name ?? record.page ?? `Result ${index + 1}`;
-    const text = record.text ?? record.preview ?? record.summary ?? JSON.stringify(record);
-    return {
-      label: typeof label === "string" || typeof label === "number" ? String(label) : undefined,
-      text: typeof text === "string" ? truncate(text, 160) : truncate(String(text), 160),
-    };
-  });
-}
-
 function referencesToTags(
   references: ReadonlyArray<MessageReference>,
   onOpen: (reference: MessageReference) => void,
@@ -355,14 +303,6 @@ function referenceColor(reference: MessageReference): string | undefined {
   if (reference.kind === "passage") return "var(--bd-accent)";
   if (reference.kind === "note") return "var(--bd-fg-muted)";
   return "var(--wine-700)";
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-}
-
-function truncate(value: string, max: number): string {
-  return value.length > max ? `${value.slice(0, max - 1)}...` : value;
 }
 
 function sourceLabel(conversation: Conversation): string {

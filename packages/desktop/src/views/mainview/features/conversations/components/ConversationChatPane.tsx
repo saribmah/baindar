@@ -223,7 +223,7 @@ function toolFromPart(part: unknown): ChatToolCall | null {
     id: typeof record.toolCallId === "string" ? record.toolCallId : toolName,
     kind: toolKind(toolName),
     state: toolState(record.state),
-    query: toolQuery(record.input),
+    query: toolQuery(toolName, record.input),
     error: typeof record.errorText === "string" ? record.errorText : undefined,
     results: toolResults(record.output),
   };
@@ -233,6 +233,7 @@ function toolKind(toolName: string): ChatToolKind {
   if (toolName.includes("Document")) return "documents";
   if (toolName.includes("Note")) return "notes";
   if (toolName.includes("Highlight")) return "highlights";
+  if (toolName.includes("Bash")) return "runBash";
   if (toolName.includes("Python")) return "runPython";
   if (toolName.includes("search")) return "searchLibrary";
   return "generic";
@@ -245,8 +246,16 @@ function toolState(state: unknown): ChatToolState {
   return "pending";
 }
 
-function toolQuery(input: unknown): string | undefined {
+function toolQuery(toolName: string, input: unknown): string | undefined {
   const record = asRecord(input);
+  if (toolName.includes("Bash")) {
+    const description = record.description;
+    if (typeof description === "string" && description.trim()) {
+      return truncate(description.trim(), 72);
+    }
+    return undefined;
+  }
+
   const query = record.query ?? record.title ?? record.documentId ?? record.id;
   if (typeof query === "string" && query.trim()) return truncate(query.trim(), 72);
   if (Object.keys(record).length > 0) return truncate(JSON.stringify(record), 72);

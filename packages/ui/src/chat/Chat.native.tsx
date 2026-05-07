@@ -713,6 +713,8 @@ function toolConfig(kind: ChatToolKind | undefined): ToolConfig {
       return { Icon: Icons.Share, label: "Searched the web" };
     case "summarize":
       return { Icon: Icons.Note, label: "Generated a summary" };
+    case "runBash":
+      return { Icon: Icons.Search, label: "Checked your binder" };
     case "runPython":
       return { Icon: Icons.Code, label: "Ran analysis" };
     case "notes":
