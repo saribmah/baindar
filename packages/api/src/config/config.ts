@@ -39,6 +39,32 @@ export namespace Config {
     return typeof value === "string" && value.length > 0 ? value : null;
   };
 
+  export const SandboxR2MountNotConfiguredError = NamedError.create(
+    "SandboxR2MountNotConfiguredError",
+    z.object({ name: z.string(), message: z.string().optional() }),
+  );
+  export type SandboxR2MountNotConfiguredError = InstanceType<
+    typeof SandboxR2MountNotConfiguredError
+  >;
+
+  export const isSandboxR2Local = (): boolean => readEnvString("SANDBOX_R2_LOCAL") === "true";
+
+  export const requireSandboxR2BucketName = (): string =>
+    requireEnvString("SANDBOX_R2_BUCKET_NAME");
+
+  export const requireSandboxR2Endpoint = (): string => {
+    const accountId = requireEnvString("CLOUDFLARE_ACCOUNT_ID");
+    return `https://${accountId}.r2.cloudflarestorage.com`;
+  };
+
+  export const requireSandboxR2Credentials = (): {
+    accessKeyId: string;
+    secretAccessKey: string;
+  } => ({
+    accessKeyId: requireEnvString("R2_ACCESS_KEY_ID"),
+    secretAccessKey: requireEnvString("R2_SECRET_ACCESS_KEY"),
+  });
+
   export const R2BucketNotConfiguredError = NamedError.create(
     "R2BucketNotConfiguredError",
     z.object({ message: z.string().optional() }),
@@ -69,4 +95,15 @@ export namespace Config {
   // overrides at runtime via `wrangler --var TEST_MODE:true`. Cast through
   // `string` because the literal type narrows comparison out otherwise.
   export const isTestMode = (): boolean => (Instance.env.TEST_MODE as string) === "true";
+
+  const readEnvString = (name: string): string | null => {
+    const value = (Instance.env as unknown as Record<string, unknown>)[name];
+    return typeof value === "string" && value.length > 0 ? value : null;
+  };
+
+  const requireEnvString = (name: string): string => {
+    const value = readEnvString(name);
+    if (!value) throw new SandboxR2MountNotConfiguredError({ name });
+    return value;
+  };
 }
