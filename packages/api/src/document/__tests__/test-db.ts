@@ -19,7 +19,10 @@ const migrationsFolder = path.resolve(import.meta.dir, "../../../migrations");
 
 export type TestUser = { id: string; name: string; email: string };
 
-export const createTestRuntime = (users: TestUser[]) => {
+export const createTestRuntime = (
+  users: TestUser[],
+  envOverrides: Record<string, unknown> = {},
+) => {
   const sqlite = new Database(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
   const db = drizzle(sqlite);
@@ -49,6 +52,9 @@ export const createTestRuntime = (users: TestUser[]) => {
     BUCKET: createFakeR2Bucket(),
     EPUB_PROCESSOR: createFakeEpubProcessor(),
     ChatAgent: createFakeChatAgentBinding(destroyedConversationIds),
+    SANDBOX_R2_LOCAL: "true",
+    SANDBOX_R2_BUCKET_NAME: "BUCKET",
+    ...envOverrides,
   } as RuntimeEnv;
 
   const runAs = async <R>(userId: string, fn: () => Promise<R>): Promise<R> => {
