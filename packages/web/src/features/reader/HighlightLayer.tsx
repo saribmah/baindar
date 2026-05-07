@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
 import { Button, IconButton, Icons, SelectionToolbar, useTheme } from "@baindar/ui";
+import type { Highlight } from "@baindar/sdk";
 import { useProfile } from "../profile";
 import { useHighlightLayer, type HighlightColor } from "./useHighlightLayer";
 
@@ -33,8 +34,19 @@ export type HighlightLayerProps = {
   contentKey: string;
   targetHighlightId?: string | null;
   targetRequestId?: string | null;
-  onAskSelection?: (quote: string) => void;
+  onAskSelection?: (payload: HighlightAskPayload) => void;
 };
+
+export type HighlightAskPayload =
+  | {
+      kind: "passage";
+      text: string;
+      position: { offsetStart: number; offsetEnd: number };
+    }
+  | {
+      kind: "highlight";
+      highlight: Highlight;
+    };
 
 export function HighlightLayer({
   containerRef,
@@ -74,9 +86,16 @@ export function HighlightLayer({
   };
 
   const handleAskSelection = () => {
-    const text = layer.selection?.text;
-    if (!text) return;
-    onAskSelection?.(text);
+    const selection = layer.selection;
+    if (!selection) return;
+    onAskSelection?.({
+      kind: "passage",
+      text: selection.text,
+      position: {
+        offsetStart: selection.charRange.start,
+        offsetEnd: selection.charRange.end,
+      },
+    });
     layer.clearSelection();
   };
 
@@ -128,7 +147,7 @@ export function HighlightLayer({
             })
           }
           onAsk={() => {
-            onAskSelection?.(layer.focused!.textSnippet);
+            onAskSelection?.({ kind: "highlight", highlight: layer.focused! });
             layer.setFocusedId(null);
           }}
           onCopy={() => {
@@ -150,7 +169,8 @@ export function HighlightLayer({
           quote={noteDraft.quote}
           onCancel={() => setNoteDraft(null)}
           onAsk={() => {
-            onAskSelection?.(noteDraft.quote);
+            const highlight = layer.highlights.find((item) => item.id === noteDraft.id);
+            if (highlight) onAskSelection?.({ kind: "highlight", highlight });
             setNoteDraft(null);
           }}
           onSave={async (note) => {

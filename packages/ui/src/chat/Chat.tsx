@@ -16,6 +16,7 @@ import type {
   ChatAttachment,
   ChatCitation,
   ChatConversationSummary,
+  ChatReference,
   ChatToolCall,
   ChatToolKind,
   ChatToolResult,
@@ -50,19 +51,82 @@ export function ChatAssistantHeader({
 
 export type ChatUserTurnProps = DivProps & {
   attachment?: ChatAttachment | null;
+  references?: ReadonlyArray<ChatReference>;
   children: ReactNode;
 };
 
-export function ChatUserTurn({ attachment, children, className, ...rest }: ChatUserTurnProps) {
+export function ChatUserTurn({
+  attachment,
+  references,
+  children,
+  className,
+  ...rest
+}: ChatUserTurnProps) {
   return (
     <div className={cx("bd-chat-user-turn", className)} {...rest}>
       <div className="bd-chat-user-stack">
         {attachment && <ChatAttachmentBlock attachment={attachment} />}
+        {references && references.length > 0 && <ChatReferenceList references={references} />}
         <div className="bd-chat-user-bubble">
           {typeof children === "string" ? <ChatMarkdown>{children}</ChatMarkdown> : children}
         </div>
       </div>
     </div>
+  );
+}
+
+export function ChatReferenceList({ references }: { references: ReadonlyArray<ChatReference> }) {
+  return (
+    <div className="bd-chat-reference-list" aria-label="Message references">
+      {references.map((reference) => (
+        <ChatReferenceChip key={reference.id} reference={reference} />
+      ))}
+    </div>
+  );
+}
+
+export function ChatReferenceChip({ reference }: { reference: ChatReference }) {
+  const content = (
+    <>
+      <span
+        aria-hidden
+        className="bd-chat-reference-dot"
+        style={{ background: reference.color ?? "var(--bd-accent)" }}
+      />
+      <span className="bd-chat-reference-main">
+        <span className="bd-chat-reference-label">{reference.label}</span>
+        {reference.description && (
+          <span className="bd-chat-reference-description">{reference.description}</span>
+        )}
+      </span>
+    </>
+  );
+
+  return (
+    <span className="bd-chat-reference">
+      {reference.onOpen ? (
+        <button
+          type="button"
+          className="bd-chat-reference-open"
+          aria-label={`Open ${reference.label}`}
+          onClick={reference.onOpen}
+        >
+          {content}
+        </button>
+      ) : (
+        <span className="bd-chat-reference-open">{content}</span>
+      )}
+      {reference.onRemove && (
+        <button
+          type="button"
+          aria-label={`Remove ${reference.label}`}
+          className="bd-chat-reference-remove"
+          onClick={reference.onRemove}
+        >
+          <Icons.Close size={10} />
+        </button>
+      )}
+    </span>
   );
 }
 
@@ -277,6 +341,7 @@ export type ChatComposerProps = Omit<FormHTMLAttributes<HTMLFormElement>, "onSub
   onSubmit: (value: string) => void;
   placeholder?: string;
   context?: ChatAttachment | null;
+  references?: ReadonlyArray<ChatReference>;
   suggestions?: ReadonlyArray<string>;
   disabled?: boolean;
   submitting?: boolean;
@@ -291,6 +356,7 @@ export function ChatComposer({
   onSubmit,
   placeholder = "Ask about anything in the book...",
   context,
+  references,
   suggestions,
   disabled,
   submitting,
@@ -346,6 +412,7 @@ export function ChatComposer({
             )}
           </div>
         )}
+        {references && references.length > 0 && <ChatReferenceList references={references} />}
         <div className="bd-chat-composer-row">
           <textarea
             value={value}

@@ -189,7 +189,7 @@ export function LibraryDetail() {
               <Button
                 variant="secondary"
                 iconStart={<Icons.Sparkles size={14} />}
-                onClick={() => navigate(`/read/${doc.id}`)}
+                onClick={() => navigate(`/read/${doc.id}?ask=book&target=${Date.now()}`)}
                 className="w-full text-bd-accent"
               >
                 Ask Baindar about this book
@@ -262,6 +262,7 @@ export function LibraryDetail() {
                 onFilterChange={setNoteFilter}
                 onEdit={setEditingNote}
                 onOpenReader={(note) => navigate(readerNotePath(doc.id, note))}
+                onAsk={(note) => navigate(readerNotePath(doc.id, note, true))}
               />
             ) : activeTab === "highlights" ? (
               <HighlightsTab
@@ -397,6 +398,7 @@ function NotesTab({
   onFilterChange,
   onEdit,
   onOpenReader,
+  onAsk,
 }: {
   notes: Array<Note & { highlight?: Highlight }>;
   noteFilter: NoteFilter;
@@ -408,6 +410,7 @@ function NotesTab({
   onFilterChange: (filter: NoteFilter) => void;
   onEdit: (note: Note) => void;
   onOpenReader: (note: Note & { highlight?: Highlight }) => void;
+  onAsk: (note: Note & { highlight?: Highlight }) => void;
 }) {
   return (
     <section className="pt-5">
@@ -449,7 +452,7 @@ function NotesTab({
             location={noteDateLabel(note.createdAt)}
             onEdit={() => onEdit(note)}
             onOpen={() => onOpenReader(note)}
-            onAsk={() => onOpenReader(note)}
+            onAsk={() => onAsk(note)}
           />
         ))
       )}
@@ -510,13 +513,18 @@ function readerHighlightPath(documentId: string, highlight: Highlight): string {
   return `/read/${documentId}?${params.toString()}`;
 }
 
-function readerNotePath(documentId: string, note: Note & { highlight?: Highlight }): string {
+function readerNotePath(
+  documentId: string,
+  note: Note & { highlight?: Highlight },
+  ask = false,
+): string {
   const sectionKey = note.sectionKey ?? note.highlight?.sectionKey ?? null;
   const order = sectionKey ? sectionOrderFromKey(sectionKey) : null;
   const params = new URLSearchParams();
   if (order !== null) params.set("chapter", String(order));
   if (note.highlight) params.set("highlight", note.highlight.id);
   params.set("note", note.id);
+  if (ask) params.set("ask", "note");
   params.set("target", "1");
   return `/read/${documentId}?${params.toString()}`;
 }

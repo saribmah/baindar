@@ -11,6 +11,11 @@ import type { AuthContext, RuntimeEnv } from "../app/context";
 import { Conversation } from "../conversation/conversation";
 import { createDb, type Db } from "../db/db";
 import { Instance } from "../instance";
+import {
+  referenceDataPartToModelPart,
+  validateReferenceDataParts,
+  type BaindarAgentMessage,
+} from "./message-reference";
 import { SYSTEM_PROMPT } from "./prompt";
 import { buildAgentTools } from "./tools";
 
@@ -36,6 +41,12 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
 
     return Instance.provide({ auth: agentAuth(userId), env: this.env, db }, async () => {
       const conversationId = this.name;
+      const messages = this.messages as BaindarAgentMessage[];
+      const referenceValidation = validateReferenceDataParts(messages);
+      if (!referenceValidation.ok) {
+        return new Response(referenceValidation.message, { status: 400 });
+      }
+
       // Bump last_activity_at so the sidebar reorders. Silent no-op if the
       // row vanished mid-turn.
       await Conversation.touch(userId, conversationId).catch(() => {});
@@ -48,7 +59,9 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
       const result = streamText({
         model: anthropic(this.env.ANTHROPIC_MODEL),
         system: SYSTEM_PROMPT,
-        messages: await convertToModelMessages(this.messages),
+        messages: await convertToModelMessages(messages, {
+          convertDataPart: referenceDataPartToModelPart,
+        }),
         abortSignal: options?.abortSignal,
         tools,
         // Allow up to 8 model→tool→model loops per turn so the agent can chain

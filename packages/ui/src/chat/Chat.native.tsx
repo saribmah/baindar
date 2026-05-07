@@ -20,6 +20,7 @@ import type {
   ChatAttachment,
   ChatCitation,
   ChatConversationSummary,
+  ChatReference,
   ChatToolCall,
   ChatToolKind,
   ChatToolResult,
@@ -62,15 +63,17 @@ export function ChatAssistantHeader({
 
 export type ChatUserTurnProps = {
   attachment?: ChatAttachment | null;
+  references?: ReadonlyArray<ChatReference>;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-export function ChatUserTurn({ attachment, children, style }: ChatUserTurnProps) {
+export function ChatUserTurn({ attachment, references, children, style }: ChatUserTurnProps) {
   return (
     <View style={[styles.userTurn, style]}>
       <View style={styles.userStack}>
         {attachment && <ChatAttachmentBlock attachment={attachment} />}
+        {references && references.length > 0 && <ChatReferenceList references={references} />}
         <View style={styles.userBubble}>
           {typeof children === "string" ? (
             <ChatMarkdown textStyle={styles.userText}>{children}</ChatMarkdown>
@@ -79,6 +82,63 @@ export function ChatUserTurn({ attachment, children, style }: ChatUserTurnProps)
           )}
         </View>
       </View>
+    </View>
+  );
+}
+
+export function ChatReferenceList({ references }: { references: ReadonlyArray<ChatReference> }) {
+  return (
+    <View style={styles.referenceList}>
+      {references.map((reference) => (
+        <ChatReferenceChip key={reference.id} reference={reference} />
+      ))}
+    </View>
+  );
+}
+
+export function ChatReferenceChip({ reference }: { reference: ChatReference }) {
+  const palette = useThemeColors();
+  return (
+    <View
+      style={[
+        styles.reference,
+        { backgroundColor: palette.surfaceRaised, borderColor: palette.border },
+      ]}
+    >
+      <Pressable
+        accessibilityRole={reference.onOpen ? "button" : undefined}
+        accessibilityLabel={reference.onOpen ? `Open ${reference.label}` : undefined}
+        disabled={!reference.onOpen}
+        onPress={reference.onOpen}
+        style={styles.referenceOpen}
+      >
+        <View
+          style={[styles.referenceDot, { backgroundColor: reference.color ?? palette.action }]}
+        />
+        <View style={styles.referenceMain}>
+          <Text style={[styles.referenceLabel, { color: palette.fg }]} numberOfLines={1}>
+            {reference.label}
+          </Text>
+          {reference.description && (
+            <Text
+              style={[styles.referenceDescription, { color: palette.fgMuted }]}
+              numberOfLines={1}
+            >
+              {reference.description}
+            </Text>
+          )}
+        </View>
+      </Pressable>
+      {reference.onRemove && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${reference.label}`}
+          onPress={reference.onRemove}
+          style={[styles.referenceRemove, { borderLeftColor: palette.border }]}
+        >
+          <Icons.Close size={10} color={palette.fgMuted} />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -362,6 +422,7 @@ export type ChatComposerProps = {
   onSubmit: (value: string) => void;
   placeholder?: string;
   context?: ChatAttachment | null;
+  references?: ReadonlyArray<ChatReference>;
   suggestions?: ReadonlyArray<string>;
   disabled?: boolean;
   submitting?: boolean;
@@ -376,6 +437,7 @@ export function ChatComposer({
   onSubmit,
   placeholder = "Ask about anything in the book...",
   context,
+  references,
   suggestions,
   disabled,
   submitting,
@@ -442,6 +504,7 @@ export function ChatComposer({
             )}
           </View>
         )}
+        {references && references.length > 0 && <ChatReferenceList references={references} />}
         <View style={styles.composerRow}>
           <TextInput
             value={value}
@@ -893,6 +956,55 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontStyle: "italic",
     lineHeight: 20,
+  },
+  referenceList: {
+    maxWidth: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    gap: 6,
+  },
+  reference: {
+    maxWidth: 320,
+    flexDirection: "row",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderRadius: radius.pill,
+  },
+  referenceOpen: {
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  referenceDot: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.pill,
+  },
+  referenceMain: {
+    minWidth: 0,
+    gap: 1,
+  },
+  referenceLabel: {
+    fontFamily: font.nativeFamily.ui,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 14,
+  },
+  referenceDescription: {
+    fontFamily: font.nativeFamily.reading,
+    fontSize: 11,
+    fontStyle: "italic",
+    lineHeight: 14,
+  },
+  referenceRemove: {
+    width: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
   },
   assistantTurn: {
     marginBottom: 28,

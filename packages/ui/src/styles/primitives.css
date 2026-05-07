@@ -422,6 +422,11 @@
     2px 0 0 var(--hl-blue),
     -2px 0 0 var(--hl-blue);
 }
+.bd-highlight-reference {
+  cursor: default;
+  outline: 1px solid color-mix(in oklab, var(--bd-accent) 55%, transparent);
+  outline-offset: 2px;
+}
 .bd-highlight-purple {
   background: var(--hl-purple);
   box-shadow:

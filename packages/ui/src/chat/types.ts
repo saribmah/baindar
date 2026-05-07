@@ -20,6 +20,15 @@ export type ChatAttachment = {
   color?: string;
 };
 
+export type ChatReference = {
+  id: string;
+  label: string;
+  description?: string;
+  color?: string;
+  onOpen?: () => void;
+  onRemove?: () => void;
+};
+
 export type ChatCitation = {
   id?: string;
   label?: string;
