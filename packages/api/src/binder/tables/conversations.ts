@@ -7,9 +7,6 @@ export const conversationsTableSql = `
     last_activity_at INTEGER NOT NULL
   );
   CREATE INDEX idx_conversations_activity ON conversations(last_activity_at);
-`;
-
-export const conversationsPrimaryDocumentIndexSql = `
   CREATE INDEX idx_conversations_primary_document
     ON conversations(primary_document_id);
 `;
