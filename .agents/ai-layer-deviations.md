@@ -52,8 +52,8 @@ the staging in the plan, not git tags.
   `document` while siblings still write to D1 would FK-fail on every
   insert. Production (Cloudflare D1) doesn't enforce FKs, but the
   test harness does.
-- **Status:** Open — planned for Phase 3 once siblings move to BinderDO.
-  The drop migration retires the entire document-domain set in one shot.
+- **Status:** Closed in Phase 3 — `0005_optimal_sister_grimm.sql` drops
+  all six document-domain tables. See D3-3.
 
 ---
 
@@ -74,13 +74,11 @@ the staging in the plan, not git tags.
   2. The format Workflow's `loadDocument` step receives only `documentId`
      and reverse-looks up `userId` from D1. Threading `userId` through
      Workflow params requires Phase 2 work.
-- **Status:** Open. Phase 3 should:
-  - move sibling features (highlight/note/progress/shelf/conversation) to
-    BinderDO RPCs;
-  - drop all document-domain D1 tables in one migration;
-  - drop the `DUAL-WRITE` paths in `DocumentStorage`;
-  - decide whether to thread `userId` through `EpubWorkflowParams` or
-    leave the post-cutover flow.
+- **Status:** Closed in Phase 3. Sibling features moved to BinderDO RPCs
+  (D3-3), document-domain D1 tables dropped (`0005`), `DUAL-WRITE` /
+  `getInternal` paths removed from `DocumentStorage`, and
+  `EpubWorkflowParams` now carries `userId` so workflow steps no longer
+  need a D1 reverse lookup (D3-2).
 
 ### D1-2. DELETE /documents/:id stayed live in Phase 1
 
@@ -173,7 +171,9 @@ the staging in the plan, not git tags.
 - **Why:** Same FK / dual-write rationale as D1-1 — D1 catalog row must
   go away when BinderDO row does, otherwise FK constraints in the test
   harness break sibling-table cleanup.
-- **Status:** Resolves automatically with D1-1 / D0-3 in Phase 3.
+- **Status:** Closed in Phase 3. With D1 catalog gone, `DocumentStorage.remove`
+  no longer dual-deletes — `BinderStore.removeDocument` is the only path
+  and runs all sibling cleanup inside one BinderDO transaction.
 
 ### D2-4. DELETE /documents/:id status: 202 (vs plan's 204)
 
@@ -222,21 +222,23 @@ the staging in the plan, not git tags.
 
 - **PRD §9 / §17:** PRD lists "conversation metadata" inside BinderDO and
   the BinderDO migration creates a `conversations` table.
-- **Shipped:** Conversation rows still live in D1 (`conversation` table,
-  schema retained). The BinderDO `conversations` table exists but is
-  unused. Document-delete cascade (formerly an FK ON DELETE CASCADE) is
-  emulated: `DocumentStorage.remove` explicitly `DELETE FROM conversation
-  WHERE primary_doc_id = ?` after dropping the BinderDO row.
-- **Why:** `ConversationStorage.ownerOf(conversationId)` is a global
-  reverse lookup the ChatAgent DO uses when its only handle is the
-  conversationId. BinderDO is per-user, so it can't answer
-  conversationId → userId. Moving conversation to BinderDO requires a
-  separate global lookup table (e.g., a tiny D1 `conversation_owner`
-  pointer) or threading userId into the ChatAgent DO instance name.
-  Out of scope for Phase 3.
-- **Status:** Open. Future work: either move conversation to BinderDO
-  with a thin D1 owner pointer, or change ChatAgent's instance addressing
-  to embed userId.
+- **Shipped (through Phase 4):** Conversation rows lived in D1
+  (`conversation` table). BinderDO's `conversations` table existed but was
+  unused. Document-delete cascade was emulated via an explicit
+  `DELETE FROM conversation WHERE primary_doc_id = ?` in
+  `DocumentStorage.remove`.
+- **Why deferred:** `ConversationStorage.ownerOf(conversationId)` was a
+  global reverse lookup the ChatAgent DO needed when its only handle was
+  the conversationId.
+- **Status:** Closed in Phase 5. ChatAgent identity flipped to
+  `idFromName(\`${userId}:${conversationId}\`)` and persists the pair to
+  DO storage in `init()`, so the owner reverse-lookup is gone. Conversation
+  RPCs (`createConversation` / `getConversation` / `listConversations` /
+  `updateConversation` / `touchConversation` / `removeConversation`) now
+  live on BinderDO; migration `0006_talented_khan.sql` drops the D1
+  `conversation` table; `DocumentStorage.remove` no longer touches
+  conversations directly — `BinderStore.removeDocument` nulls
+  `primary_document_id` inside the same transaction.
 
 ### D3-2. EpubWorkflowParams now carries userId (resolves D1-1 follow-up)
 
@@ -388,11 +390,9 @@ the staging in the plan, not git tags.
 
 ---
 
-## Open follow-ups (parking lot for Phase 5+)
+## Open follow-ups (parking lot for Phase 6+)
 
 - D2-1: re-evaluate contentless vs external-content FTS5 once binder
   size data exists.
-- D3-1: move conversation rows to BinderDO once the ChatAgent owner
-  reverse-lookup story is settled.
 - D3-4: switch `PositionPayload` to a discriminated union if a format
   needs non-numeric position fields.
