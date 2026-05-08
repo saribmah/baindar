@@ -435,7 +435,7 @@ documentRouter.get(
   describeRoute({
     summary: "Stream a section's canonical plain text",
     description:
-      "The `.txt` payload that highlight offsets reference and the AI sandbox consumes. Identical text content to the HTML endpoint with markup stripped.",
+      "The `.txt` payload that highlight offsets and AI document tools consume. Identical text content to the HTML endpoint with markup stripped.",
     operationId: "document.getSectionText",
     responses: {
       200: {

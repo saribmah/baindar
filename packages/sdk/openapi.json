@@ -262,6 +262,9 @@
           "id": {
             "type": "string"
           },
+          "agentName": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -284,6 +287,7 @@
         },
         "required": [
           "id",
+          "agentName",
           "title",
           "primaryDocId",
           "createdAt",
@@ -2142,7 +2146,7 @@
       "get": {
         "operationId": "document.getSectionText",
         "summary": "Stream a section's canonical plain text",
-        "description": "The `.txt` payload that highlight offsets reference and the AI sandbox consumes. Identical text content to the HTML endpoint with markup stripped.",
+        "description": "The `.txt` payload that highlight offsets and AI document tools consume. Identical text content to the HTML endpoint with markup stripped.",
         "responses": {
           "200": {
             "description": "Section plain text",

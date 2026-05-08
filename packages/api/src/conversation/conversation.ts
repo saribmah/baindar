@@ -4,10 +4,9 @@ import { Document } from "../document/document";
 import { NamedError } from "../utils/error";
 import { ConversationStorage } from "./storage";
 
-// User-owned chat thread. The id doubles as the ChatAgent Durable Object
-// instance name (wired in a follow-up PR — today the DO is still keyed by
-// userId), so it must be globally unique and stable for the conversation's
-// lifetime.
+// User-owned chat thread. `id` is the conversation identifier exposed in
+// route paths. `agentName` is the opaque ChatAgent Durable Object routing
+// name that clients pass to `useAgent`; clients must not reconstruct it.
 //
 // `primaryDocId` is a soft "started here" hint set when a conversation is
 // opened from the reader. It powers reader-side resume lookups and a sidebar
@@ -30,6 +29,7 @@ export namespace Conversation {
   export const Entity = z
     .object({
       id: z.string(),
+      agentName: z.string(),
       title: z.string(),
       primaryDocId: z.string().nullable(),
       createdAt: z.string(),

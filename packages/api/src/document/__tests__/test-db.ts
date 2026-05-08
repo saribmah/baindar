@@ -323,7 +323,12 @@ class FakeBinder {
   }): Promise<FakeDocumentRow | null> {
     const row = this.documents.get(input.documentId);
     if (!row) return null;
-    if (typeof input.title === "string") row.title = input.title;
+    if (typeof input.title === "string") {
+      row.title = input.title;
+      for (const chunk of this.chunks) {
+        if (chunk.documentId === input.documentId) chunk.documentTitle = input.title;
+      }
+    }
     row.updatedAt = Date.now();
     return row;
   }

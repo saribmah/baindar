@@ -57,7 +57,7 @@ export function ConversationChatPane({
   const lastDraftSeedKeyRef = useRef<string | null>(null);
   const agent = useAgent({
     agent: "ChatAgent",
-    name: conversation.id,
+    name: conversation.agentName,
     host: agentsHost,
   });
   const { messages, sendMessage, status, clearHistory } = useAgentChat<unknown, BaindarChatMessage>(

@@ -10,8 +10,9 @@ import type { Conversation } from "./conversation";
 // in its own DO storage on init, so reverse lookup by conversationId is
 // no longer needed.
 export namespace ConversationStorage {
-  const toEntity = (row: ConversationRow): Conversation.Entity => ({
+  const toEntity = (userId: string, row: ConversationRow): Conversation.Entity => ({
     id: row.conversationId,
+    agentName: `${userId}:${row.conversationId}`,
     title: row.title,
     primaryDocId: row.primaryDocumentId,
     createdAt: new Date(row.createdAt).toISOString(),
@@ -32,19 +33,19 @@ export namespace ConversationStorage {
       title: input.title,
       primaryDocumentId: input.primaryDocId,
     });
-    return toEntity(row);
+    return toEntity(input.userId, row);
   };
 
   export const list = async (userId: string): Promise<Conversation.Entity[]> => {
     const binder = Binder.require(userId);
     const rows = await binder.listConversations();
-    return rows.map(toEntity);
+    return rows.map((row) => toEntity(userId, row));
   };
 
   export const get = async (id: string, userId: string): Promise<Conversation.Entity | null> => {
     const binder = Binder.require(userId);
     const row = await binder.getConversation(id);
-    return row ? toEntity(row) : null;
+    return row ? toEntity(userId, row) : null;
   };
 
   export type UpdatePatch = {

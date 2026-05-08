@@ -18,6 +18,18 @@ export function chatToolFromPart(part: unknown): ChatToolCall | null {
 }
 
 function toolKind(toolName: string): ChatToolKind {
+  if (toolName === "list_documents") return "documents";
+  if (
+    toolName === "search_document" ||
+    toolName === "search_binder" ||
+    toolName === "expand_query"
+  ) {
+    return "searchLibrary";
+  }
+  if (toolName === "read_section" || toolName === "get_summary") return "documents";
+  if (toolName === "list_notes") return "notes";
+  if (toolName === "list_highlights") return "highlights";
+
   if (toolName.includes("Document")) return "documents";
   if (toolName.includes("Note")) return "notes";
   if (toolName.includes("Highlight")) return "highlights";
@@ -44,23 +56,57 @@ function toolQuery(toolName: string, input: unknown): string | undefined {
     return undefined;
   }
 
-  const query = record.query ?? record.title ?? record.documentId ?? record.id;
+  const query =
+    record.query ??
+    record.original_query ??
+    record.title ??
+    record.document_id ??
+    record.documentId ??
+    record.section_key ??
+    record.sectionKey ??
+    record.target_key ??
+    record.targetKey ??
+    record.id;
   if (typeof query === "string" && query.trim()) return truncate(query.trim(), 72);
   if (Object.keys(record).length > 0) return truncate(JSON.stringify(record), 72);
   return undefined;
 }
 
 function toolResults(output: unknown): ChatToolCall["results"] {
-  if (!Array.isArray(output)) return undefined;
-  return output.slice(0, 3).map((item, index) => {
+  const items = Array.isArray(output) ? output : outputItems(output);
+  if (items.length === 0) return undefined;
+  return items.slice(0, 3).map((item, index) => {
     const record = asRecord(item);
-    const label = record.title ?? record.name ?? record.page ?? `Result ${index + 1}`;
-    const text = record.text ?? record.preview ?? record.summary ?? JSON.stringify(record);
+    const label =
+      record.documentTitle ??
+      record.sectionTitle ??
+      record.title ??
+      record.name ??
+      record.status ??
+      record.page ??
+      `Result ${index + 1}`;
+    const text =
+      record.snippet ??
+      record.textSnippet ??
+      record.body ??
+      record.text ??
+      record.preview ??
+      record.summary ??
+      record.message ??
+      JSON.stringify(record);
     return {
       label: typeof label === "string" || typeof label === "number" ? String(label) : undefined,
       text: typeof text === "string" ? truncate(text, 160) : truncate(String(text), 160),
     };
   });
+}
+
+function outputItems(output: unknown): unknown[] {
+  const record = asRecord(output);
+  if (Array.isArray(record.chunks)) return record.chunks;
+  if (Array.isArray(record.items)) return record.items;
+  if (Object.keys(record).length > 0) return [record];
+  return [];
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

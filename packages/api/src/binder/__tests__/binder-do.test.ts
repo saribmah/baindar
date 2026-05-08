@@ -116,12 +116,14 @@ describe("BinderStore catalog", () => {
       documentId: input.documentId,
       title: "Final Title",
       coverImage: "assets/cover.jpg",
+      manifestKey: "users/u1/documents/d1/manifest.json",
     });
     const row = store.getDocument(input.documentId);
     expect(row?.status).toBe("processed");
     expect(row?.errorReason).toBeNull();
     expect(row?.title).toBe("Final Title");
     expect(row?.coverImage).toBe("assets/cover.jpg");
+    expect(row?.manifestKey).toBe("users/u1/documents/d1/manifest.json");
   });
 
   test("markDocumentProcessed with null title preserves existing title", () => {
@@ -131,10 +133,12 @@ describe("BinderStore catalog", () => {
       documentId: input.documentId,
       title: null,
       coverImage: null,
+      manifestKey: "users/u1/documents/d1/manifest.json",
     });
     const row = store.getDocument(input.documentId);
     expect(row?.title).toBe("Book");
     expect(row?.status).toBe("processed");
+    expect(row?.manifestKey).toBe("users/u1/documents/d1/manifest.json");
   });
 
   test("markDocumentFailed records the reason", () => {
@@ -741,5 +745,44 @@ describe("BinderStore search", () => {
     seedCorpus();
     const hits = store.search({ query: "the fox apple", limit: 1 });
     expect(hits).toHaveLength(1);
+  });
+
+  test("renaming a document refreshes binder search title metadata", () => {
+    store.createDocument({
+      documentId: "doc-title",
+      kind: "epub",
+      mimeType: "application/epub+zip",
+      originalFilename: "title.epub",
+      sizeBytes: 1,
+      contentHash: "ht",
+      title: "Old Binder Name",
+      sensitive: false,
+      status: "processed",
+      originalKey: "users/u/documents/doc-title/original.epub",
+    });
+    store.indexDocumentChunks({
+      documentId: "doc-title",
+      documentTitle: "Old Binder Name",
+      chunks: [
+        {
+          sectionKey: "epub:section:0",
+          sectionTitle: "Chapter 1",
+          sectionOrder: 0,
+          chunkIndex: 0,
+          startOffset: 0,
+          endOffset: 31,
+          textPath: "content/0-chapter-1.txt",
+          text: "plain content without title tokens",
+        },
+      ],
+    });
+
+    expect(store.search({ query: "old" })).toHaveLength(1);
+    store.updateDocument({ documentId: "doc-title", title: "Fresh Binder Name" });
+
+    const hits = store.search({ query: "fresh" });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]!.documentTitle).toBe("Fresh Binder Name");
+    expect(store.search({ query: "old" })).toEqual([]);
   });
 });

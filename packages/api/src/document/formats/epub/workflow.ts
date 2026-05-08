@@ -4,7 +4,8 @@ import { createDb } from "../../../db/db";
 import { Instance } from "../../../instance";
 import { createAnonymousAuth } from "../../../middleware/auth";
 import {
-  indexDocument,
+  indexDocumentBatch,
+  initDocumentDO,
   loadDocument,
   markProcessed,
   parseAndRender,
@@ -73,14 +74,23 @@ export class EpubWorkflow extends WorkflowEntrypoint<RuntimeEnv, EpubWorkflowPar
         () => provide(() => writeManifest(userId, documentId, manifest)),
       );
       await step.do(
-        "indexDocument",
+        "initDocumentDO",
         {
-          retries: { limit: 3, delay: "5 seconds", backoff: "exponential" },
-          timeout: "5 minutes",
+          retries: { limit: 5, delay: "2 seconds", backoff: "exponential" },
+          timeout: "30 seconds",
         },
-        () =>
-          provide(() => indexDocument(userId, documentId, loaded.contentHash, manifest, finalized)),
+        () => provide(() => initDocumentDO(userId, documentId, loaded.contentHash, finalized)),
       );
+      for (const section of manifest.sections) {
+        await step.do(
+          `indexDocumentBatch:${section.order}`,
+          {
+            retries: { limit: 3, delay: "5 seconds", backoff: "exponential" },
+            timeout: "1 minute",
+          },
+          () => provide(() => indexDocumentBatch(userId, documentId, manifest.title, section)),
+        );
+      }
       await step.do(
         "markProcessed",
         {

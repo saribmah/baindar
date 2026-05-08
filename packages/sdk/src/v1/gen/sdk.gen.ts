@@ -733,7 +733,7 @@ export class Document extends HeyApiClient {
   /**
    * Stream a section's canonical plain text
    *
-   * The `.txt` payload that highlight offsets reference and the AI sandbox consumes. Identical text content to the HTML endpoint with markup stripped.
+   * The `.txt` payload that highlight offsets and AI document tools consume. Identical text content to the HTML endpoint with markup stripped.
    */
   public getSectionText<ThrowOnError extends boolean = false>(
     parameters: {

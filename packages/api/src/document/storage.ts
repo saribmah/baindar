@@ -129,6 +129,7 @@ export namespace DocumentStorage {
   export type MarkProcessedInput = {
     title: string | null;
     coverImage: string | null;
+    manifestKey: string;
   };
 
   export const markProcessed = async (
@@ -141,6 +142,7 @@ export namespace DocumentStorage {
       documentId: id,
       title: input.title,
       coverImage: input.coverImage,
+      manifestKey: input.manifestKey,
     });
   };
 

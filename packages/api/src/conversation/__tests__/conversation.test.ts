@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { Context } from "hono";
+import type { AppEnv } from "../../app/context";
 import { Conversation } from "../conversation";
 import { DocumentStorage } from "../../document/storage";
 import { createTestRuntime } from "../../document/__tests__/test-db";
+import { requireOwnAgentInstance } from "../../middleware/agent-instance";
 
 const seedDocument = async (
   userId: string,
@@ -42,12 +45,14 @@ describe("Conversation feature", () => {
     await runtime.runAs(userA, async () => {
       const created = await Conversation.create(userA, {});
       expect(created.title).toBe("Untitled");
+      expect(created.agentName).toBe(`${userA}:${created.id}`);
       expect(created.primaryDocId).toBeNull();
       expect(created.createdAt).toBe(created.lastActivityAt);
 
       const items = await Conversation.list(userA);
       expect(items).toHaveLength(1);
       expect(items[0]?.id).toBe(created.id);
+      expect(items[0]?.agentName).toBe(created.agentName);
     });
   });
 
@@ -78,6 +83,7 @@ describe("Conversation feature", () => {
     await runtime.runAs(userA, async () => {
       const updated = await Conversation.update(userA, created.id, { title: "Lease talks" });
       expect(updated.title).toBe("Lease talks");
+      expect(updated.agentName).toBe(`${userA}:${created.id}`);
     });
 
     await runtime.runAs(userB, async () => {
@@ -129,6 +135,7 @@ describe("Conversation feature", () => {
 
       const after = await Conversation.get(userA, scoped.id);
       expect(after.primaryDocId).toBeNull();
+      expect(after.agentName).toBe(`${userA}:${scoped.id}`);
     });
   });
 
@@ -157,4 +164,58 @@ describe("Conversation feature", () => {
     await runtime.runAs(userA, () => Conversation.remove(userA, created.id));
     expect(runtime.destroyedConversationIds).toEqual([created.id]);
   });
+
+  it("accepts composite agentName and rejects bare conversation ids", async () => {
+    const created = await runtime.runAs(userA, () => Conversation.create(userA, {}));
+
+    await runtime.runAs(userA, async () => {
+      let nextCalled = false;
+      const accepted = await requireOwnAgentInstance(
+        fakeContext(`http://example.test/agents/chat-agent/${created.agentName}/chat`),
+        async () => {
+          nextCalled = true;
+        },
+      );
+      expect(accepted).toBeUndefined();
+      expect(nextCalled).toBe(true);
+
+      nextCalled = false;
+      const rejected = await requireOwnAgentInstance(
+        fakeContext(`http://example.test/agents/chat-agent/${created.id}/chat`),
+        async () => {
+          nextCalled = true;
+        },
+      );
+      expect(nextCalled).toBe(false);
+      expect(rejected).toBeInstanceOf(Response);
+      expect((rejected as Response).status).toBe(400);
+    });
+  });
+
+  it("rejects composite agent names for another user", async () => {
+    const created = await runtime.runAs(userA, () => Conversation.create(userA, {}));
+
+    await runtime.runAs(userB, async () => {
+      let nextCalled = false;
+      const rejected = await requireOwnAgentInstance(
+        fakeContext(`http://example.test/agents/chat-agent/${created.agentName}/chat`),
+        async () => {
+          nextCalled = true;
+        },
+      );
+      expect(nextCalled).toBe(false);
+      expect(rejected).toBeInstanceOf(Response);
+      expect((rejected as Response).status).toBe(403);
+    });
+  });
 });
+
+const fakeContext = (url: string): Context<AppEnv> =>
+  ({
+    req: { url },
+    json: (payload: unknown, status: number) =>
+      new Response(JSON.stringify(payload), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
+  }) as unknown as Context<AppEnv>;

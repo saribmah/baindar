@@ -203,10 +203,82 @@ export const runEpubInline = async (userId: string, documentId: string): Promise
   }
 };
 
-// Index pass — fan section text into DocumentDO chunks + BinderDO chunk
-// refs. Lives behind a separate exported step so the Workflow class can
-// schedule it as its own checkpoint, and tests can re-enter it without
-// re-parsing the EPUB.
+// Idempotently initialize the per-document actor after the manifest write.
+// This runs as its own Workflow checkpoint so retries don't replay parsing.
+export const initDocumentDO = async (
+  userId: string,
+  documentId: string,
+  contentHash: string,
+  finalized: FinalizedManifest,
+): Promise<void> => {
+  await DocumentBinding.require(documentId).init({
+    documentId,
+    userId,
+    kind: "epub",
+    manifestKey: finalized.manifestKey,
+    contentHash,
+  });
+};
+
+// Index one deterministic section batch. Workflow retries re-enter a single
+// section and both backing stores UPSERT by stable keys, so repeated
+// execution updates rows instead of duplicating chunks.
+export const indexDocumentBatch = async (
+  userId: string,
+  documentId: string,
+  documentTitle: string,
+  section: Document.SectionSummary,
+): Promise<void> => {
+  const textPath = section.files.text;
+  const asset = await DocumentAssetStore.getContent(userId, documentId, basename(textPath));
+  if (!asset) {
+    throw new Error(`Section text missing at ${textPath}`);
+  }
+
+  const sectionInput = {
+    sectionKey: section.sectionKey,
+    sectionOrder: section.order,
+    title: section.title || null,
+    wordCount: section.wordCount,
+    textPath,
+  };
+  const text = await streamToString(asset.body);
+  const chunks = chunkSection(text);
+  const documentDOChunks = chunks.map((c) => ({
+    sectionKey: section.sectionKey,
+    sectionOrder: section.order,
+    sectionTitle: section.title || null,
+    chunkIndex: c.chunkIndex,
+    startOffset: c.startOffset,
+    endOffset: c.endOffset,
+    textPath,
+    text: c.text,
+  }));
+
+  await DocumentBinding.require(documentId).indexChunks({
+    sections: [sectionInput],
+    chunks: documentDOChunks,
+  });
+
+  if (documentDOChunks.length === 0) return;
+  await Binder.require(userId).indexDocumentChunks({
+    documentId,
+    documentTitle,
+    chunks: documentDOChunks.map((c) => ({
+      sectionKey: c.sectionKey,
+      sectionTitle: c.sectionTitle,
+      sectionOrder: c.sectionOrder,
+      chunkIndex: c.chunkIndex,
+      startOffset: c.startOffset,
+      endOffset: c.endOffset,
+      textPath: c.textPath,
+      text: c.text,
+    })),
+  });
+};
+
+// Inline/test helper with the same successful end-state as the Workflow
+// class: initialize DocumentDO once, then run every section batch.
 export const indexDocument = async (
   userId: string,
   documentId: string,
@@ -214,60 +286,9 @@ export const indexDocument = async (
   manifest: Document.EpubManifest,
   finalized: FinalizedManifest,
 ): Promise<void> => {
-  const documentDO = DocumentBinding.require(documentId);
-  await documentDO.init({
-    documentId,
-    userId,
-    kind: "epub",
-    manifestKey: finalized.manifestKey,
-    contentHash,
-  });
-
-  const sections = manifest.sections.map((s) => ({
-    sectionKey: s.sectionKey,
-    sectionOrder: s.order,
-    title: s.title || null,
-    wordCount: s.wordCount,
-    textPath: s.files.text,
-  }));
-
+  await initDocumentDO(userId, documentId, contentHash, finalized);
   for (const section of manifest.sections) {
-    const textPath = section.files.text;
-    const asset = await DocumentAssetStore.getContent(userId, documentId, basename(textPath));
-    if (!asset) {
-      throw new Error(`Section text missing at ${textPath}`);
-    }
-    const text = await streamToString(asset.body);
-    const chunks = chunkSection(text);
-    if (chunks.length === 0) continue;
-
-    const documentDOChunks = chunks.map((c) => ({
-      sectionKey: section.sectionKey,
-      sectionOrder: section.order,
-      sectionTitle: section.title || null,
-      chunkIndex: c.chunkIndex,
-      startOffset: c.startOffset,
-      endOffset: c.endOffset,
-      textPath,
-      text: c.text,
-    }));
-
-    await documentDO.indexChunks({ sections, chunks: documentDOChunks });
-
-    await Binder.require(userId).indexDocumentChunks({
-      documentId,
-      documentTitle: manifest.title,
-      chunks: documentDOChunks.map((c) => ({
-        sectionKey: c.sectionKey,
-        sectionTitle: c.sectionTitle,
-        sectionOrder: c.sectionOrder,
-        chunkIndex: c.chunkIndex,
-        startOffset: c.startOffset,
-        endOffset: c.endOffset,
-        textPath: c.textPath,
-        text: c.text,
-      })),
-    });
+    await indexDocumentBatch(userId, documentId, manifest.title, section);
   }
 };
 

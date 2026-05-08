@@ -399,12 +399,25 @@ export class BinderStore {
     if (!existing) return null;
     const now = Date.now();
     if (typeof input.title === "string") {
-      this.sql.exec(
-        `UPDATE documents SET title = ?, updated_at = ? WHERE document_id = ?`,
-        input.title,
-        now,
-        input.documentId,
-      );
+      const sql = this.sql;
+      sql.exec("BEGIN");
+      try {
+        sql.exec(
+          `UPDATE documents SET title = ?, updated_at = ? WHERE document_id = ?`,
+          input.title,
+          now,
+          input.documentId,
+        );
+        sql.exec(
+          `UPDATE binder_chunk_refs SET document_title = ? WHERE document_id = ?`,
+          input.title,
+          input.documentId,
+        );
+        sql.exec("COMMIT");
+      } catch (e) {
+        sql.exec("ROLLBACK");
+        throw e;
+      }
     }
     return this.#getDocumentRow(input.documentId);
   }

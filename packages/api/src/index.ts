@@ -15,9 +15,9 @@ export { ChatAgent } from "./agent/chat";
 
 // Sandbox (Durable Object backed by a Linux container) re-exported so
 // wrangler can locate the class — same as ChatAgent above. The class
-// itself is implemented by the @cloudflare/sandbox package; we own
-// only the binding and the per-user instance addressing inside the
-// chat agent's runPython tool.
+// itself is implemented by the @cloudflare/sandbox package; we own only
+// the binding and per-user instance addressing for future heavy document
+// transformation/export work.
 export { Sandbox } from "@cloudflare/sandbox";
 
 // Per-user binder aggregate and per-document content actor. See

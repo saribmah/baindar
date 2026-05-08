@@ -78,11 +78,12 @@
 					}
 				]
 			},
-			// Per-user containerised sandbox that backs the chat agent's
-			// runBash tool. Each instance is one Linux container; the
-			// Sandbox class lives in the @cloudflare/sandbox package and is
-			// re-exported from src/index.ts. Local `wrangler dev` builds and
-			// runs this image via Docker (must be running locally).
+			// Per-user containerised sandbox reserved for future heavy
+			// document transformation/export work. Each instance is one
+			// Linux container; the Sandbox class lives in the
+			// @cloudflare/sandbox package and is re-exported from src/index.ts.
+			// Local `wrangler dev` builds and runs this image via Docker
+			// (must be running locally).
 			"containers": [
 				{
 					"class_name": "Sandbox",
@@ -211,8 +212,8 @@
 					}
 				]
 			},
-			// Per-user containerised sandbox that backs the chat agent's
-			// runBash tool. See the dev env above for the full rationale.
+			// Per-user containerised sandbox for future heavy document
+			// transformation/export work. See the dev env above for details.
 			"containers": [
 				{
 					"name": "baindar-sandbox-production",

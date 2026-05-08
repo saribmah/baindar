@@ -1,7 +1,7 @@
 # Baindar AI Layer PRD
 
-**Status:** Draft v2, clean-slate architecture  
-**Audience:** Agents and engineers implementing Baindar's document AI layer  
+**Status:** Draft v2, clean-slate architecture
+**Audience:** Agents and engineers implementing Baindar's document AI layer
 **Scope:** Backend architecture for binder storage, document search, and typed AI tools
 
 ## 1. Context

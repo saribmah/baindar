@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { strToU8, zipSync } from "fflate";
+import { DocumentBinding } from "../document-binding";
 import { Document } from "../document";
-import { runEpubInline } from "../formats/epub/steps";
+import { indexDocumentBatch, runEpubInline } from "../formats/epub/steps";
 import { createTestRuntime } from "./test-db";
 
 const opf = `<?xml version="1.0" encoding="UTF-8"?>
@@ -434,6 +435,27 @@ describe("Document feature", () => {
       const manifest = await Document.getManifest(userA, created.id);
       expect(manifest.chapterCount).toBe(2);
       expect(manifest.sections).toHaveLength(2);
+    });
+  });
+
+  it("re-running an EPUB section indexing batch is idempotent", async () => {
+    await runtime.runAs(userA, async () => {
+      const created = await uploadEpub(userA);
+      const manifest = await Document.getManifest(userA, created.id);
+      if (manifest.kind !== "epub") throw new Error("expected epub manifest");
+      const section = manifest.sections[0];
+      if (!section) throw new Error("expected first section");
+
+      await indexDocumentBatch(userA, created.id, manifest.title, section);
+      await indexDocumentBatch(userA, created.id, manifest.title, section);
+
+      const indexed = await DocumentBinding.require(created.id).readSection({
+        sectionKey: section.sectionKey,
+        limit: 20,
+      });
+      const chunkKeys = indexed.chunks.map((chunk) => chunk.chunkIndex);
+      expect(indexed.chunks.length).toBeGreaterThan(0);
+      expect(new Set(chunkKeys).size).toBe(chunkKeys.length);
     });
   });
 

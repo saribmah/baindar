@@ -63,6 +63,7 @@ export type AiSummarizeInput = {
 
 export type Conversation = {
   id: string;
+  agentName: string;
   title: string;
   primaryDocId: string | null;
   createdAt: string;
