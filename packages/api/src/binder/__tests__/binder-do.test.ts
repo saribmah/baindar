@@ -293,6 +293,7 @@ describe("BinderStore highlights", () => {
     close = fake.close;
     store = new BinderStore(fake.sql);
     seedDocument(store, "d1");
+    seedDocument(store, "d2");
   });
 
   afterEach(() => close());
@@ -384,6 +385,55 @@ describe("BinderStore notes", () => {
 
     const all = store.listNotesAll({ limit: 10 });
     expect(all.map((n) => n.noteId)).toEqual(["n2", "n1"]);
+  });
+
+  test("highlight foreign key is nullable but enforced when present", () => {
+    store.createHighlight({
+      highlightId: "h1",
+      documentId: "d1",
+      sectionKey: "k1",
+      position: { offsetStart: 0, offsetEnd: 5 },
+      textSnippet: "snip",
+      color: "yellow",
+    });
+
+    const documentNote = store.createNote({
+      noteId: "n-doc",
+      documentId: "d1",
+      sectionKey: null,
+      highlightId: null,
+      body: "document note",
+    });
+    expect(documentNote.highlightId).toBeNull();
+
+    const highlightNote = store.createNote({
+      noteId: "n-highlight",
+      documentId: "d1",
+      sectionKey: "k1",
+      highlightId: "h1",
+      body: "highlight note",
+    });
+    expect(highlightNote.highlightId).toBe("h1");
+
+    expect(() =>
+      store.createNote({
+        noteId: "n-missing-highlight",
+        documentId: "d1",
+        sectionKey: null,
+        highlightId: "missing-highlight",
+        body: "missing highlight",
+      }),
+    ).toThrow();
+
+    expect(() =>
+      store.createNote({
+        noteId: "n-cross-doc-highlight",
+        documentId: "d2",
+        sectionKey: null,
+        highlightId: "h1",
+        body: "cross-doc highlight",
+      }),
+    ).toThrow();
   });
 
   test("updateNote body + removeNote idempotence", () => {
