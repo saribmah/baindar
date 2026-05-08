@@ -36,7 +36,9 @@ export class DocumentDO extends DurableObject<RuntimeEnv> {
   }
 
   async indexChunks(input: IndexChunksInput): Promise<void> {
-    this.#store.indexChunks(input);
+    this.ctx.storage.transactionSync(() => {
+      this.#store.indexChunks(input);
+    });
   }
 
   async readSection(input: {

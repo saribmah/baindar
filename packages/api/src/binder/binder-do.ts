@@ -59,7 +59,7 @@ export class BinderDO extends DurableObject<RuntimeEnv> {
   }
 
   async updateDocument(input: UpdateDocumentInput): Promise<DocumentRow | null> {
-    return this.#store.updateDocument(input);
+    return this.ctx.storage.transactionSync(() => this.#store.updateDocument(input));
   }
 
   async markDocumentProcessed(input: MarkDocumentProcessedInput): Promise<void> {
@@ -71,7 +71,9 @@ export class BinderDO extends DurableObject<RuntimeEnv> {
   }
 
   async removeDocument(documentId: string): Promise<void> {
-    this.#store.removeDocument(documentId);
+    this.ctx.storage.transactionSync(() => {
+      this.#store.removeDocument(documentId);
+    });
   }
 
   async indexDocumentChunks(input: {
@@ -88,7 +90,9 @@ export class BinderDO extends DurableObject<RuntimeEnv> {
       text: string;
     }>;
   }): Promise<void> {
-    this.#store.indexDocumentChunks(input);
+    this.ctx.storage.transactionSync(() => {
+      this.#store.indexDocumentChunks(input);
+    });
   }
 
   async search(input: BinderSearchInput): Promise<BinderSearchHit[]> {
@@ -136,7 +140,7 @@ export class BinderDO extends DurableObject<RuntimeEnv> {
   }
 
   async removeHighlight(highlightId: string): Promise<boolean> {
-    return this.#store.removeHighlight(highlightId);
+    return this.ctx.storage.transactionSync(() => this.#store.removeHighlight(highlightId));
   }
 
   // ---------------- Notes ----------------------------------------------------
@@ -201,7 +205,7 @@ export class BinderDO extends DurableObject<RuntimeEnv> {
   }
 
   async removeShelf(shelfId: string): Promise<boolean> {
-    return this.#store.removeShelf(shelfId);
+    return this.ctx.storage.transactionSync(() => this.#store.removeShelf(shelfId));
   }
 
   async addShelfDocument(input: { shelfId: string; documentId: string }): Promise<void> {

@@ -399,25 +399,17 @@ export class BinderStore {
     if (!existing) return null;
     const now = Date.now();
     if (typeof input.title === "string") {
-      const sql = this.sql;
-      sql.exec("BEGIN");
-      try {
-        sql.exec(
-          `UPDATE documents SET title = ?, updated_at = ? WHERE document_id = ?`,
-          input.title,
-          now,
-          input.documentId,
-        );
-        sql.exec(
-          `UPDATE binder_chunk_refs SET document_title = ? WHERE document_id = ?`,
-          input.title,
-          input.documentId,
-        );
-        sql.exec("COMMIT");
-      } catch (e) {
-        sql.exec("ROLLBACK");
-        throw e;
-      }
+      this.sql.exec(
+        `UPDATE documents SET title = ?, updated_at = ? WHERE document_id = ?`,
+        input.title,
+        now,
+        input.documentId,
+      );
+      this.sql.exec(
+        `UPDATE binder_chunk_refs SET document_title = ? WHERE document_id = ?`,
+        input.title,
+        input.documentId,
+      );
     }
     return this.#getDocumentRow(input.documentId);
   }
@@ -485,11 +477,9 @@ export class BinderStore {
       );
     }
     const kind = docRow.kind;
-    sql.exec("BEGIN");
-    try {
-      for (const chunk of input.chunks) {
-        sql.exec(
-          `INSERT INTO binder_chunk_refs(
+    for (const chunk of input.chunks) {
+      sql.exec(
+        `INSERT INTO binder_chunk_refs(
              document_id, document_title, kind, section_key, section_title,
              section_order, chunk_index, start_offset, end_offset, text_path, text
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -502,23 +492,18 @@ export class BinderStore {
              end_offset = excluded.end_offset,
              text_path = excluded.text_path,
              text = excluded.text`,
-          input.documentId,
-          input.documentTitle,
-          kind,
-          chunk.sectionKey,
-          chunk.sectionTitle,
-          chunk.sectionOrder,
-          chunk.chunkIndex,
-          chunk.startOffset,
-          chunk.endOffset,
-          chunk.textPath,
-          chunk.text,
-        );
-      }
-      sql.exec("COMMIT");
-    } catch (e) {
-      sql.exec("ROLLBACK");
-      throw e;
+        input.documentId,
+        input.documentTitle,
+        kind,
+        chunk.sectionKey,
+        chunk.sectionTitle,
+        chunk.sectionOrder,
+        chunk.chunkIndex,
+        chunk.startOffset,
+        chunk.endOffset,
+        chunk.textPath,
+        chunk.text,
+      );
     }
   }
 
@@ -582,28 +567,20 @@ export class BinderStore {
     }));
   }
 
-  // Idempotent single-transaction cleanup. Safe under DocumentDeletionWorkflow
-  // step replays — re-running against an already-deleted doc is a no-op.
+  // Idempotent cleanup. Safe under DocumentDeletionWorkflow step replays —
+  // re-running against an already-deleted doc is a no-op.
   removeDocument(documentId: string): void {
-    const sql = this.sql;
-    sql.exec("BEGIN");
-    try {
-      // FTS rows for binder_chunk_refs drop automatically via triggers.
-      sql.exec("DELETE FROM binder_chunk_refs WHERE document_id = ?", documentId);
-      sql.exec("DELETE FROM shelf_documents WHERE document_id = ?", documentId);
-      sql.exec("DELETE FROM highlights WHERE document_id = ?", documentId);
-      sql.exec("DELETE FROM notes WHERE document_id = ?", documentId);
-      sql.exec("DELETE FROM progress WHERE document_id = ?", documentId);
-      sql.exec(
-        "UPDATE conversations SET primary_document_id = NULL WHERE primary_document_id = ?",
-        documentId,
-      );
-      sql.exec("DELETE FROM documents WHERE document_id = ?", documentId);
-      sql.exec("COMMIT");
-    } catch (e) {
-      sql.exec("ROLLBACK");
-      throw e;
-    }
+    // FTS rows for binder_chunk_refs drop automatically via triggers.
+    this.sql.exec("DELETE FROM binder_chunk_refs WHERE document_id = ?", documentId);
+    this.sql.exec("DELETE FROM shelf_documents WHERE document_id = ?", documentId);
+    this.sql.exec("DELETE FROM highlights WHERE document_id = ?", documentId);
+    this.sql.exec("DELETE FROM notes WHERE document_id = ?", documentId);
+    this.sql.exec("DELETE FROM progress WHERE document_id = ?", documentId);
+    this.sql.exec(
+      "UPDATE conversations SET primary_document_id = NULL WHERE primary_document_id = ?",
+      documentId,
+    );
+    this.sql.exec("DELETE FROM documents WHERE document_id = ?", documentId);
   }
 
   // ---------------- Shelves --------------------------------------------------
@@ -713,15 +690,8 @@ export class BinderStore {
 
   removeShelf(shelfId: string): boolean {
     const existed = this.shelfExists(shelfId);
-    this.sql.exec("BEGIN");
-    try {
-      this.sql.exec(`DELETE FROM shelf_documents WHERE shelf_id = ?`, shelfId);
-      this.sql.exec(`DELETE FROM shelves WHERE shelf_id = ?`, shelfId);
-      this.sql.exec("COMMIT");
-    } catch (e) {
-      this.sql.exec("ROLLBACK");
-      throw e;
-    }
+    this.sql.exec(`DELETE FROM shelf_documents WHERE shelf_id = ?`, shelfId);
+    this.sql.exec(`DELETE FROM shelves WHERE shelf_id = ?`, shelfId);
     return existed;
   }
 
@@ -1089,15 +1059,8 @@ export class BinderStore {
   // dropping it is the right semantic.
   removeHighlight(highlightId: string): boolean {
     const existed = this.getHighlight(highlightId) !== null;
-    this.sql.exec("BEGIN");
-    try {
-      this.sql.exec(`DELETE FROM notes WHERE highlight_id = ?`, highlightId);
-      this.sql.exec(`DELETE FROM highlights WHERE highlight_id = ?`, highlightId);
-      this.sql.exec("COMMIT");
-    } catch (e) {
-      this.sql.exec("ROLLBACK");
-      throw e;
-    }
+    this.sql.exec(`DELETE FROM notes WHERE highlight_id = ?`, highlightId);
+    this.sql.exec(`DELETE FROM highlights WHERE highlight_id = ?`, highlightId);
     return existed;
   }
 

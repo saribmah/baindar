@@ -169,37 +169,35 @@ export class DocumentStore {
   // rowid to keep the index consistent under repeated indexChunks calls.
   indexChunks(input: IndexChunksInput): void {
     const sql = this.sql;
-    sql.exec("BEGIN");
-    try {
-      for (const section of input.sections) {
-        sql.exec(
-          `INSERT INTO sections(section_key, section_order, title, word_count, text_path)
+    for (const section of input.sections) {
+      sql.exec(
+        `INSERT INTO sections(section_key, section_order, title, word_count, text_path)
            VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(section_key) DO UPDATE SET
              section_order = excluded.section_order,
              title = excluded.title,
              word_count = excluded.word_count,
              text_path = excluded.text_path`,
-          section.sectionKey,
-          section.sectionOrder,
-          section.title,
-          section.wordCount,
-          section.textPath,
-        );
-      }
-      for (const chunk of input.chunks) {
-        // Look up the existing rowid for FTS sync (so we DELETE the right
-        // FTS row before re-inserting).
-        const existingRowid = this.sql
-          .exec<{ id: number }>(
-            `SELECT id FROM chunks WHERE section_key = ? AND chunk_index = ?`,
-            chunk.sectionKey,
-            chunk.chunkIndex,
-          )
-          .toArray()[0]?.id;
+        section.sectionKey,
+        section.sectionOrder,
+        section.title,
+        section.wordCount,
+        section.textPath,
+      );
+    }
+    for (const chunk of input.chunks) {
+      // Look up the existing rowid for FTS sync (so we DELETE the right
+      // FTS row before re-inserting).
+      const existingRowid = this.sql
+        .exec<{ id: number }>(
+          `SELECT id FROM chunks WHERE section_key = ? AND chunk_index = ?`,
+          chunk.sectionKey,
+          chunk.chunkIndex,
+        )
+        .toArray()[0]?.id;
 
-        sql.exec(
-          `INSERT INTO chunks(
+      sql.exec(
+        `INSERT INTO chunks(
              section_key, section_order, section_title, chunk_index,
              start_offset, end_offset, text_path, text
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -210,39 +208,34 @@ export class DocumentStore {
              end_offset = excluded.end_offset,
              text_path = excluded.text_path,
              text = excluded.text`,
+        chunk.sectionKey,
+        chunk.sectionOrder,
+        chunk.sectionTitle,
+        chunk.chunkIndex,
+        chunk.startOffset,
+        chunk.endOffset,
+        chunk.textPath,
+        chunk.text,
+      );
+
+      const newRowid = this.sql
+        .exec<{ id: number }>(
+          `SELECT id FROM chunks WHERE section_key = ? AND chunk_index = ?`,
           chunk.sectionKey,
-          chunk.sectionOrder,
-          chunk.sectionTitle,
           chunk.chunkIndex,
-          chunk.startOffset,
-          chunk.endOffset,
-          chunk.textPath,
-          chunk.text,
-        );
+        )
+        .toArray()[0]?.id;
+      if (newRowid === undefined) continue;
 
-        const newRowid = this.sql
-          .exec<{ id: number }>(
-            `SELECT id FROM chunks WHERE section_key = ? AND chunk_index = ?`,
-            chunk.sectionKey,
-            chunk.chunkIndex,
-          )
-          .toArray()[0]?.id;
-        if (newRowid === undefined) continue;
-
-        if (existingRowid !== undefined) {
-          sql.exec(`DELETE FROM chunks_fts WHERE rowid = ?`, existingRowid);
-        }
-        sql.exec(
-          `INSERT INTO chunks_fts(rowid, section_title, text) VALUES (?, ?, ?)`,
-          newRowid,
-          chunk.sectionTitle,
-          chunk.text,
-        );
+      if (existingRowid !== undefined) {
+        sql.exec(`DELETE FROM chunks_fts WHERE rowid = ?`, existingRowid);
       }
-      sql.exec("COMMIT");
-    } catch (e) {
-      sql.exec("ROLLBACK");
-      throw e;
+      sql.exec(
+        `INSERT INTO chunks_fts(rowid, section_title, text) VALUES (?, ?, ?)`,
+        newRowid,
+        chunk.sectionTitle,
+        chunk.text,
+      );
     }
   }
 
