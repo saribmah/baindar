@@ -87,6 +87,11 @@
 				},
 				{
 					"tag": "v3",
+					"new_sqlite_classes": ["Sandbox"]
+				},
+				{
+					"tag": "v4",
+					"deleted_classes": ["Sandbox"],
 					"new_sqlite_classes": ["BinderDO", "DocumentDO"]
 				}
 			],
@@ -194,6 +199,11 @@
 				},
 				{
 					"tag": "v3",
+					"new_sqlite_classes": ["Sandbox"]
+				},
+				{
+					"tag": "v4",
+					"deleted_classes": ["Sandbox"],
 					"new_sqlite_classes": ["BinderDO", "DocumentDO"]
 				}
 			],
