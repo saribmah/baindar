@@ -7,6 +7,11 @@ import {
   type DocumentSearchHit,
   type IndexChunksInput,
   type InitInput,
+  type PutSummaryInput,
+  type SummaryChunk,
+  type SummaryChunksInput,
+  type SummaryLookupInput,
+  type SummaryRow,
 } from "./document-store";
 
 // Per-document content/search/summary actor. Derived from the R2 manifest
@@ -59,6 +64,26 @@ export class DocumentDO extends DurableObject<RuntimeEnv> {
 
   async search(input: { query: string; limit?: number }): Promise<DocumentSearchHit[]> {
     return this.#store.search(input);
+  }
+
+  // ---- Summaries (Phase 6) ----------------------------------------------
+  // The DocumentDO hands the orchestrator three primitives — cache lookup,
+  // chunk readback, and persist — but never makes the LLM call itself. The
+  // Anthropic call lives in the worker (`Ai.summarize` →
+  // `summary-generator.ts`) so this DO stays free of the AI SDK and remains
+  // unit-testable via `DocumentStore` against an in-memory sqlite shim.
+  async getCachedSummary(input: SummaryLookupInput): Promise<SummaryRow | null> {
+    return this.#store.getCachedSummary(input);
+  }
+
+  async getSummaryChunks(input: SummaryChunksInput): Promise<SummaryChunk[]> {
+    return this.#store.getSummaryChunks(input);
+  }
+
+  async putSummary(input: PutSummaryInput): Promise<void> {
+    this.ctx.storage.transactionSync(() => {
+      this.#store.putSummary(input);
+    });
   }
 
   // Wipes the DO's storage. Idempotent — DocumentDeletionWorkflow re-runs

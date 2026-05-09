@@ -213,7 +213,7 @@ export class Ai extends HeyApiClient {
   /**
    * Generate or fetch a section/document summary
    *
-   * Returns a cached summary keyed by `(targetType, targetKey, contentHash)` or generates a fresh one. Stub in v1 — returns 501 until the lazy-summary path lands.
+   * Returns a cached summary keyed by `(targetType, targetKey, contentHash)` or generates a fresh one. `cached=true` indicates the summary came from DocumentDO without an LLM call. Set `force=true` to bypass the cache and regenerate.
    */
   public summarize<ThrowOnError extends boolean = false>(
     parameters: {

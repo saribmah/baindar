@@ -27,6 +27,14 @@ export namespace DocumentAssetStore {
   const manifestKey = (userId: string, documentId: string): string =>
     `${docPrefix(userId, documentId)}manifest.json`;
 
+  // Summary artifacts live alongside content/assets so `removeAll`'s prefix
+  // sweep deletes them with the rest of a document's R2 footprint. The
+  // filename is owned by the caller (Ai.summarize) — section vs document
+  // disambiguation needs the targetKey, not just the contentHash, so the
+  // store doesn't try to compute the filename itself.
+  const aiSummaryKey = (userId: string, documentId: string, name: string): string =>
+    `${docPrefix(userId, documentId)}ai/summaries/${name}`;
+
   export type Asset = {
     body: ReadableStream<Uint8Array>;
     contentType: string;
@@ -144,6 +152,37 @@ export namespace DocumentAssetStore {
     const text = await obj.text();
     const parsed: unknown = JSON.parse(text);
     return schema.parse(parsed);
+  };
+
+  // AI summary artifacts. One R2 object per (targetType, targetKey,
+  // contentHash); see PRD §15. Caller computes the deterministic filename
+  // (e.g. `document-{contentHash}.json` or
+  // `section-{contentHash}-{slug(sectionKey)}.json`) and provides it here.
+  export const putAiSummary = async (
+    userId: string,
+    documentId: string,
+    name: string,
+    body: string,
+  ): Promise<string> => {
+    const key = aiSummaryKey(userId, documentId, name);
+    await Config.requireR2Bucket().put(key, body, {
+      httpMetadata: { contentType: "application/json" },
+    });
+    return key;
+  };
+
+  export const getAiSummary = async (
+    userId: string,
+    documentId: string,
+    name: string,
+  ): Promise<Asset | null> => {
+    const obj = await Config.requireR2Bucket().get(aiSummaryKey(userId, documentId, name));
+    if (!obj) return null;
+    return {
+      body: obj.body,
+      contentType: obj.httpMetadata?.contentType ?? "application/json",
+      size: obj.size,
+    };
   };
 
   export const getOriginalBytes = async (

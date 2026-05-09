@@ -88,7 +88,8 @@ export const referenceToModelText = (reference: MessageReference): string => {
       "User reference: passage",
       `Document: ${reference.documentTitle}`,
       `Document ID: ${reference.documentId}`,
-      `Section: ${reference.sectionTitle ?? `Chapter ${reference.sectionOrder + 1}`} (${reference.sectionKey})`,
+      `Section title: ${reference.sectionTitle ?? `Chapter ${reference.sectionOrder + 1}`}`,
+      `Section key: ${reference.sectionKey}`,
       `Offsets: ${reference.position.offsetStart}-${reference.position.offsetEnd}`,
       `Preview: ${reference.previewText}`,
     ].join("\n");
@@ -100,7 +101,7 @@ export const referenceToModelText = (reference: MessageReference): string => {
       `Document: ${reference.documentTitle}`,
       `Document ID: ${reference.documentId}`,
       `Highlight ID: ${reference.highlightId}`,
-      `Section: ${reference.sectionKey}`,
+      `Section key: ${reference.sectionKey}`,
       `Offsets: ${reference.position.offsetStart}-${reference.position.offsetEnd}`,
       `Preview: ${reference.previewText}`,
     ].join("\n");
@@ -111,7 +112,7 @@ export const referenceToModelText = (reference: MessageReference): string => {
     `Document: ${reference.documentTitle}`,
     `Document ID: ${reference.documentId}`,
     `Note ID: ${reference.noteId}`,
-    reference.sectionKey ? `Section: ${reference.sectionKey}` : "Section: whole document",
+    reference.sectionKey ? `Section key: ${reference.sectionKey}` : "Section scope: whole document",
     reference.highlightId ? `Attached highlight ID: ${reference.highlightId}` : null,
     reference.position
       ? `Offsets: ${reference.position.offsetStart}-${reference.position.offsetEnd}`

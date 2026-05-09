@@ -1228,11 +1228,74 @@ class FakeDocument {
     return ranked.slice(0, limit);
   }
 
+  // ---- Summaries (Phase 6) -----------------------------------------------
+  // Cache keyed by `${targetType}:${targetKey}:${contentHash}` matching the
+  // production primary key.
+  summaries = new Map<
+    string,
+    {
+      targetType: "section" | "document";
+      targetKey: string;
+      contentHash: string;
+      summary: string;
+      model: string;
+      r2Key: string;
+      createdAt: number;
+    }
+  >();
+
+  async getCachedSummary(input: {
+    targetType: "section" | "document";
+    targetKey: string;
+    contentHash: string;
+  }) {
+    const key = `${input.targetType}:${input.targetKey}:${input.contentHash}`;
+    return this.summaries.get(key) ?? null;
+  }
+
+  async getSummaryChunks(input: { targetType: "section" | "document"; targetKey: string }) {
+    if (input.targetType === "section") {
+      return this.chunks
+        .filter((c) => c.sectionKey === input.targetKey)
+        .sort((a, b) => a.chunkIndex - b.chunkIndex)
+        .map((c) => ({
+          sectionKey: c.sectionKey,
+          sectionTitle: c.sectionTitle,
+          sectionOrder: c.sectionOrder,
+          chunkIndex: c.chunkIndex,
+          text: c.text,
+        }));
+    }
+    return [...this.chunks]
+      .sort((a, b) => a.sectionOrder - b.sectionOrder || a.chunkIndex - b.chunkIndex)
+      .map((c) => ({
+        sectionKey: c.sectionKey,
+        sectionTitle: c.sectionTitle,
+        sectionOrder: c.sectionOrder,
+        chunkIndex: c.chunkIndex,
+        text: c.text,
+      }));
+  }
+
+  async putSummary(input: {
+    targetType: "section" | "document";
+    targetKey: string;
+    contentHash: string;
+    summary: string;
+    model: string;
+    r2Key: string;
+    createdAt: number;
+  }) {
+    const key = `${input.targetType}:${input.targetKey}:${input.contentHash}`;
+    this.summaries.set(key, { ...input });
+  }
+
   async destroy(): Promise<void> {
     this.destroyed = true;
     this.meta = null;
     this.sections.clear();
     this.chunks = [];
+    this.summaries.clear();
   }
 }
 
