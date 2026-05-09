@@ -48,6 +48,17 @@ export type AiReadInput = {
   limit?: number;
 };
 
+export type AiSummarizeResponse = {
+  documentId: string;
+  targetType: "section" | "document";
+  targetKey: string;
+  contentHash: string;
+  summary: string;
+  model: string;
+  cached: boolean;
+  createdAt: string;
+};
+
 export type AiSummarizeInput = {
   documentId: string;
   targetType: "section" | "document";
@@ -353,25 +364,35 @@ export type AiSummarizeData = {
 
 export type AiSummarizeErrors = {
   /**
+   * Invalid input
+   */
+  400: unknown;
+  /**
    * Not authenticated
    */
   401: unknown;
   /**
-   * Not implemented
+   * Document or summary target not found
    */
-  501: unknown;
+  404: unknown;
+  /**
+   * Document is not processed yet
+   */
+  409: unknown;
+  /**
+   * LLM call failed
+   */
+  502: unknown;
 };
 
 export type AiSummarizeResponses = {
   /**
-   * Summary
+   * Summary (cached or freshly generated)
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: AiSummarizeResponse;
 };
 
-export type AiSummarizeResponse = AiSummarizeResponses[keyof AiSummarizeResponses];
+export type AiSummarizeResponse2 = AiSummarizeResponses[keyof AiSummarizeResponses];
 
 export type ConversationListData = {
   body?: never;

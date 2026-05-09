@@ -21,6 +21,7 @@ const SNIPPET_CHAR_LIMIT = 600;
 const CHUNK_TEXT_CHAR_LIMIT = 4_000;
 const NOTE_BODY_CHAR_LIMIT = 1_000;
 const HIGHLIGHT_SNIPPET_CHAR_LIMIT = 600;
+const SUMMARY_CHAR_LIMIT = 2_000;
 const LIST_ITEM_LIMIT_DEFAULT = 50;
 const LIST_ITEM_LIMIT_MAX = 100;
 const SEARCH_LIMIT_DEFAULT = 8;
@@ -193,19 +194,40 @@ export const buildAgentTools = ({ userId }: { userId: string }) => {
 
     get_summary: tool({
       description:
-        "Fetch a cached summary for a section or whole document. Use BEFORE reading long passages so the user gets a concise overview. STUB IN v1 — currently returns 'not_implemented'; Phase 6 wires the real path.",
+        "Fetch a cached summary for a section or whole document, or generate one on demand. Use BEFORE reading long passages so the user gets a concise overview. For target_type='section', target_key is the sectionKey (e.g. 'epub:section:6'). For target_type='document', target_key must equal document_id.",
       inputSchema: z.object({
         document_id: z.string().min(1),
         target_type: z.enum(["section", "document"]),
         target_key: z.string().min(1).max(200),
         force: z.boolean().optional(),
       }),
-      execute: async () => {
-        return {
-          status: "not_implemented" as const,
-          message:
-            "get_summary is not yet available. Use search_document + read_section to gather context instead.",
-        };
+      execute: async ({ document_id, target_type, target_key, force }) => {
+        try {
+          const result = await Ai.summarize(userId, {
+            documentId: document_id,
+            targetType: target_type,
+            targetKey: target_key,
+            force,
+          });
+          return {
+            status: "ok" as const,
+            documentId: result.documentId,
+            targetType: result.targetType,
+            targetKey: result.targetKey,
+            cached: result.cached,
+            summary: truncate(result.summary, SUMMARY_CHAR_LIMIT),
+          };
+        } catch (e) {
+          // Surface domain failures as recoverable tool errors so the model
+          // can fall back to search_document + read_section instead of
+          // aborting the turn.
+          const err = e as Error;
+          return {
+            status: "error" as const,
+            name: err.name,
+            message: err.message,
+          };
+        }
       },
     }),
 

@@ -220,6 +220,144 @@ describe("DocumentStore", () => {
     expect(page1.chunks.map((c) => c.chunkIndex)).toEqual([0, 1, 2, 3]);
     expect(page2.chunks.map((c) => c.chunkIndex)).toEqual([4, 5, 6, 7]);
   });
+
+  describe("summaries", () => {
+    test("getCachedSummary returns null on miss", () => {
+      expect(
+        store.getCachedSummary({
+          targetType: "section",
+          targetKey: "epub:section:0",
+          contentHash: "abc",
+        }),
+      ).toBeNull();
+    });
+
+    test("putSummary inserts a row that getCachedSummary reads back", () => {
+      const now = Date.now();
+      store.putSummary({
+        targetType: "section",
+        targetKey: "epub:section:0",
+        contentHash: "abc",
+        summary: "the section summary",
+        model: "test-model",
+        r2Key: "users/u/documents/d/ai/summaries/section-abc-epub_section_0.json",
+        createdAt: now,
+      });
+      const row = store.getCachedSummary({
+        targetType: "section",
+        targetKey: "epub:section:0",
+        contentHash: "abc",
+      });
+      expect(row).not.toBeNull();
+      expect(row?.summary).toBe("the section summary");
+      expect(row?.model).toBe("test-model");
+      expect(row?.createdAt).toBe(now);
+    });
+
+    test("putSummary upserts on the (target_type, target_key, content_hash) primary key", () => {
+      store.putSummary({
+        targetType: "section",
+        targetKey: "epub:section:0",
+        contentHash: "abc",
+        summary: "v1",
+        model: "test-model",
+        r2Key: "key1",
+        createdAt: 1,
+      });
+      store.putSummary({
+        targetType: "section",
+        targetKey: "epub:section:0",
+        contentHash: "abc",
+        summary: "v2",
+        model: "test-model-2",
+        r2Key: "key2",
+        createdAt: 2,
+      });
+      const row = store.getCachedSummary({
+        targetType: "section",
+        targetKey: "epub:section:0",
+        contentHash: "abc",
+      });
+      expect(row?.summary).toBe("v2");
+      expect(row?.model).toBe("test-model-2");
+      expect(row?.r2Key).toBe("key2");
+      expect(row?.createdAt).toBe(2);
+    });
+
+    test("getCachedSummary keys differ when contentHash differs", () => {
+      store.putSummary({
+        targetType: "section",
+        targetKey: "epub:section:0",
+        contentHash: "abc",
+        summary: "old",
+        model: "m",
+        r2Key: "k1",
+        createdAt: 1,
+      });
+      expect(
+        store.getCachedSummary({
+          targetType: "section",
+          targetKey: "epub:section:0",
+          contentHash: "def",
+        }),
+      ).toBeNull();
+    });
+
+    test("getSummaryChunks scopes to a section and orders by chunkIndex", () => {
+      const s1 = section(1, "epub:section:1");
+      const s2 = section(2, "epub:section:2");
+      store.indexChunks({
+        sections: [s1, s2],
+        chunks: [
+          chunk(s1.sectionKey, 1, "s1-c1"),
+          chunk(s1.sectionKey, 0, "s1-c0"),
+          chunk(s2.sectionKey, 0, "s2-c0"),
+        ],
+      });
+      const chunks = store.getSummaryChunks({
+        targetType: "section",
+        targetKey: s1.sectionKey,
+      });
+      expect(chunks.map((c) => c.text)).toEqual(["s1-c0", "s1-c1"]);
+    });
+
+    test("getSummaryChunks for document orders by sectionOrder then chunkIndex", () => {
+      const s1: SectionInput = { ...section(1), sectionKey: "epub:section:1" };
+      const s2: SectionInput = { ...section(2), sectionKey: "epub:section:2" };
+      // Override sectionOrder on the chunk inputs to verify ordering — the
+      // helper hardcodes sectionOrder=1, so build chunks manually.
+      const c = (sectionKey: string, sectionOrder: number, chunkIndex: number, text: string) => ({
+        sectionKey,
+        sectionOrder,
+        sectionTitle: null,
+        chunkIndex,
+        startOffset: 0,
+        endOffset: text.length,
+        textPath: "x",
+        text,
+      });
+      store.indexChunks({
+        sections: [s1, s2],
+        chunks: [
+          c(s2.sectionKey, 2, 1, "s2-c1"),
+          c(s2.sectionKey, 2, 0, "s2-c0"),
+          c(s1.sectionKey, 1, 1, "s1-c1"),
+          c(s1.sectionKey, 1, 0, "s1-c0"),
+        ],
+      });
+      const chunks = store.getSummaryChunks({ targetType: "document", targetKey: "doc-id" });
+      expect(chunks.map((x) => x.text)).toEqual(["s1-c0", "s1-c1", "s2-c0", "s2-c1"]);
+    });
+
+    test("getSummaryChunks returns [] when section has no chunks", () => {
+      const s = section(1);
+      store.indexChunks({
+        sections: [s],
+        chunks: [chunk(s.sectionKey, 0, "only chunk")],
+      });
+      expect(store.getSummaryChunks({ targetType: "section", targetKey: "missing" })).toEqual([]);
+    });
+  });
 });
 
 describe("FTS query compilation", () => {

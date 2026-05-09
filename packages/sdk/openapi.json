@@ -208,6 +208,49 @@
           "sectionKey"
         ]
       },
+      "AiSummarizeResponse": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "section",
+              "document"
+            ]
+          },
+          "targetKey": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "cached": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentId",
+          "targetType",
+          "targetKey",
+          "contentHash",
+          "summary",
+          "model",
+          "cached",
+          "createdAt"
+        ]
+      },
       "AiSummarizeInput": {
         "type": "object",
         "properties": {
@@ -1284,23 +1327,32 @@
       "post": {
         "operationId": "ai.summarize",
         "summary": "Generate or fetch a section/document summary",
-        "description": "Returns a cached summary keyed by `(targetType, targetKey, contentHash)` or generates a fresh one. Stub in v1 — returns 501 until the lazy-summary path lands.",
+        "description": "Returns a cached summary keyed by `(targetType, targetKey, contentHash)` or generates a fresh one. `cached=true` indicates the summary came from DocumentDO without an LLM call. Set `force=true` to bypass the cache and regenerate.",
         "responses": {
           "200": {
-            "description": "Summary",
+            "description": "Summary (cached or freshly generated)",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/AiSummarizeResponse"
                 }
               }
             }
           },
+          "400": {
+            "description": "Invalid input"
+          },
           "401": {
             "description": "Not authenticated"
           },
-          "501": {
-            "description": "Not implemented"
+          "404": {
+            "description": "Document or summary target not found"
+          },
+          "409": {
+            "description": "Document is not processed yet"
+          },
+          "502": {
+            "description": "LLM call failed"
           }
         },
         "requestBody": {

@@ -99,7 +99,38 @@ describe("message references", () => {
 
     expect(text).toContain("User reference: highlight");
     expect(text).toContain("Highlight ID: hl-1");
+    expect(text).toContain("Section key: epub:section:2");
     expect(text).toContain("Preview: Keep the gasket seated.");
+  });
+
+  it("emits section title and section key as distinct lines for passages", () => {
+    const text = referenceToModelText({
+      kind: "passage",
+      documentId: "doc-1",
+      documentTitle: "Atomic Habits",
+      sectionKey: "epub:section:6",
+      sectionOrder: 6,
+      sectionTitle: "1: The Surprising Power of Atomic Habits",
+      position: { offsetStart: 0, offsetEnd: 42 },
+      previewText: "Small habits compound over time.",
+    });
+
+    expect(text).toContain("Section title: 1: The Surprising Power of Atomic Habits");
+    expect(text).toContain("Section key: epub:section:6");
+    // The old format combined them into one line — guard against regressions.
+    expect(text).not.toMatch(/Section: .* \(epub:section:6\)/);
+  });
+
+  it("notes without a section emit a distinct scope label, not a key", () => {
+    const text = referenceToModelText({
+      kind: "note",
+      documentId: "doc-1",
+      documentTitle: "Manual",
+      noteId: "note-1",
+      body: "Read later.",
+    });
+    expect(text).toContain("Section scope: whole document");
+    expect(text).not.toContain("Section key:");
   });
 
   it("ignores malformed data during conversion", () => {

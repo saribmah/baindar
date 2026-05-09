@@ -204,15 +204,133 @@ describe("Ai feature", () => {
     });
   });
 
-  it("Ai.summarize throws NotImplementedError (stub for Phase 6)", async () => {
-    await runtime.runAs(userA, async () => {
-      await expect(
-        Ai.summarize(userA, {
-          documentId: "anything",
-          targetType: "section",
-          targetKey: "epub:section:0",
-        }),
-      ).rejects.toMatchObject({ name: "AiNotImplementedError" });
+  describe("Ai.summarize", () => {
+    const fakeGenerator = (callLog: Array<{ targetType: string; targetKey: string }>) => {
+      return async (input: {
+        targetType: "section" | "document";
+        documentTitle: string;
+        sectionTitle: string | null;
+        chunks: Array<{ text: string }>;
+      }) => {
+        callLog.push({ targetType: input.targetType, targetKey: input.chunks[0]?.text ?? "" });
+        return {
+          summary: `summary of ${input.documentTitle} (${input.targetType})`,
+          model: "test-model",
+        };
+      };
+    };
+
+    it("generates and persists a section summary on cache miss", async () => {
+      await runtime.runAs(userA, async () => {
+        const { documentId, title } = await seedSearchable(userA);
+        const calls: Array<{ targetType: string; targetKey: string }> = [];
+        const result = await Ai.summarize(
+          userA,
+          {
+            documentId,
+            targetType: "section",
+            targetKey: "epub:section:0",
+          },
+          { generator: fakeGenerator(calls) },
+        );
+        expect(result.cached).toBe(false);
+        expect(result.documentId).toBe(documentId);
+        expect(result.targetType).toBe("section");
+        expect(result.targetKey).toBe("epub:section:0");
+        expect(result.summary).toBe(`summary of ${title} (section)`);
+        expect(result.model).toBe("test-model");
+        expect(calls).toHaveLength(1);
+      });
+    });
+
+    it("returns cached summary on second call without invoking the generator", async () => {
+      await runtime.runAs(userA, async () => {
+        const { documentId } = await seedSearchable(userA);
+        const calls: Array<{ targetType: string; targetKey: string }> = [];
+        await Ai.summarize(
+          userA,
+          { documentId, targetType: "section", targetKey: "epub:section:0" },
+          { generator: fakeGenerator(calls) },
+        );
+        const second = await Ai.summarize(
+          userA,
+          { documentId, targetType: "section", targetKey: "epub:section:0" },
+          { generator: fakeGenerator(calls) },
+        );
+        expect(second.cached).toBe(true);
+        expect(calls).toHaveLength(1);
+      });
+    });
+
+    it("force=true regenerates even when a cache hit exists", async () => {
+      await runtime.runAs(userA, async () => {
+        const { documentId } = await seedSearchable(userA);
+        const calls: Array<{ targetType: string; targetKey: string }> = [];
+        await Ai.summarize(
+          userA,
+          { documentId, targetType: "section", targetKey: "epub:section:0" },
+          { generator: fakeGenerator(calls) },
+        );
+        const forced = await Ai.summarize(
+          userA,
+          { documentId, targetType: "section", targetKey: "epub:section:0", force: true },
+          { generator: fakeGenerator(calls) },
+        );
+        expect(forced.cached).toBe(false);
+        expect(calls).toHaveLength(2);
+      });
+    });
+
+    it("document target requires targetKey to equal documentId", async () => {
+      await runtime.runAs(userA, async () => {
+        const { documentId } = await seedSearchable(userA);
+        await expect(
+          Ai.summarize(
+            userA,
+            { documentId, targetType: "document", targetKey: "wrong" },
+            { generator: fakeGenerator([]) },
+          ),
+        ).rejects.toMatchObject({ name: "AiSummaryTargetMismatchError" });
+      });
+    });
+
+    it("succeeds for document summary when targetKey matches documentId", async () => {
+      await runtime.runAs(userA, async () => {
+        const { documentId } = await seedSearchable(userA);
+        const result = await Ai.summarize(
+          userA,
+          { documentId, targetType: "document", targetKey: documentId },
+          { generator: fakeGenerator([]) },
+        );
+        expect(result.targetType).toBe("document");
+        expect(result.targetKey).toBe(documentId);
+      });
+    });
+
+    it("throws SummaryEmptyError when section has no indexed chunks", async () => {
+      await runtime.runAs(userA, async () => {
+        const { documentId } = await seedSearchable(userA);
+        await expect(
+          Ai.summarize(
+            userA,
+            { documentId, targetType: "section", targetKey: "epub:section:nope" },
+            { generator: fakeGenerator([]) },
+          ),
+        ).rejects.toMatchObject({ name: "AiSummaryEmptyError" });
+      });
+    });
+
+    it("rejects cross-user reads as document not found", async () => {
+      const a = await runtime.runAs(userA, () => seedSearchable(userA));
+      await runtime.runAs(userB, async () => {
+        await expect(
+          Ai.summarize(
+            userB,
+            { documentId: a.documentId, targetType: "section", targetKey: "epub:section:0" },
+            { generator: fakeGenerator([]) },
+          ),
+        ).rejects.toMatchObject({ name: "DocumentNotFoundError" });
+      });
     });
   });
 });

@@ -12,6 +12,11 @@ import type {
   DocumentSearchHit,
   IndexChunksInput,
   InitInput,
+  PutSummaryInput,
+  SummaryChunk,
+  SummaryChunksInput,
+  SummaryLookupInput,
+  SummaryRow,
 } from "./tables";
 
 export type {
@@ -21,7 +26,13 @@ export type {
   DocumentSearchHit,
   IndexChunksInput,
   InitInput,
+  PutSummaryInput,
   SectionInput,
+  SummaryChunk,
+  SummaryChunksInput,
+  SummaryLookupInput,
+  SummaryRow,
+  SummaryTargetType,
 } from "./tables";
 
 export class DocumentStore {
@@ -293,4 +304,116 @@ export class DocumentStore {
       snippet: r.snippet,
     }));
   }
+
+  // ---- Summaries --------------------------------------------------------
+  // Lookup the cached summary row for `(targetType, targetKey, contentHash)`.
+  // Returns null on miss. Worker-side orchestration generates + persists on
+  // miss; this method is read-only.
+  getCachedSummary(input: SummaryLookupInput): SummaryRow | null {
+    const rows = this.sql
+      .exec<{
+        target_type: string;
+        target_key: string;
+        content_hash: string;
+        summary: string;
+        model: string;
+        r2_key: string;
+        created_at: number;
+      }>(
+        `SELECT target_type, target_key, content_hash, summary, model, r2_key, created_at
+         FROM summaries
+         WHERE target_type = ? AND target_key = ? AND content_hash = ?
+         LIMIT 1`,
+        input.targetType,
+        input.targetKey,
+        input.contentHash,
+      )
+      .toArray();
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      targetType: r.target_type === "document" ? "document" : "section",
+      targetKey: r.target_key,
+      contentHash: r.content_hash,
+      summary: r.summary,
+      model: r.model,
+      r2Key: r.r2_key,
+      createdAt: r.created_at,
+    };
+  }
+
+  // Ordered chunks for the summary target. Section: filter by section_key,
+  // ordered by chunk_index. Document: every chunk, ordered by section_order
+  // then chunk_index so the LLM sees the document in reading order.
+  getSummaryChunks(input: SummaryChunksInput): SummaryChunk[] {
+    if (input.targetType === "section") {
+      const rows = this.sql
+        .exec<{
+          section_key: string;
+          section_title: string | null;
+          section_order: number;
+          chunk_index: number;
+          text: string;
+        }>(
+          `SELECT section_key, section_title, section_order, chunk_index, text
+           FROM chunks
+           WHERE section_key = ?
+           ORDER BY chunk_index ASC`,
+          input.targetKey,
+        )
+        .toArray();
+      return rows.map(toSummaryChunk);
+    }
+    const rows = this.sql
+      .exec<{
+        section_key: string;
+        section_title: string | null;
+        section_order: number;
+        chunk_index: number;
+        text: string;
+      }>(
+        `SELECT section_key, section_title, section_order, chunk_index, text
+         FROM chunks
+         ORDER BY section_order ASC, chunk_index ASC`,
+      )
+      .toArray();
+    return rows.map(toSummaryChunk);
+  }
+
+  // UPSERT by `(target_type, target_key, content_hash)`. `force=true` callers
+  // overwrite the summary text/model/r2Key; concurrent first-time generators
+  // collapse to the last writer (acceptable v1 tradeoff — see plan §1).
+  putSummary(input: PutSummaryInput): void {
+    this.sql.exec(
+      `INSERT INTO summaries(
+         target_type, target_key, content_hash, summary, model, r2_key, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(target_type, target_key, content_hash) DO UPDATE SET
+         summary = excluded.summary,
+         model = excluded.model,
+         r2_key = excluded.r2_key,
+         created_at = excluded.created_at`,
+      input.targetType,
+      input.targetKey,
+      input.contentHash,
+      input.summary,
+      input.model,
+      input.r2Key,
+      input.createdAt,
+    );
+  }
 }
+
+const toSummaryChunk = (r: {
+  section_key: string;
+  section_title: string | null;
+  section_order: number;
+  chunk_index: number;
+  text: string;
+}): SummaryChunk => ({
+  sectionKey: r.section_key,
+  sectionTitle: r.section_title,
+  sectionOrder: r.section_order,
+  chunkIndex: r.chunk_index,
+  text: r.text,
+});

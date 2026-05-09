@@ -1,4 +1,4 @@
-type HttpErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 500 | 501 | 503;
+type HttpErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 500 | 501 | 502 | 503;
 
 type ErrorMapping = {
   error: { isInstance: (input: unknown) => boolean };
