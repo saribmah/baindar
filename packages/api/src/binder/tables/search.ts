@@ -1,13 +1,10 @@
 export const binderChunkRefsTableSql = `
-  -- Cross-binder chunk references + tokenizable text. PRD §9 specs a
-  -- contentless FTS5 (content=''), but contentless FTS5 DELETE/UPDATE
-  -- semantics require the caller to surface the full original column
-  -- values for every removal -- unworkable for removeDocument without
-  -- a round-trip back to DocumentDO. Use external-content FTS5 instead:
-  -- text lives once in binder_chunk_refs.text and the FTS index is
-  -- kept in sync via triggers. Trades modest BinderDO storage growth
-  -- for clean UPSERT/DELETE behavior. Pure contentless can revisit
-  -- if BinderDO size becomes a bottleneck (PRD §18 open question 1).
+  -- Cross-binder chunk references. Sibling to the contentless FTS5 index
+  -- below: chunk text is tokenized into binder_chunks_fts but not stored
+  -- here, keeping BinderDO well under the 10 GB per-DO ceiling for power
+  -- users (PRD §9). document_title is denormalised on this table for
+  -- display in search results; it is intentionally NOT indexed in
+  -- binder_chunks_fts so document renames stay O(1) (no FTS rebuild).
   CREATE TABLE binder_chunk_refs (
     rowid INTEGER PRIMARY KEY,
     document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
@@ -19,8 +16,7 @@ export const binderChunkRefsTableSql = `
     chunk_index INTEGER NOT NULL,
     start_offset INTEGER NOT NULL,
     end_offset INTEGER NOT NULL,
-    text_path TEXT NOT NULL,
-    text TEXT NOT NULL
+    text_path TEXT NOT NULL
   );
   CREATE INDEX idx_binder_chunk_refs_document ON binder_chunk_refs(document_id);
   CREATE INDEX idx_binder_chunk_refs_kind ON binder_chunk_refs(kind);
@@ -29,30 +25,26 @@ export const binderChunkRefsTableSql = `
 `;
 
 export const binderChunksFtsTableSql = `
+  -- contentless_delete=1 (SQLite >= 3.43) lets standard SQL DELETE remove
+  -- rows without re-supplying every original column value, so FK CASCADE
+  -- + a trivial AD trigger on binder_chunk_refs cleans up FTS rows. Index
+  -- writes (INSERT) are driven explicitly from BinderSearchStore — no AI/AU
+  -- triggers, since binder_chunk_refs no longer carries the chunk text those
+  -- triggers would have read. document_title is intentionally absent: title
+  -- token matches against chunks aren't worth the rebuild cost on rename;
+  -- title still appears in search results via the JOIN to binder_chunk_refs.
   CREATE VIRTUAL TABLE binder_chunks_fts USING fts5(
-    document_title,
     section_title,
     text,
-    content='binder_chunk_refs',
-    content_rowid='rowid',
+    content='',
+    contentless_delete=1,
     tokenize='porter unicode61 remove_diacritics 2'
   );
 `;
 
 export const binderChunkRefsTriggersSql = `
-  CREATE TRIGGER binder_chunk_refs_ai AFTER INSERT ON binder_chunk_refs BEGIN
-    INSERT INTO binder_chunks_fts(rowid, document_title, section_title, text)
-    VALUES (new.rowid, new.document_title, new.section_title, new.text);
-  END;
   CREATE TRIGGER binder_chunk_refs_ad AFTER DELETE ON binder_chunk_refs BEGIN
-    INSERT INTO binder_chunks_fts(binder_chunks_fts, rowid, document_title, section_title, text)
-    VALUES ('delete', old.rowid, old.document_title, old.section_title, old.text);
-  END;
-  CREATE TRIGGER binder_chunk_refs_au AFTER UPDATE ON binder_chunk_refs BEGIN
-    INSERT INTO binder_chunks_fts(binder_chunks_fts, rowid, document_title, section_title, text)
-    VALUES ('delete', old.rowid, old.document_title, old.section_title, old.text);
-    INSERT INTO binder_chunks_fts(rowid, document_title, section_title, text)
-    VALUES (new.rowid, new.document_title, new.section_title, new.text);
+    DELETE FROM binder_chunks_fts WHERE rowid = old.rowid;
   END;
 `;
 

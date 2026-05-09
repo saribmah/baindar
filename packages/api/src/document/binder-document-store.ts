@@ -21,8 +21,9 @@ export type {
 // BinderDO catalog of the user's documents. Owns the `documents` table and
 // the joined-with-progress read shape used by listings. Cross-table reads
 // (LEFT JOIN progress) are expressed in SQL so this store does not import
-// the ProgressStore. Title updates also touch `binder_chunk_refs` so the
-// cross-binder FTS surfaces the new title without an index rebuild.
+// the ProgressStore. Title updates also refresh `binder_chunk_refs.document_title`
+// so cross-binder search results display the new title immediately; the FTS
+// index does not store document_title (renames stay O(1) by design).
 export class BinderDocumentStore {
   constructor(private readonly sql: SqlStorage) {}
 

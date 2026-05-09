@@ -814,7 +814,10 @@ describe("BinderStore search", () => {
     expect(hits).toHaveLength(1);
   });
 
-  test("renaming a document refreshes binder search title metadata", () => {
+  test("renaming a document refreshes the displayed title on subsequent hits", () => {
+    // document_title is intentionally not indexed in binder_chunks_fts —
+    // search hits surface the renamed title via the JOIN to binder_chunk_refs
+    // instead. Title-token search is out of scope at the chunk level.
     store.createDocument({
       documentId: "doc-title",
       kind: "epub",
@@ -837,19 +840,26 @@ describe("BinderStore search", () => {
           sectionOrder: 0,
           chunkIndex: 0,
           startOffset: 0,
-          endOffset: 31,
+          endOffset: 5,
           textPath: "content/0-chapter-1.txt",
-          text: "plain content without title tokens",
+          text: "alpha",
         },
       ],
     });
 
-    expect(store.search({ query: "old" })).toHaveLength(1);
+    const before = store.search({ query: "alpha" });
+    expect(before).toHaveLength(1);
+    expect(before[0]!.documentTitle).toBe("Old Binder Name");
+
     store.updateDocument({ documentId: "doc-title", title: "Fresh Binder Name" });
 
-    const hits = store.search({ query: "fresh" });
-    expect(hits).toHaveLength(1);
-    expect(hits[0]!.documentTitle).toBe("Fresh Binder Name");
+    const after = store.search({ query: "alpha" });
+    expect(after).toHaveLength(1);
+    expect(after[0]!.documentTitle).toBe("Fresh Binder Name");
+
+    // Title tokens are not in the FTS index, so neither the old nor the new
+    // title produces token-level matches.
     expect(store.search({ query: "old" })).toEqual([]);
+    expect(store.search({ query: "fresh" })).toEqual([]);
   });
 });

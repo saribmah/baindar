@@ -5,9 +5,8 @@ import { DocumentBinding } from "../document/document-binding";
 // references with `(documentId, sectionKey, chunkIndex, terms)` and a bm25
 // score; the snippet itself is rendered by the per-document `DocumentDO`
 // because:
-//   1. The split keeps BinderDO's FTS5 index purely lexical (PRD §9 spec'd
-//      contentless FTS5 for that reason — we shipped external-content for
-//      DELETE ergonomics, but the routing stays the same).
+//   1. BinderDO's FTS5 index is contentless (PRD §9), so it cannot render
+//      `snippet()` directly — chunk text is tokenized but not stored.
 //   2. DocumentDO already serves snippets for in-document search and has
 //      the full chunk text co-located, so render cost stays per-tenant.
 //

@@ -7,13 +7,22 @@ export type { BinderSearchHit, BinderSearchInput } from "./tables";
 // `binder_chunk_refs` + `binder_chunks_fts`. The `documents` table is read
 // only to look up the document `kind` at index time (FK guarantees the row
 // exists by the time `indexDocumentChunks` is called from the workflow).
+//
+// `binder_chunks_fts` is a true contentless FTS5 (`content=''`,
+// `contentless_delete=1`). Chunk text is tokenized into the index but never
+// stored on the binder side — DocumentDO is the single source of truth for
+// chunk text. document_title is intentionally NOT indexed so renames stay
+// O(1) (display title still updates via binder_chunk_refs.document_title).
+// FK CASCADE on `binder_chunk_refs.document_id` plus the AD trigger keep
+// FTS rows in sync on document removal; INSERT is driven explicitly here.
 export class BinderSearchStore {
   constructor(private readonly sql: SqlStorage) {}
 
   // Index a batch of chunks against the cross-binder FTS5 table. Idempotent
   // on (document_id, section_key, chunk_index) so workflow replays UPSERT
   // into the same rows. `kind` is read from `documents.kind` (PRD §9 prose).
-  // FTS sync is handled automatically by triggers on `binder_chunk_refs`.
+  // FTS rows are written explicitly: existing rowids get DELETE+INSERT;
+  // new rows get a single INSERT after the ref row exists.
   indexDocumentChunks(input: {
     documentId: string;
     documentTitle: string;
@@ -40,11 +49,21 @@ export class BinderSearchStore {
     }
     const kind = docRow.kind;
     for (const chunk of input.chunks) {
+      const existing = sql
+        .exec<{ rowid: number }>(
+          `SELECT rowid FROM binder_chunk_refs
+           WHERE document_id = ? AND section_key = ? AND chunk_index = ?`,
+          input.documentId,
+          chunk.sectionKey,
+          chunk.chunkIndex,
+        )
+        .toArray()[0];
+
       sql.exec(
         `INSERT INTO binder_chunk_refs(
              document_id, document_title, kind, section_key, section_title,
-             section_order, chunk_index, start_offset, end_offset, text_path, text
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             section_order, chunk_index, start_offset, end_offset, text_path
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(document_id, section_key, chunk_index) DO UPDATE SET
              document_title = excluded.document_title,
              kind = excluded.kind,
@@ -52,8 +71,7 @@ export class BinderSearchStore {
              section_order = excluded.section_order,
              start_offset = excluded.start_offset,
              end_offset = excluded.end_offset,
-             text_path = excluded.text_path,
-             text = excluded.text`,
+             text_path = excluded.text_path`,
         input.documentId,
         input.documentTitle,
         kind,
@@ -64,6 +82,29 @@ export class BinderSearchStore {
         chunk.startOffset,
         chunk.endOffset,
         chunk.textPath,
+      );
+
+      const rowid =
+        existing?.rowid ??
+        sql
+          .exec<{ rowid: number }>(
+            `SELECT rowid FROM binder_chunk_refs
+             WHERE document_id = ? AND section_key = ? AND chunk_index = ?`,
+            input.documentId,
+            chunk.sectionKey,
+            chunk.chunkIndex,
+          )
+          .toArray()[0]?.rowid;
+      if (rowid === undefined) continue;
+
+      if (existing) {
+        sql.exec(`DELETE FROM binder_chunks_fts WHERE rowid = ?`, rowid);
+      }
+      sql.exec(
+        `INSERT INTO binder_chunks_fts(rowid, section_title, text)
+           VALUES (?, ?, ?)`,
+        rowid,
+        chunk.sectionTitle,
         chunk.text,
       );
     }

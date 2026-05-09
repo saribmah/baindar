@@ -13,41 +13,41 @@ the staging in the plan, not git tags.
 
 ## Phase 2 — Manifest v2, ingest, deletion
 
-### D2-1. External-content FTS5 instead of contentless
+### D2-1. External-content FTS5 instead of contentless — RESOLVED
 
-- **PRD §9:**
+- **PRD §9:** contentless FTS5 (`content=''`) for cross-binder search to
+  cap BinderDO size for power users.
+- **Initial deviation:** shipped external-content FTS5 with a
+  `binder_chunk_refs.text TEXT NOT NULL` column, citing FTS5 §4.4.3:
+  contentless DELETE requires re-supplying every original column value,
+  which would force a DocumentDO round-trip on every chunk removal.
+- **Resolution:** SQLite 3.43.0 (Aug 2023) introduced the
+  `contentless_delete=1` option, which lets contentless FTS5 tables accept
+  normal SQL DELETE statements without re-supplying column values. Workerd
+  ships SQLite well past 3.43, so the original blocker no longer applies.
+- **Shipped (current):**
   ```sql
   CREATE VIRTUAL TABLE binder_chunks_fts USING fts5(
-    document_title, section_title, text,
-    content='',  -- contentless
+    section_title, text,
+    content='',
+    contentless_delete=1,
     tokenize='porter unicode61 remove_diacritics 2'
   );
   ```
-  Plus prose: "When a document title changes, BinderDO updates
-  `binder_chunk_refs.document_title` and rebuilds affected FTS rows by
-  `DELETE`+`INSERT`".
-- **Shipped:**
-  ```sql
-  -- binder_chunk_refs gains a `text TEXT NOT NULL` column.
-  CREATE VIRTUAL TABLE binder_chunks_fts USING fts5(
-    document_title, section_title, text,
-    content='binder_chunk_refs',
-    content_rowid='rowid',
-    tokenize='porter unicode61 remove_diacritics 2'
-  );
-  -- Plus standard FTS5 sync triggers (AI / AD / AU) on binder_chunk_refs.
-  ```
-- **Why:** SQLite contentless FTS5's DELETE command requires re-supplying
-  every original column value (per FTS5 docs §4.4.3). For
-  `removeDocument`, that would force BinderDO to round-trip back to
-  DocumentDO to fetch chunk text just to delete an FTS row — unworkable
-  on every cleanup. External-content mode lets standard SQL UPSERT/DELETE
-  drive the index via triggers.
-- **Trade-off:** `binder_chunk_refs.text` stores chunk text once in
-  BinderDO (in addition to the per-DocumentDO copy). Increases BinderDO
-  size — relevant to PRD §18 open question 1 ("BinderDO growth").
-- **Status:** Open as a future optimization. Pure contentless can be
-  revisited if a binder pushes BinderDO toward the 10 GB ceiling.
+  - `binder_chunk_refs.text` column dropped.
+  - `document_title` deliberately NOT indexed in `binder_chunks_fts`. It
+    is still denormalised on `binder_chunk_refs.document_title` so search
+    results display the renamed title via the JOIN, but title-token
+    matches at the chunk level are out of scope. This keeps document
+    rename O(1) (no FTS rebuild, no DocumentDO round-trip). If we later
+    want title-token search, the right layer is a tiny per-document
+    title FTS, not the chunk FTS.
+  - AI/AU triggers removed (binder_chunk_refs no longer carries text).
+  - Single AD trigger keeps FTS rows in sync on FK CASCADE / explicit
+    DELETE: `DELETE FROM binder_chunks_fts WHERE rowid = old.rowid`.
+  - `BinderSearchStore.indexDocumentChunks` writes FTS rows explicitly,
+    passing chunk text in transiently for tokenization.
+- **Status:** Closed.
 
 ## Phase 3 — sibling features to BinderDO + drop D1 document-domain
 
@@ -88,7 +88,5 @@ the staging in the plan, not git tags.
 
 ## Open follow-ups (parking lot for Phase 6+)
 
-- D2-1: re-evaluate contentless vs external-content FTS5 once binder
-  size data exists.
 - D3-4: switch `PositionPayload` to a discriminated union if a format
   needs non-numeric position fields.

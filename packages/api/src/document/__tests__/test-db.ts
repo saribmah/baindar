@@ -502,10 +502,12 @@ class FakeBinder {
   }
 
   // Simple substring-based search: tokenises the query, matches chunks
-  // whose text/section_title/document_title contains any token (case-
-  // insensitive). Score is `-matches` so smaller is "better" (mirroring
-  // production bm25 ordering). Good enough for route/contract tests; the
-  // BinderStore tests exercise real FTS5.
+  // whose text or section_title contains any token (case-insensitive).
+  // document_title is intentionally NOT in the haystack — production
+  // binder_chunks_fts does not index it (renames stay O(1)); display title
+  // still surfaces via the JOIN. Score is `-matches` so smaller is "better"
+  // (mirroring production bm25 ordering). Good enough for route/contract
+  // tests; the BinderStore tests exercise real FTS5.
   async search(input: {
     query: string;
     limit?: number;
@@ -535,11 +537,11 @@ class FakeBinder {
           return false;
         if (input.excludeSectionKey !== undefined && c.sectionKey === input.excludeSectionKey)
           return false;
-        const haystack = `${c.text} ${c.sectionTitle ?? ""} ${c.documentTitle}`.toLowerCase();
+        const haystack = `${c.text} ${c.sectionTitle ?? ""}`.toLowerCase();
         return tokens.some((tok) => haystack.includes(tok));
       })
       .map((c) => {
-        const haystack = `${c.text} ${c.sectionTitle ?? ""} ${c.documentTitle}`.toLowerCase();
+        const haystack = `${c.text} ${c.sectionTitle ?? ""}`.toLowerCase();
         const matches = tokens.filter((tok) => haystack.includes(tok)).length;
         return {
           documentId: c.documentId,
