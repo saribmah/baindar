@@ -3,7 +3,7 @@ import { user } from "../db/schema";
 import { Instance } from "../instance";
 import type { User } from "./user";
 
-export namespace UserStorage {
+export namespace UserStore {
   export const entitySelect = {
     id: user.id,
     email: user.email,

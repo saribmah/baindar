@@ -1,29 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { DocumentStorage } from "../../document/storage";
-import { createTestRuntime } from "../../document/__tests__/test-db";
+import { Binder } from "../../binder/binder";
+import { createTestRuntime, seedBinderDocument } from "../../document/__tests__/test-db";
 import { Highlight } from "../highlight";
 
 // Seed an EPUB `document` row directly. The highlight feature only needs the
 // row to exist with the right userId; no parsing / R2 work is required to
 // exercise highlight CRUD.
-const seedDocument = async (
-  userId: string,
-  overrides?: Partial<Parameters<typeof DocumentStorage.create>[0]>,
-) =>
-  DocumentStorage.create({
-    id: crypto.randomUUID(),
-    userId,
-    kind: "epub",
-    mimeType: "application/epub+zip",
-    originalFilename: "seed.epub",
-    sizeBytes: 100,
-    sha256: "0".repeat(64),
-    title: "Seed",
-    sensitive: false,
-    status: "processed",
-    r2KeyOriginal: `users/${userId}/documents/seed/original.epub`,
-    ...overrides,
-  });
+const seedDocument = (userId: string) => seedBinderDocument(userId);
 
 describe("Highlight feature", () => {
   const userA = "user-a";
@@ -151,9 +134,10 @@ describe("Highlight feature", () => {
         textSnippet: "Hi.",
         color: "yellow",
       });
-      // Direct storage delete is fine — Document.remove also touches R2 and
-      // we're testing FK cascade behaviour, not the asset cleanup.
-      await DocumentStorage.remove(doc.id, userA);
+      // Direct binder delete is fine — Document.remove also triggers the
+      // deletion workflow and we're testing FK cascade behaviour, not the
+      // asset cleanup.
+      await Binder.require(userA).removeDocument(doc.id);
       // Re-seed a doc to satisfy the ownership check on list.
       const replacement = await seedDocument(userA);
       const survivors = await Highlight.list(userA, { documentId: replacement.id });

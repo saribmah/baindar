@@ -3,7 +3,7 @@ import { user } from "./auth";
 
 // One profile row per user. Holds application-level reading/AI/notification
 // preferences that don't belong on the Better-Auth-owned `user` table. Created
-// lazily on first read by ProfileStorage; cascades on user delete.
+// lazily on first read by ProfileStore; cascades on user delete.
 export const profile = sqliteTable("profile", {
   userId: text("user_id")
     .primaryKey()

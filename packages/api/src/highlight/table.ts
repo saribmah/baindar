@@ -1,4 +1,7 @@
-import type { PositionPayload } from "./progress";
+import type { PositionPayload } from "../progress/table";
+
+// Highlights live in BinderDO storage. Schema owned by this feature;
+// `highlightsTableSql` is composed into the binder initial migration.
 
 export const highlightsTableSql = `
   CREATE TABLE highlights (

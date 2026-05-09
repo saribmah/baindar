@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NamedError } from "../utils/error";
-import { ProfileStorage } from "./storage";
+import { ProfileStore } from "./profile-store";
 
 export namespace Profile {
   export const NotFoundError = NamedError.create(
@@ -61,14 +61,14 @@ export namespace Profile {
   // owner asks for it. Keeps user-creation in Better Auth's flow simple and
   // avoids an extra hook just to seed preferences.
   export const getMe = async (userId: string): Promise<Entity> => {
-    const existing = await ProfileStorage.get(userId);
+    const existing = await ProfileStore.get(userId);
     if (existing) return existing;
-    return ProfileStorage.insertDefaults(userId, defaults);
+    return ProfileStore.insertDefaults(userId, defaults);
   };
 
   export const updateMe = async (userId: string, input: UpdateInput): Promise<Entity> => {
     await getMe(userId);
-    const updated = await ProfileStorage.update(userId, input);
+    const updated = await ProfileStore.update(userId, input);
     if (!updated) throw new NotFoundError({ userId });
     return updated;
   };

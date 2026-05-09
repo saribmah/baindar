@@ -1,3 +1,7 @@
+// Conversation metadata lives in BinderDO storage. Schema owned by this
+// feature; `conversationsTableSql` is composed into the binder initial
+// migration.
+
 export const conversationsTableSql = `
   CREATE TABLE conversations (
     conversation_id TEXT PRIMARY KEY,

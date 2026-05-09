@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { Binder } from "../binder/binder";
 import { Document } from "../document/document";
 import { Highlight } from "../highlight/highlight";
 import { NamedError } from "../utils/error";
-import { NoteStorage } from "./storage";
+import type { NoteRow } from "./table";
 
 // Free-form text the user attaches to a document. A note is conceptually
 // distinct from a highlight: highlights mark a span of text, notes carry
@@ -85,6 +86,26 @@ export namespace Note {
   });
   export type ListQuery = z.infer<typeof ListQuery>;
 
+  // Corpus-wide list across the user's full binder. Used by the chat agent's
+  // listing tools where there is no parent document scope. Distinct from
+  // `list` (which requires a documentId) so route-level callers keep their
+  // ownership-via-Document.get check.
+  export const ListAllQuery = z.object({
+    documentId: z.string().min(1).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  });
+  export type ListAllQuery = z.infer<typeof ListAllQuery>;
+
+  const toEntity = (row: NoteRow): Entity => ({
+    id: row.noteId,
+    documentId: row.documentId,
+    sectionKey: row.sectionKey,
+    highlightId: row.highlightId,
+    body: row.body,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  });
+
   // ---- Operations -------------------------------------------------------
   export const create = async (userId: string, input: CreateInput): Promise<Entity> => {
     // Document ownership check up front: same NotFoundError semantics as
@@ -107,48 +128,49 @@ export namespace Note {
       sectionKey = parent.sectionKey;
     }
 
-    return NoteStorage.create({
-      id: crypto.randomUUID(),
-      userId,
+    const row = await Binder.require(userId).createNote({
+      noteId: crypto.randomUUID(),
       documentId: input.documentId,
       sectionKey,
       highlightId: input.highlightId ?? null,
       body: input.body,
     });
+    return toEntity(row);
   };
 
   export const list = async (userId: string, query: ListQuery): Promise<Entity[]> => {
     await Document.get(userId, query.documentId);
-    return NoteStorage.list(userId, query);
+    const rows = await Binder.require(userId).listNotes({
+      documentId: query.documentId,
+      sectionKey: query.sectionKey,
+      highlightId: query.highlightId,
+      unanchored: query.unanchored,
+    });
+    return rows.map(toEntity);
   };
 
-  // Corpus-wide list across the user's full binder. Used by the chat agent's
-  // listing tools where there is no parent document scope. Distinct from
-  // `list` (which requires a documentId) so route-level callers keep their
-  // ownership-via-Document.get check.
-  export const ListAllQuery = z.object({
-    documentId: z.string().min(1).optional(),
-    limit: z.number().int().min(1).max(100).optional(),
-  });
-  export type ListAllQuery = z.infer<typeof ListAllQuery>;
-
-  export const listAll = async (userId: string, query: ListAllQuery): Promise<Entity[]> =>
-    NoteStorage.listAll(userId, query);
+  export const listAll = async (userId: string, query: ListAllQuery): Promise<Entity[]> => {
+    const rows = await Binder.require(userId).listNotesAll({
+      documentId: query.documentId,
+      limit: query.limit,
+    });
+    return rows.map(toEntity);
+  };
 
   export const get = async (userId: string, id: string): Promise<Entity> => {
-    const entity = await NoteStorage.get(id, userId);
-    if (!entity) throw new NotFoundError({ id });
-    return entity;
+    const row = await Binder.require(userId).getNote(id);
+    if (!row) throw new NotFoundError({ id });
+    return toEntity(row);
   };
 
   export const update = async (userId: string, id: string, patch: UpdateInput): Promise<Entity> => {
-    const updated = await NoteStorage.update(id, userId, { body: patch.body });
-    if (!updated) throw new NotFoundError({ id });
-    return updated;
+    const row = await Binder.require(userId).updateNote({ noteId: id, body: patch.body });
+    if (!row) throw new NotFoundError({ id });
+    return toEntity(row);
   };
 
   export const remove = async (userId: string, id: string): Promise<void> => {
-    const removed = await NoteStorage.remove(id, userId);
+    const removed = await Binder.require(userId).removeNote(id);
     if (!removed) throw new NotFoundError({ id });
   };
 }

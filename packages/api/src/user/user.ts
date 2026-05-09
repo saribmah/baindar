@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NamedError } from "../utils/error";
-import { UserStorage } from "./storage";
+import { UserStore } from "./user-store";
 
 export namespace User {
   export const UserNotFoundError = NamedError.create(
@@ -29,13 +29,13 @@ export namespace User {
   export type UpdateInput = z.infer<typeof UpdateInput>;
 
   export const getMe = async (userId: string): Promise<Entity> => {
-    const entity = await UserStorage.get(userId);
+    const entity = await UserStore.get(userId);
     if (!entity) throw new UserNotFoundError({ id: userId });
     return entity;
   };
 
   export const updateMe = async (userId: string, input: UpdateInput): Promise<Entity> => {
-    const updated = await UserStorage.update(userId, input);
+    const updated = await UserStore.update(userId, input);
     if (!updated) throw new UserNotFoundError({ id: userId });
     return updated;
   };

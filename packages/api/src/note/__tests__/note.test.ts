@@ -1,28 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { DocumentStorage } from "../../document/storage";
-import { createTestRuntime } from "../../document/__tests__/test-db";
+import { Binder } from "../../binder/binder";
+import { createTestRuntime, seedBinderDocument } from "../../document/__tests__/test-db";
 import { Highlight } from "../../highlight/highlight";
 import { Note } from "../note";
-import { NoteStorage } from "../storage";
 
-const seedDocument = async (
-  userId: string,
-  overrides?: Partial<Parameters<typeof DocumentStorage.create>[0]>,
-) =>
-  DocumentStorage.create({
-    id: crypto.randomUUID(),
-    userId,
-    kind: "epub",
-    mimeType: "application/epub+zip",
-    originalFilename: "seed.epub",
-    sizeBytes: 100,
-    sha256: "0".repeat(64),
-    title: "Seed",
-    sensitive: false,
-    status: "processed",
-    r2KeyOriginal: `users/${userId}/documents/seed/original.epub`,
-    ...overrides,
-  });
+const seedDocument = (userId: string) => seedBinderDocument(userId);
 
 describe("Note feature", () => {
   const userA = "user-a";
@@ -167,10 +149,10 @@ describe("Note feature", () => {
 
       await Highlight.remove(userA, highlight.id);
 
-      // Direct storage read so we can confirm the row is gone, not just
+      // Direct binder read so we can confirm the row is gone, not just
       // hidden by a filter.
-      expect(await NoteStorage.get(attached.id, userA)).toBeNull();
-      expect(await NoteStorage.get(standalone.id, userA)).not.toBeNull();
+      expect(await Binder.require(userA).getNote(attached.id)).toBeNull();
+      expect(await Binder.require(userA).getNote(standalone.id)).not.toBeNull();
     });
   });
 });

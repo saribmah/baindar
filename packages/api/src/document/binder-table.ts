@@ -1,3 +1,11 @@
+// Document catalog rows that live in BinderDO storage (the user-visible
+// "what documents do I own" table). Schema owned by this feature; the
+// binder migration runner composes `documentsTableSql` into its initial
+// migration alongside the other feature tables.
+//
+// This is distinct from `document/tables/` which holds the per-document
+// DocumentDO schema (chunks, sections, summaries, document_meta).
+
 export const documentsTableSql = `
   CREATE TABLE documents (
     document_id TEXT PRIMARY KEY,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, spyOn } from "bun:test";
-import { UserStorage } from "../storage";
+import { UserStore } from "../user-store";
 import { User } from "../user";
 
 const sample: User.Entity = {
@@ -14,25 +14,25 @@ const sample: User.Entity = {
 
 describe("User feature", () => {
   afterEach(() => {
-    spyOn(UserStorage, "get").mockRestore();
-    spyOn(UserStorage, "update").mockRestore();
+    spyOn(UserStore, "get").mockRestore();
+    spyOn(UserStore, "update").mockRestore();
   });
 
   it("getMe returns the entity when storage finds it", async () => {
-    spyOn(UserStorage, "get").mockResolvedValue(sample);
+    spyOn(UserStore, "get").mockResolvedValue(sample);
     const result = await User.getMe("u1");
     expect(result).toEqual(sample);
   });
 
   it("getMe throws UserNotFoundError when storage returns null", async () => {
-    spyOn(UserStorage, "get").mockResolvedValue(null);
+    spyOn(UserStore, "get").mockResolvedValue(null);
     await expect(User.getMe("missing")).rejects.toMatchObject({
       name: "UserNotFoundError",
     });
   });
 
   it("updateMe throws UserNotFoundError when storage returns null", async () => {
-    spyOn(UserStorage, "update").mockResolvedValue(null);
+    spyOn(UserStore, "update").mockResolvedValue(null);
     await expect(User.updateMe("missing", { name: "n" })).rejects.toMatchObject({
       name: "UserNotFoundError",
     });

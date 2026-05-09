@@ -1,7 +1,7 @@
 import { Instance } from "../../instance";
 import { DocumentAssetStore } from "../asset-store";
+import { Document } from "../document";
 import { DocumentBinding } from "../document-binding";
-import { DocumentStorage } from "../storage";
 
 // Deletion step bodies. No `cloudflare:workers` dep so the bun test runtime
 // can import and execute them directly (matches the EPUB steps.ts pattern).
@@ -12,7 +12,7 @@ export type DocumentDeletionParams = { userId: string; documentId: string };
 // progress, shelf membership, conversations, FTS chunk refs). Idempotent —
 // re-running against an already-deleted row is a no-op.
 export const removeBinderRow = async (input: DocumentDeletionParams): Promise<void> => {
-  await DocumentStorage.remove(input.documentId, input.userId);
+  await Document.removeFromBinder(input.userId, input.documentId);
 };
 
 export const destroyDocumentDO = async (input: DocumentDeletionParams): Promise<void> => {

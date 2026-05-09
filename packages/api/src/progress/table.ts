@@ -1,3 +1,10 @@
+// Progress lives in BinderDO storage. Schema owned by this feature;
+// `progressTableSql` is composed into the binder initial migration.
+//
+// `PositionPayload` is the loose JSON-object shape the BinderDO RPC layer
+// accepts and returns for highlight + progress positions. Each feature
+// narrows it to its concrete `Position` shape at the feature boundary.
+
 export const progressTableSql = `
   CREATE TABLE progress (
     document_id TEXT PRIMARY KEY REFERENCES documents(document_id) ON DELETE CASCADE,

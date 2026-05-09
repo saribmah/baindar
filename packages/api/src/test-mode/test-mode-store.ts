@@ -7,7 +7,7 @@ import { Instance } from "../instance";
 // All D1 + R2 work for the test-mode endpoints. Keeps the feature module
 // thin; ownership checks aren't relevant here because every route already
 // gates on Config.isTestMode().
-export namespace TestModeStorage {
+export namespace TestModeStore {
   // Better Auth sessions. The default expiry for the bearer plugin is fine
   // for tests; we just need any future timestamp.
   const SESSION_TTL_MS = 24 * 60 * 60 * 1000;

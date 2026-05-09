@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { Binder } from "../binder/binder";
 import { Document } from "../document/document";
 import { NamedError } from "../utils/error";
-import { ShelfStorage } from "./storage";
+import type { ShelfRowWithCount } from "./table";
 
 // User-created tag-style grouping of documents, plus two smart shelves
 // derived from reading progress (`smart:reading`, `smart:finished`).
@@ -128,41 +129,53 @@ export namespace Shelf {
   });
   export type ReorderDocumentInput = z.infer<typeof ReorderDocumentInput>;
 
+  // ---- Row → Entity mapping ---------------------------------------------
+  const toCustomEntity = (row: ShelfRowWithCount): CustomEntity => ({
+    kind: "custom",
+    id: row.shelfId,
+    name: row.name,
+    description: row.description,
+    itemCount: row.itemCount,
+    position: row.position,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  });
+
   // ---- Operations -------------------------------------------------------
   export const list = async (userId: string): Promise<Entity[]> => {
-    const [counts, customs] = await Promise.all([
-      ShelfStorage.smartCounts(userId),
-      ShelfStorage.list(userId),
-    ]);
+    const binder = Binder.require(userId);
+    const [counts, customRows] = await Promise.all([binder.smartCounts(), binder.listShelves()]);
     return [
       smartShelf("reading", counts.reading),
       smartShelf("finished", counts.finished),
-      ...customs,
+      ...customRows.map(toCustomEntity),
     ];
   };
 
   export const get = async (userId: string, id: string): Promise<Entity> => {
+    const binder = Binder.require(userId);
     const smartType = parseSmartId(id);
     if (smartType) {
-      const counts = await ShelfStorage.smartCounts(userId);
+      const counts = await binder.smartCounts();
       return smartShelf(smartType, counts[smartType]);
     }
-    const entity = await ShelfStorage.get(userId, id);
-    if (!entity) throw new NotFoundError({ id });
-    return entity;
+    const row = await binder.getShelf(id);
+    if (!row) throw new NotFoundError({ id });
+    return toCustomEntity(row);
   };
 
   export const create = async (userId: string, input: CreateInput): Promise<CustomEntity> => {
+    const binder = Binder.require(userId);
     const name = input.name.trim();
-    const existing = await ShelfStorage.findByLowerName(userId, name.toLowerCase());
+    const existing = await binder.findShelfByLowerName(name.toLowerCase());
     if (existing) throw new NameTakenError({ name });
 
-    return ShelfStorage.create({
-      id: crypto.randomUUID(),
-      userId,
+    const row = await binder.createShelf({
+      shelfId: crypto.randomUUID(),
       name,
       description: input.description?.trim() || null,
     });
+    return toCustomEntity(row);
   };
 
   export const update = async (
@@ -171,11 +184,12 @@ export namespace Shelf {
     patch: UpdateInput,
   ): Promise<CustomEntity> => {
     requireCustom(id);
+    const binder = Binder.require(userId);
 
     if (patch.name !== undefined) {
       const trimmed = patch.name.trim();
-      const existing = await ShelfStorage.findByLowerName(userId, trimmed.toLowerCase());
-      if (existing && existing.id !== id) throw new NameTakenError({ name: trimmed });
+      const existing = await binder.findShelfByLowerName(trimmed.toLowerCase());
+      if (existing && existing.shelfId !== id) throw new NameTakenError({ name: trimmed });
     }
 
     // null clears, undefined leaves alone, string sets — same convention as
@@ -187,28 +201,34 @@ export namespace Shelf {
           ? null
           : patch.description.trim() || null;
 
-    const updated = await ShelfStorage.update(userId, id, {
+    const updated = await binder.updateShelf({
+      shelfId: id,
       name: patch.name?.trim(),
       description,
       position: patch.position,
     });
     if (!updated) throw new NotFoundError({ id });
-    return updated;
+    return toCustomEntity(updated);
   };
 
   export const remove = async (userId: string, id: string): Promise<void> => {
     requireCustom(id);
-    const removed = await ShelfStorage.remove(userId, id);
+    const removed = await Binder.require(userId).removeShelf(id);
     if (!removed) throw new NotFoundError({ id });
   };
 
   export const listDocuments = async (userId: string, id: string): Promise<Document.Entity[]> => {
+    const binder = Binder.require(userId);
     const smartType = parseSmartId(id);
-    if (smartType) return ShelfStorage.smartDocuments(userId, smartType);
+    if (smartType) {
+      const rows = await binder.smartDocuments(smartType);
+      return rows.map(Document.fromBinderRow);
+    }
 
-    const owned = await ShelfStorage.exists(userId, id);
+    const owned = await binder.shelfExists(id);
     if (!owned) throw new NotFoundError({ id });
-    return ShelfStorage.documents(userId, id);
+    const rows = await binder.listShelfDocuments(id);
+    return rows.map(Document.fromBinderRow);
   };
 
   export const addDocument = async (
@@ -217,15 +237,16 @@ export namespace Shelf {
     documentId: string,
   ): Promise<void> => {
     requireCustom(id);
+    const binder = Binder.require(userId);
 
-    const owned = await ShelfStorage.exists(userId, id);
+    const owned = await binder.shelfExists(id);
     if (!owned) throw new NotFoundError({ id });
     // Confirm the doc exists and is owned by the caller. Document.get throws
     // DocumentNotFoundError for both missing rows and rows owned by another
     // user — exactly the right surface for "you can't add this".
     await Document.get(userId, documentId);
 
-    await ShelfStorage.addDocument({ shelfId: id, documentId, userId });
+    await binder.addShelfDocument({ shelfId: id, documentId });
   };
 
   export const removeDocument = async (
@@ -234,10 +255,11 @@ export namespace Shelf {
     documentId: string,
   ): Promise<void> => {
     requireCustom(id);
-    const owned = await ShelfStorage.exists(userId, id);
+    const binder = Binder.require(userId);
+    const owned = await binder.shelfExists(id);
     if (!owned) throw new NotFoundError({ id });
 
-    const removed = await ShelfStorage.removeDocument(userId, id, documentId);
+    const removed = await binder.removeShelfDocument({ shelfId: id, documentId });
     if (!removed) throw new DocumentNotOnShelfError({ shelfId: id, documentId });
   };
 
@@ -248,15 +270,15 @@ export namespace Shelf {
     input: ReorderDocumentInput,
   ): Promise<void> => {
     requireCustom(id);
-    const owned = await ShelfStorage.exists(userId, id);
+    const binder = Binder.require(userId);
+    const owned = await binder.shelfExists(id);
     if (!owned) throw new NotFoundError({ id });
 
-    const updated = await ShelfStorage.updateMembershipPosition(
-      userId,
-      id,
+    const updated = await binder.updateShelfMembershipPosition({
+      shelfId: id,
       documentId,
-      input.position,
-    );
+      position: input.position,
+    });
     if (!updated) throw new DocumentNotOnShelfError({ shelfId: id, documentId });
   };
 
@@ -268,7 +290,8 @@ export namespace Shelf {
     documentId: string,
   ): Promise<CustomEntity[]> => {
     await Document.get(userId, documentId);
-    return ShelfStorage.shelvesForDocument(userId, documentId);
+    const rows = await Binder.require(userId).shelvesForDocument(documentId);
+    return rows.map(toCustomEntity);
   };
 
   // ---- Helpers (feature-local) ------------------------------------------

@@ -1,3 +1,7 @@
+// Shelves and shelf-membership live in BinderDO storage. Schema owned by
+// this feature; `shelvesTableSql` + `shelfDocumentsTableSql` are composed
+// into the binder initial migration.
+
 export const shelvesTableSql = `
   CREATE TABLE shelves (
     shelf_id TEXT PRIMARY KEY,

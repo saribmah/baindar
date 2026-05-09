@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { Binder } from "../binder/binder";
-import { fanOutSnippets, type EnrichedBinderSearchHit } from "../binder/search-snippets";
 import { DocumentBinding } from "../document/document-binding";
 import { Document } from "../document/document";
 import { NamedError } from "../utils/error";
+import { fanOutSnippets, type EnrichedBinderSearchHit } from "./search-snippets";
 
 // Typed AI search/read/summary surface. Mirrors PRD §13's `/ai/*` routes;
 // the route layer parses HTTP, validates with the schemas exported here,

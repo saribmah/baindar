@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Ai } from "../ai";
 import { Binder } from "../../binder/binder";
 import { DocumentBinding } from "../../document/document-binding";
-import { DocumentStorage } from "../../document/storage";
-import { createTestRuntime } from "../../document/__tests__/test-db";
+import { createTestRuntime, seedBinderDocument } from "../../document/__tests__/test-db";
 
 // Seed a binder + document with two chunks across two sections. Skips the
 // EPUB workflow; we directly call BinderDO.indexDocumentChunks +
@@ -18,22 +17,11 @@ const seedSearchable = async (
     kind?: "epub";
   } = {},
 ): Promise<{ documentId: string; title: string }> => {
-  const documentId = options.documentId ?? crypto.randomUUID();
+  const id = options.documentId ?? crypto.randomUUID();
   const title = options.title ?? "Foxes of the World";
   const kind = options.kind ?? "epub";
-  await DocumentStorage.create({
-    id: documentId,
-    userId,
-    kind,
-    mimeType: "application/epub+zip",
-    originalFilename: "seed.epub",
-    sizeBytes: 100,
-    sha256: "0".repeat(64),
-    title,
-    sensitive: false,
-    status: "processed",
-    r2KeyOriginal: `users/${userId}/documents/${documentId}/original.epub`,
-  });
+  await seedBinderDocument(userId, { id, kind, title });
+  const documentId = id;
   const documentDO = DocumentBinding.require(documentId);
   await documentDO.init({
     documentId,
@@ -151,18 +139,10 @@ describe("Ai feature", () => {
       // FakeBinder row directly — easier than wiring a non-epub kind through
       // detect/Document.create.
       const otherId = crypto.randomUUID();
-      await DocumentStorage.create({
+      await seedBinderDocument(userA, {
         id: otherId,
-        userId: userA,
-        kind: "epub",
-        mimeType: "application/epub+zip",
-        originalFilename: "other.epub",
-        sizeBytes: 1,
-        sha256: "1".repeat(64),
         title: "Other",
-        sensitive: false,
-        status: "processed",
-        r2KeyOriginal: `users/${userA}/documents/${otherId}/original.epub`,
+        originalFilename: "other.epub",
       });
 
       const onlyEpub = await Ai.search(userA, { query: "fox", kind: "epub" });

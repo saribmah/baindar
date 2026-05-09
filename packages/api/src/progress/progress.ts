@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { Binder } from "../binder/binder";
 import { Document } from "../document/document";
-import { ProgressStorage } from "./storage";
+import type { ProgressRow } from "./table";
 
 // Per-user reading state for a document. Type-agnostic across formats:
 // `sectionKey` ties the row to a section in the document's manifest, and
@@ -38,6 +39,23 @@ export namespace Progress {
   });
   export type UpsertInput = z.infer<typeof UpsertInput>;
 
+  // ---- Row → Entity mapping ---------------------------------------------
+  // BinderDO returns position as a generic JSON object; narrow it.
+  const toPosition = (raw: ProgressRow["position"]): Position | null => {
+    if (raw === null) return null;
+    const offset = raw["offset"];
+    return typeof offset === "number" ? { offset } : {};
+  };
+
+  const toEntity = (row: ProgressRow): Entity => ({
+    documentId: row.documentId,
+    sectionKey: row.sectionKey,
+    position: toPosition(row.position),
+    progressPercent: row.progressPercent,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  });
+
   // ---- Operations -------------------------------------------------------
   export const upsert = async (
     userId: string,
@@ -48,12 +66,12 @@ export namespace Progress {
     // bubble up as DocumentNotFoundError, same as elsewhere.
     await Document.get(userId, documentId);
 
-    return ProgressStorage.upsert({
-      userId,
+    const row = await Binder.require(userId).upsertProgress({
       documentId,
       sectionKey: input.sectionKey,
       position: input.position ?? null,
       progressPercent: input.progressPercent ?? null,
     });
+    return toEntity(row);
   };
 }

@@ -1,3 +1,7 @@
+// Notes live in BinderDO storage. Schema is owned by this feature; the
+// binder migration runner imports `notesTableSql` to compose the initial
+// migration alongside the other feature tables.
+
 export const notesTableSql = `
   CREATE TABLE notes (
     note_id TEXT PRIMARY KEY,

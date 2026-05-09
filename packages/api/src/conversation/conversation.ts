@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { Agent } from "../agent/agent";
+import { Binder } from "../binder/binder";
 import { Document } from "../document/document";
 import { NamedError } from "../utils/error";
-import { ConversationStorage } from "./storage";
+import type { ConversationRow } from "./table";
 
 // User-owned chat thread. `id` is the conversation identifier exposed in
 // route paths. `agentName` is the opaque ChatAgent Durable Object routing
@@ -52,15 +53,26 @@ export namespace Conversation {
   });
   export type UpdateInput = z.infer<typeof UpdateInput>;
 
+  // ---- Row → Entity mapping ---------------------------------------------
+  const toEntity = (userId: string, row: ConversationRow): Entity => ({
+    id: row.conversationId,
+    agentName: `${userId}:${row.conversationId}`,
+    title: row.title,
+    primaryDocId: row.primaryDocumentId,
+    createdAt: new Date(row.createdAt).toISOString(),
+    lastActivityAt: new Date(row.lastActivityAt).toISOString(),
+  });
+
   // ---- Operations -------------------------------------------------------
   export const list = async (userId: string): Promise<Entity[]> => {
-    return ConversationStorage.list(userId);
+    const rows = await Binder.require(userId).listConversations();
+    return rows.map((row) => toEntity(userId, row));
   };
 
   export const get = async (userId: string, id: string): Promise<Entity> => {
-    const entity = await ConversationStorage.get(id, userId);
-    if (!entity) throw new NotFoundError({ id });
-    return entity;
+    const row = await Binder.require(userId).getConversation(id);
+    if (!row) throw new NotFoundError({ id });
+    return toEntity(userId, row);
   };
 
   export const create = async (userId: string, input: CreateInput): Promise<Entity> => {
@@ -72,12 +84,12 @@ export namespace Conversation {
       await Document.get(userId, input.primaryDocId);
     }
 
-    const entity = await ConversationStorage.create({
-      id: crypto.randomUUID(),
-      userId,
+    const row = await Binder.require(userId).createConversation({
+      conversationId: crypto.randomUUID(),
       title: input.title?.trim() || DEFAULT_TITLE,
-      primaryDocId: input.primaryDocId ?? null,
+      primaryDocumentId: input.primaryDocId ?? null,
     });
+    const entity = toEntity(userId, row);
 
     // Persist `(userId, conversationId)` in the chat DO so subsequent
     // chat turns can resolve the owner from DO storage instead of any
@@ -88,9 +100,12 @@ export namespace Conversation {
   };
 
   export const update = async (userId: string, id: string, patch: UpdateInput): Promise<Entity> => {
-    const updated = await ConversationStorage.update(id, userId, { title: patch.title.trim() });
+    const updated = await Binder.require(userId).updateConversation({
+      conversationId: id,
+      title: patch.title.trim(),
+    });
     if (!updated) throw new NotFoundError({ id });
-    return updated;
+    return toEntity(userId, updated);
   };
 
   export const remove = async (userId: string, id: string): Promise<void> => {
@@ -104,7 +119,7 @@ export namespace Conversation {
     // Reverse order would orphan the DO on partial failure.
     await Agent.destroy(userId, id);
 
-    const removed = await ConversationStorage.remove(id, userId);
+    const removed = await Binder.require(userId).removeConversation(id);
     if (!removed) throw new NotFoundError({ id });
   };
 
@@ -112,6 +127,6 @@ export namespace Conversation {
   // agent on each turn (wired in a follow-up PR). Silent no-op for unknown
   // ids so a turn from a stale DO instance doesn't 500.
   export const touch = async (userId: string, id: string): Promise<void> => {
-    await ConversationStorage.update(id, userId, { lastActivityAt: new Date() });
+    await Binder.require(userId).touchConversation(id);
   };
 }

@@ -3,7 +3,7 @@ import { profile } from "../db/schema";
 import { Instance } from "../instance";
 import { Profile } from "./profile";
 
-export namespace ProfileStorage {
+export namespace ProfileStore {
   export const entitySelect = {
     userId: profile.userId,
     readingTheme: profile.readingTheme,
@@ -94,7 +94,7 @@ export namespace ProfileStorage {
     // Race: another caller seeded the row first. Read it back.
     const existing = await get(userId);
     if (!existing) {
-      throw new Error("ProfileStorage.insertDefaults: row missing after insert race");
+      throw new Error("ProfileStore.insertDefaults: row missing after insert race");
     }
     return existing;
   };

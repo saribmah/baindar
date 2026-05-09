@@ -1,13 +1,7 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import {
-  DocumentStore,
-  compileFtsOrQuery,
-  compileFtsQuery,
-  tokenizeQuery,
-  type ChunkInput,
-  type SectionInput,
-} from "../document-store";
+import { DocumentStore, type ChunkInput, type SectionInput } from "../document-store";
+import { compileFtsOrQuery, compileFtsQuery, tokenizeQuery } from "../processing/fts-query";
 
 const createFakeSql = (): { sql: SqlStorage; close: () => void } => {
   const db = new Database(":memory:");

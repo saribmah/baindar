@@ -1,4 +1,4 @@
-import type { BinderSearchHit } from "./binder-store";
+import type { BinderSearchHit } from "../binder/binder-search-store";
 import { DocumentBinding } from "../document/document-binding";
 
 // Fan-out helper for binder search results. `BinderDO.search` returns chunk

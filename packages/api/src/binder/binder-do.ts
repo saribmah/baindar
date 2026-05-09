@@ -28,11 +28,12 @@ import {
 //
 // Identity is `idFromName(userId)` — deterministic, never `newUniqueId`.
 //
-// This file is a thin DO wrapper around `BinderStore`. The store owns the
-// schema and SQL bodies and has no `cloudflare:workers` dependency, so it
-// can be unit-tested against an in-memory sqlite shim. The Worker-side
-// accessor lives in `./binder.ts` (also free of `cloudflare:workers`) so
-// that storage modules consuming the accessor stay test-runnable.
+// This file is a thin DO wrapper around `BinderStore`. `BinderStore` itself
+// is a composition over per-feature stores (`note/note-store.ts`,
+// `highlight/highlight-store.ts`, `progress/progress-store.ts`, etc.) that
+// each own the SQL for their tables. None of those modules depend on
+// `cloudflare:workers`, so they can be unit-tested against an in-memory
+// sqlite shim. The Worker-side accessor lives in `./binder.ts`.
 
 export class BinderDO extends DurableObject<RuntimeEnv> {
   #store: BinderStore;

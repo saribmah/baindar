@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Config } from "../config/config";
 import { NamedError } from "../utils/error";
-import { TestModeStorage } from "./storage";
+import { TestModeStore } from "./test-mode-store";
 
 // Local-only test harness for the @baindar/testing package. Every operation
 // gates on Config.isTestMode() and throws NotEnabledError otherwise — the
@@ -44,7 +44,7 @@ export namespace TestMode {
   // every authenticated route.
   export const signIn = async (input: SignInInput): Promise<SignInResponse> => {
     if (!Config.isTestMode()) throw new NotEnabledError({});
-    return TestModeStorage.upsertUserAndSession({
+    return TestModeStore.upsertUserAndSession({
       email: input.email,
       name: input.name ?? defaultNameFor(input.email),
     });
@@ -56,7 +56,7 @@ export namespace TestMode {
   // live.
   export const reset = async (): Promise<void> => {
     if (!Config.isTestMode()) throw new NotEnabledError({});
-    await TestModeStorage.wipeAll();
+    await TestModeStore.wipeAll();
   };
 
   // Non-destructive probe used by the @baindar/testing wrapper to decide

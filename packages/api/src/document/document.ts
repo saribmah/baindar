@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { Binder } from "../binder/binder";
 import { NamedError } from "../utils/error";
 import { DocumentAssetStore } from "./asset-store";
+import type { DocumentWithProgressRow } from "./binder-table";
 import { Epub } from "./formats/epub/epub";
 import { detectFormat } from "./processing/detect";
 import { DocumentDeletion } from "./processing/deletion-steps";
 import { Processor } from "./processing/processor";
-import { DocumentStorage } from "./storage";
 
 // User-visible binder primitive. One row per uploaded file. Format-specific
 // content (chapters, page text, structured metadata) lives in R2 under the
@@ -224,6 +225,47 @@ export namespace Document {
     .meta({ ref: "DocumentManifest" });
   export type Manifest = z.infer<typeof Manifest>;
 
+  // ---- Row → Entity mapping ---------------------------------------------
+  // BinderDO returns the catalog row with progress joined; this projects it
+  // onto the user-facing Document.Entity. Exported so peer features (e.g.
+  // Shelf, which surfaces the same document rows from its own joins) can
+  // share a single canonical projection instead of duplicating it.
+  export const fromBinderRow = (row: DocumentWithProgressRow): Entity => ({
+    id: row.documentId,
+    kind: parseKind(row.kind),
+    mimeType: row.mimeType,
+    originalFilename: row.originalFilename,
+    sizeBytes: row.sizeBytes,
+    sha256: row.contentHash,
+    title: row.title,
+    sensitive: row.sensitive,
+    status: parseStatus(row.status),
+    errorReason: row.errorReason,
+    coverImage: row.coverImage,
+    sourceUrl: row.sourceUrl,
+    progress: row.progress
+      ? {
+          sectionKey: row.progress.sectionKey,
+          progressPercent: row.progress.progressPercent,
+          updatedAt: new Date(row.progress.updatedAt).toISOString(),
+        }
+      : null,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  });
+
+  const parseKind = (raw: string): Kind => {
+    if (raw === "epub") return raw;
+    throw new Error(`Unexpected document.kind value: ${raw}`);
+  };
+
+  const parseStatus = (raw: string): Status => {
+    if (raw === "uploading" || raw === "processing" || raw === "processed" || raw === "failed") {
+      return raw;
+    }
+    return "failed";
+  };
+
   // ---- Operations -------------------------------------------------------
   export type CreateInput = {
     userId: string;
@@ -256,21 +298,22 @@ export namespace Document {
 
     await DocumentAssetStore.putOriginal(input.userId, id, ext, input.bytes, detection.mimeType);
 
+    const binder = Binder.require(input.userId);
     let entity: Entity;
     try {
-      entity = await DocumentStorage.create({
-        id,
-        userId: input.userId,
+      const row = await binder.createDocument({
+        documentId: id,
         kind: detection.kind,
         mimeType: detection.mimeType,
         originalFilename: input.filename,
         sizeBytes: input.bytes.byteLength,
-        sha256,
+        contentHash: sha256,
         title: titleFromFilename(input.filename),
         sensitive: input.sensitive,
         status: "processing",
-        r2KeyOriginal,
+        originalKey: r2KeyOriginal,
       });
+      entity = fromBinderRow({ ...row, progress: null });
     } catch (e) {
       // Rollback the R2 write so a half-created document doesn't sit in the
       // bucket — the user retries cleanly.
@@ -284,33 +327,34 @@ export namespace Document {
       // Workflow trigger failed (e.g. binding misconfigured). Leave the row
       // and blob so a manual reprocess is possible, but surface the failure
       // as the document's recorded error.
-      await DocumentStorage.markFailed(
-        input.userId,
-        id,
-        `Failed to start processing: ${(e as Error).message}`,
-      );
+      await binder.markDocumentFailed({
+        documentId: id,
+        reason: `Failed to start processing: ${(e as Error).message}`,
+      });
     }
 
     return entity;
   };
 
-  export const list = async (userId: string): Promise<Entity[]> => DocumentStorage.list(userId);
+  export const list = async (userId: string): Promise<Entity[]> => {
+    const rows = await Binder.require(userId).listDocumentsWithProgress();
+    return rows.map(fromBinderRow);
+  };
 
   export const get = async (userId: string, id: string): Promise<Entity> => {
-    const entity = await DocumentStorage.get(id, userId);
-    if (!entity) throw new NotFoundError({ id });
-    return entity;
+    const row = await Binder.require(userId).getDocumentWithProgress(id);
+    if (!row) throw new NotFoundError({ id });
+    return fromBinderRow(row);
   };
 
   export const getStatus = async (userId: string, id: string): Promise<StatusPayload> => {
-    const entity = await DocumentStorage.get(id, userId);
-    if (!entity) throw new NotFoundError({ id });
+    const entity = await get(userId, id);
     return { id: entity.id, status: entity.status, errorReason: entity.errorReason };
   };
 
   export const remove = async (userId: string, id: string): Promise<void> => {
-    const entity = await DocumentStorage.get(id, userId);
-    if (!entity) throw new NotFoundError({ id });
+    const existing = await Binder.require(userId).getDocument(id);
+    if (!existing) throw new NotFoundError({ id });
     // Async workflow: BinderDO row + DocumentDO storage + R2 sweep run as
     // separate idempotent steps so a failure replays just that step. The
     // BinderDO catalog row vanishes inside the first step (typically <1s),
@@ -320,7 +364,10 @@ export namespace Document {
   };
 
   export const update = async (userId: string, id: string, input: UpdateInput): Promise<Entity> => {
-    const updated = await DocumentStorage.updateTitle(id, userId, input.title);
+    const updated = await Binder.require(userId).updateDocument({
+      documentId: id,
+      title: input.title,
+    });
     if (!updated) throw new NotFoundError({ id });
     // Refetch via the joined read so the response carries the up-to-date
     // progress alongside the renamed title — the writer doesn't bother
@@ -332,9 +379,9 @@ export namespace Document {
     userId: string,
     id: string,
   ): Promise<DocumentAssetStore.Asset | null> => {
-    const entity = await DocumentStorage.get(id, userId);
-    if (!entity) return null;
-    return DocumentAssetStore.getOriginal(userId, id, entity.r2KeyOriginal);
+    const row = await Binder.require(userId).getDocument(id);
+    if (!row) return null;
+    return DocumentAssetStore.getOriginal(userId, id, row.originalKey);
   };
 
   export const getAsset = async (
@@ -342,8 +389,8 @@ export namespace Document {
     id: string,
     name: string,
   ): Promise<DocumentAssetStore.Asset | null> => {
-    const entity = await DocumentStorage.get(id, userId);
-    if (!entity) return null;
+    const row = await Binder.require(userId).getDocument(id);
+    if (!row) return null;
     return DocumentAssetStore.getAsset(userId, id, name);
   };
 
@@ -383,10 +430,51 @@ export namespace Document {
     return asset;
   };
 
+  // ---- Workflow callbacks -----------------------------------------------
+  // Used by the format processors and deletion workflow. They live here
+  // (rather than in storage.ts) so the feature module owns its full
+  // lifecycle surface and workflow steps depend on a single feature import.
+
+  export type MarkProcessedInput = {
+    title: string | null;
+    coverImage: string | null;
+    manifestKey: string;
+  };
+
+  export const markProcessed = async (
+    userId: string,
+    id: string,
+    input: MarkProcessedInput,
+  ): Promise<void> => {
+    await Binder.require(userId).markDocumentProcessed({
+      documentId: id,
+      title: input.title,
+      coverImage: input.coverImage,
+      manifestKey: input.manifestKey,
+    });
+  };
+
+  export const markFailed = async (userId: string, id: string, reason: string): Promise<void> => {
+    await Binder.require(userId).markDocumentFailed({ documentId: id, reason });
+  };
+
+  // Used by the deletion workflow. Drops the BinderDO catalog row and
+  // cascades child tables (highlights, notes, progress, shelf membership,
+  // FTS chunk refs); conversations.primary_document_id is set NULL.
+  // Returns true if the row existed before removal — the workflow's R2
+  // sweep step doesn't need the signal but the inline test runner uses it
+  // for assertion shape parity with the previous storage helper.
+  export const removeFromBinder = async (userId: string, id: string): Promise<boolean> => {
+    const binder = Binder.require(userId);
+    const existing = await binder.getDocument(id);
+    if (!existing) return false;
+    await binder.removeDocument(id);
+    return true;
+  };
+
   // ---- Helpers (feature-local) ------------------------------------------
   const getProcessed = async (userId: string, id: string): Promise<Entity> => {
-    const entity = await DocumentStorage.get(id, userId);
-    if (!entity) throw new NotFoundError({ id });
+    const entity = await get(userId, id);
     if (entity.status !== "processed") {
       throw new NotProcessedError({ id, status: entity.status });
     }

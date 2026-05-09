@@ -1,27 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Document } from "../../document/document";
-import { DocumentStorage } from "../../document/storage";
-import { createTestRuntime } from "../../document/__tests__/test-db";
+import {
+  createTestRuntime,
+  seedBinderDocument,
+  type SeedDocumentOverrides,
+} from "../../document/__tests__/test-db";
 import { Progress } from "../progress";
 
-const seedDocument = (
-  userId: string,
-  overrides?: Partial<Parameters<typeof DocumentStorage.create>[0]>,
-) =>
-  DocumentStorage.create({
-    id: crypto.randomUUID(),
-    userId,
-    kind: "epub",
-    mimeType: "application/epub+zip",
-    originalFilename: "seed.epub",
-    sizeBytes: 100,
-    sha256: "0".repeat(64),
-    title: "Seed",
-    sensitive: false,
-    status: "processed",
-    r2KeyOriginal: `users/${userId}/documents/seed/original.epub`,
-    ...overrides,
-  });
+const seedDocument = (userId: string, overrides?: SeedDocumentOverrides) =>
+  seedBinderDocument(userId, overrides);
 
 describe("Progress feature", () => {
   const userA = "user-a";

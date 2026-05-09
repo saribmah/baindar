@@ -2,10 +2,9 @@ import { Binder } from "../../../binder/binder";
 import { formatErrorChain } from "../../../utils/error";
 import { padOrder, slugify } from "../../../utils/slug";
 import { DocumentAssetStore } from "../../asset-store";
+import { Document } from "../../document";
 import { DocumentBinding } from "../../document-binding";
-import type { Document } from "../../document";
 import { chunkSection } from "../../processing/chunk";
-import { DocumentStorage } from "../../storage";
 import { Epub } from "./epub";
 import { ParseFailure } from "./parser";
 
@@ -165,7 +164,7 @@ export const markProcessed = async (
   documentId: string,
   finalized: FinalizedManifest,
 ): Promise<void> => {
-  await DocumentStorage.markProcessed(userId, documentId, finalized);
+  await Document.markProcessed(userId, documentId, finalized);
 };
 
 export const recordFailure = async (
@@ -174,7 +173,7 @@ export const recordFailure = async (
   error: unknown,
 ): Promise<void> => {
   const reason = (formatErrorChain(error) || "Processing failed").slice(0, MAX_REASON_LENGTH);
-  await DocumentStorage.markFailed(userId, documentId, reason);
+  await Document.markFailed(userId, documentId, reason);
 };
 
 // ---------------------------------------------------------------------------

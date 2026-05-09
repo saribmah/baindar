@@ -3,11 +3,62 @@ import path from "node:path";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import type { AuthContext, RuntimeEnv } from "../../app/context";
+import { Binder } from "../../binder/binder";
 import type { Db } from "../../db/db";
 import { user } from "../../db/schema";
 import { Instance } from "../../instance";
 import { runEpubInline } from "../formats/epub/steps";
 import { runDeletionInline } from "../processing/deletion-steps";
+
+// Seed a binder document row directly via the BinderDO RPC. Tests use this
+// instead of `Document.create` because the latter requires a real upload
+// + format detection + workflow trigger; tests just want a row in
+// arbitrary states (e.g. status="processed" without going through ingest).
+export type SeedDocumentOverrides = {
+  id?: string;
+  kind?: string;
+  title?: string;
+  status?: string;
+  sensitive?: boolean;
+  mimeType?: string;
+  originalFilename?: string;
+};
+
+export const seedBinderDocument = async (
+  userId: string,
+  overrides: SeedDocumentOverrides = {},
+): Promise<{ id: string }> => {
+  const id = overrides.id ?? crypto.randomUUID();
+  await Binder.require(userId).createDocument({
+    documentId: id,
+    kind: overrides.kind ?? "epub",
+    mimeType: overrides.mimeType ?? "application/epub+zip",
+    originalFilename: overrides.originalFilename ?? "seed.epub",
+    sizeBytes: 100,
+    contentHash: "0".repeat(64),
+    title: overrides.title ?? "Seed",
+    sensitive: overrides.sensitive ?? false,
+    status: overrides.status ?? "processed",
+    originalKey: `users/${userId}/documents/${id}/original.epub`,
+  });
+  return { id };
+};
+
+// Convenience seed for `progress` rows. Mirrors what the route handler
+// would do, minus auth/feature checks.
+export const seedBinderProgress = async (
+  userId: string,
+  documentId: string,
+  progressPercent: number | null,
+  sectionKey = "epub:section:0",
+): Promise<void> => {
+  await Binder.require(userId).upsertProgress({
+    documentId,
+    sectionKey,
+    position: null,
+    progressPercent,
+  });
+};
 
 // Bun:sqlite-backed test harness for storage-touching feature tests.
 //

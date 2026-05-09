@@ -1,29 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { Context } from "hono";
 import type { AppEnv } from "../../app/context";
+import { Binder } from "../../binder/binder";
 import { Conversation } from "../conversation";
-import { DocumentStorage } from "../../document/storage";
-import { createTestRuntime } from "../../document/__tests__/test-db";
+import { createTestRuntime, seedBinderDocument } from "../../document/__tests__/test-db";
 import { requireOwnAgentInstance } from "../../middleware/agent-instance";
 
-const seedDocument = async (
-  userId: string,
-  overrides?: Partial<Parameters<typeof DocumentStorage.create>[0]>,
-) =>
-  DocumentStorage.create({
-    id: crypto.randomUUID(),
-    userId,
-    kind: "epub",
-    mimeType: "application/epub+zip",
-    originalFilename: "seed.epub",
-    sizeBytes: 100,
-    sha256: "0".repeat(64),
-    title: "Seed",
-    sensitive: false,
-    status: "processed",
-    r2KeyOriginal: `users/${userId}/documents/seed/original.epub`,
-    ...overrides,
-  });
+const seedDocument = (userId: string) => seedBinderDocument(userId);
 
 describe("Conversation feature", () => {
   const userA = "user-a";
@@ -126,7 +109,7 @@ describe("Conversation feature", () => {
       const scoped = await Conversation.create(userA, { primaryDocId: doc.id });
       const unscoped = await Conversation.create(userA, {});
 
-      await DocumentStorage.remove(doc.id, userA);
+      await Binder.require(userA).removeDocument(doc.id);
 
       const items = await Conversation.list(userA);
       // Both conversations survive — only `primaryDocId` clears.

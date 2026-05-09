@@ -1,47 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { DocumentStorage } from "../../document/storage";
-import { createTestRuntime } from "../../document/__tests__/test-db";
-import { ProgressStorage } from "../../progress/storage";
+import {
+  createTestRuntime,
+  seedBinderDocument,
+  seedBinderProgress,
+} from "../../document/__tests__/test-db";
 import { Shelf } from "../shelf";
 
-// Seed a document row via the canonical DocumentStorage.create path so it
-// lands in BOTH BinderDO (read source) and D1 (FK-compat mirror). Shelf
-// tests only need the row to exist with the right userId; no parsing /
-// R2 work is required to exercise shelf CRUD.
+// Shelf tests only need a document row to exist with the right userId; no
+// parsing / R2 work is required to exercise shelf CRUD.
 const seedDocument = async (
   userId: string,
   opts: { id?: string; title?: string } = {},
 ): Promise<string> => {
-  const id = opts.id ?? crypto.randomUUID();
-  await DocumentStorage.create({
-    id,
-    userId,
-    kind: "epub",
-    mimeType: "application/epub+zip",
-    originalFilename: "seed.epub",
-    sizeBytes: 1,
-    sha256: "0".repeat(64),
-    title: opts.title ?? `Seed ${id.slice(0, 8)}`,
-    sensitive: false,
-    status: "processed",
-    r2KeyOriginal: `users/${userId}/documents/${id}/original.epub`,
+  const seeded = await seedBinderDocument(userId, {
+    id: opts.id,
+    title: opts.title ?? (opts.id ? `Seed ${opts.id.slice(0, 8)}` : undefined),
   });
-  return id;
+  return seeded.id;
 };
 
-const seedProgress = async (
-  userId: string,
-  documentId: string,
-  progressPercent: number | null,
-): Promise<void> => {
-  await ProgressStorage.upsert({
-    userId,
-    documentId,
-    sectionKey: "epub:section:0",
-    position: null,
-    progressPercent,
-  });
-};
+const seedProgress = (userId: string, documentId: string, progressPercent: number | null) =>
+  seedBinderProgress(userId, documentId, progressPercent);
 
 describe("Shelf feature", () => {
   const userA = "user-a";
