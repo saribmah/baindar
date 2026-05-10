@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   messageReferences,
   messageText,
+  referenceDescription,
   referenceLabel,
   referenceToReaderPath,
   type MessageReference,
@@ -74,6 +75,21 @@ describe("messageReferences", () => {
         "abc",
       ),
     ).toBe("/read/doc-1?target=abc");
+  });
+
+  it("routes chapter references to the chapter without a range", () => {
+    const chapter: MessageReference = {
+      kind: "chapter",
+      documentId: "doc-1",
+      documentTitle: "Manual",
+      sectionKey: "epub:section:3",
+      sectionOrder: 3,
+      sectionTitle: "Maintenance",
+    };
+
+    expect(referenceToReaderPath(chapter, "abc")).toBe("/read/doc-1?chapter=3&target=abc");
+    expect(referenceLabel(chapter)).toBe("Maintenance");
+    expect(referenceDescription(chapter)).toBe("Manual");
   });
 
   it("labels document-level notes distinctly from section notes", () => {

@@ -12,6 +12,15 @@ export type BookReference = {
   documentTitle: string;
 };
 
+export type ChapterReference = {
+  kind: "chapter";
+  documentId: string;
+  documentTitle: string;
+  sectionKey: string;
+  sectionOrder: number;
+  sectionTitle?: string;
+};
+
 export type PassageReference = {
   kind: "passage";
   documentId: string;
@@ -50,6 +59,7 @@ export type NoteReference = {
 
 export type MessageReference =
   | BookReference
+  | ChapterReference
   | PassageReference
   | HighlightReference
   | NoteReference;
@@ -60,6 +70,25 @@ export const makeBookReference = (document: Pick<Document, "id" | "title">): Boo
   kind: "book",
   documentId: document.id,
   documentTitle: document.title,
+});
+
+export const makeChapterReference = ({
+  document,
+  sectionKey,
+  sectionOrder,
+  sectionTitle,
+}: {
+  document: Pick<Document, "id" | "title">;
+  sectionKey: string;
+  sectionOrder: number;
+  sectionTitle?: string;
+}): ChapterReference => ({
+  kind: "chapter",
+  documentId: document.id,
+  documentTitle: document.title,
+  sectionKey,
+  sectionOrder,
+  sectionTitle,
 });
 
 export const makePassageReference = ({
@@ -132,6 +161,8 @@ export const makeNoteReference = ({
 
 export const referenceLabel = (reference: MessageReference): string => {
   if (reference.kind === "book") return reference.documentTitle;
+  if (reference.kind === "chapter")
+    return reference.sectionTitle ?? `Chapter ${reference.sectionOrder + 1}`;
   if (reference.kind === "passage")
     return reference.sectionTitle ?? `Chapter ${reference.sectionOrder + 1}`;
   if (reference.kind === "highlight") return `Highlight · Ch. ${reference.sectionOrder + 1}`;
@@ -141,12 +172,15 @@ export const referenceLabel = (reference: MessageReference): string => {
 
 export const referenceDescription = (reference: MessageReference): string => {
   if (reference.kind === "book") return "Whole book";
+  if (reference.kind === "chapter") return reference.documentTitle;
   if (reference.kind === "note") return truncate(reference.previewText ?? reference.body, 72);
   return truncate(reference.previewText, 72);
 };
 
 export const referenceKey = (reference: MessageReference): string => {
   if (reference.kind === "book") return `book:${reference.documentId}`;
+  if (reference.kind === "chapter")
+    return `chapter:${reference.documentId}:${reference.sectionKey}`;
   if (reference.kind === "passage") {
     return `passage:${reference.documentId}:${reference.sectionKey}:${reference.position.offsetStart}:${reference.position.offsetEnd}`;
   }
@@ -229,6 +263,23 @@ const parseMessageReference = (value: unknown): MessageReference | null => {
     typeof record.documentTitle === "string"
   ) {
     return { kind, documentId: record.documentId, documentTitle: record.documentTitle };
+  }
+
+  if (
+    kind === "chapter" &&
+    typeof record.documentId === "string" &&
+    typeof record.documentTitle === "string" &&
+    typeof record.sectionKey === "string" &&
+    typeof record.sectionOrder === "number"
+  ) {
+    return {
+      kind,
+      documentId: record.documentId,
+      documentTitle: record.documentTitle,
+      sectionKey: record.sectionKey,
+      sectionOrder: record.sectionOrder,
+      sectionTitle: typeof record.sectionTitle === "string" ? record.sectionTitle : undefined,
+    };
   }
 
   if (

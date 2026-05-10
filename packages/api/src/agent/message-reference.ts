@@ -18,6 +18,14 @@ export const MessageReference = z.discriminatedUnion("kind", [
     documentTitle: z.string().min(1),
   }),
   z.object({
+    kind: z.literal("chapter"),
+    documentId: z.string().min(1),
+    documentTitle: z.string().min(1),
+    sectionKey: z.string().min(1),
+    sectionOrder: z.number().int().nonnegative(),
+    sectionTitle: z.string().optional(),
+  }),
+  z.object({
     kind: z.literal("passage"),
     documentId: z.string().min(1),
     documentTitle: z.string().min(1),
@@ -81,6 +89,16 @@ export const referenceDataPartToModelPart = (part: { data: unknown }) => {
 export const referenceToModelText = (reference: MessageReference): string => {
   if (reference.kind === "book") {
     return `User reference: whole book\nDocument: ${reference.documentTitle}\nDocument ID: ${reference.documentId}`;
+  }
+
+  if (reference.kind === "chapter") {
+    return [
+      "User reference: chapter",
+      `Document: ${reference.documentTitle}`,
+      `Document ID: ${reference.documentId}`,
+      `Section title: ${reference.sectionTitle ?? `Chapter ${reference.sectionOrder + 1}`}`,
+      `Section key: ${reference.sectionKey}`,
+    ].join("\n");
   }
 
   if (reference.kind === "passage") {

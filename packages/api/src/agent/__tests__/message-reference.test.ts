@@ -22,6 +22,17 @@ describe("message references", () => {
           {
             type: "data-reference",
             data: {
+              kind: "chapter",
+              documentId: "doc-1",
+              documentTitle: "Designing Data-Intensive Applications",
+              sectionKey: "epub:section:4",
+              sectionOrder: 4,
+              sectionTitle: "Storage and Retrieval",
+            },
+          },
+          {
+            type: "data-reference",
+            data: {
               kind: "passage",
               documentId: "doc-1",
               documentTitle: "Designing Data-Intensive Applications",
@@ -101,6 +112,23 @@ describe("message references", () => {
     expect(text).toContain("Highlight ID: hl-1");
     expect(text).toContain("Section key: epub:section:2");
     expect(text).toContain("Preview: Keep the gasket seated.");
+  });
+
+  it("formats chapter references with section title and key but no offsets", () => {
+    const text = referenceToModelText({
+      kind: "chapter",
+      documentId: "doc-1",
+      documentTitle: "Atomic Habits",
+      sectionKey: "epub:section:6",
+      sectionOrder: 6,
+      sectionTitle: "1: The Surprising Power of Atomic Habits",
+    });
+
+    expect(text).toContain("User reference: chapter");
+    expect(text).toContain("Section title: 1: The Surprising Power of Atomic Habits");
+    expect(text).toContain("Section key: epub:section:6");
+    expect(text).not.toContain("Offsets:");
+    expect(text).not.toContain("Preview:");
   });
 
   it("emits section title and section key as distinct lines for passages", () => {

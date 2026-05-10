@@ -62,7 +62,7 @@ describe("chatToolFromPart", () => {
         },
       }),
     ).toMatchObject({
-      kind: "documents",
+      kind: "lookup",
       query: "epub:section:4",
       results: [{ label: "Renewal", text: "Either party may renew the lease in writing." }],
     });

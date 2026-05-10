@@ -590,18 +590,12 @@ function toolConfig(kind: ChatToolKind | undefined): ToolConfig {
       return { Icon: Icons.Quote, label: "Looked up passage" };
     case "searchLibrary":
       return { Icon: Icons.Library, label: "Searched your library" };
-    case "webSearch":
-      return { Icon: Icons.Share, label: "Searched the web" };
     case "summarize":
       return { Icon: Icons.Note, label: "Generated a summary" };
-    case "runBash":
-      return { Icon: Icons.Search, label: "Checked your binder" };
-    case "runPython":
-      return { Icon: Icons.Code, label: "Ran analysis" };
     case "notes":
-      return { Icon: Icons.Note, label: "Searched notes" };
+      return { Icon: Icons.Note, label: "Listed notes" };
     case "highlights":
-      return { Icon: Icons.Highlight, label: "Searched highlights" };
+      return { Icon: Icons.Highlight, label: "Listed highlights" };
     case "documents":
       return { Icon: Icons.Library, label: "Listed documents" };
     case "generic":

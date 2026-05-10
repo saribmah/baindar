@@ -8,7 +8,7 @@ export function chatToolFromPart(part: unknown): ChatToolCall | null {
     id: typeof record.toolCallId === "string" ? record.toolCallId : toolName,
     kind: toolKind(toolName),
     state: toolState(record.state),
-    query: toolQuery(toolName, record.input),
+    query: toolQuery(record.input),
     error:
       typeof record.errorText === "string" && record.errorText.trim()
         ? truncate(record.errorText.trim(), 96)
@@ -18,25 +18,26 @@ export function chatToolFromPart(part: unknown): ChatToolCall | null {
 }
 
 function toolKind(toolName: string): ChatToolKind {
-  if (toolName === "list_documents") return "documents";
-  if (
-    toolName === "search_document" ||
-    toolName === "search_binder" ||
-    toolName === "expand_query"
-  ) {
-    return "searchLibrary";
+  switch (toolName) {
+    case "list_documents":
+      return "documents";
+    case "search_document":
+      return "searchBook";
+    case "search_binder":
+      return "searchLibrary";
+    case "read_section":
+      return "lookup";
+    case "get_summary":
+      return "summarize";
+    case "list_notes":
+      return "notes";
+    case "list_highlights":
+      return "highlights";
+    case "expand_query":
+      return "generic";
+    default:
+      return "generic";
   }
-  if (toolName === "read_section" || toolName === "get_summary") return "documents";
-  if (toolName === "list_notes") return "notes";
-  if (toolName === "list_highlights") return "highlights";
-
-  if (toolName.includes("Document")) return "documents";
-  if (toolName.includes("Note")) return "notes";
-  if (toolName.includes("Highlight")) return "highlights";
-  if (toolName.includes("Bash")) return "runBash";
-  if (toolName.includes("Python")) return "runPython";
-  if (toolName.includes("search")) return "searchLibrary";
-  return "generic";
 }
 
 function toolState(state: unknown): ChatToolState {
@@ -46,16 +47,8 @@ function toolState(state: unknown): ChatToolState {
   return "pending";
 }
 
-function toolQuery(toolName: string, input: unknown): string | undefined {
+function toolQuery(input: unknown): string | undefined {
   const record = asRecord(input);
-  if (toolName.includes("Bash")) {
-    const description = record.description;
-    if (typeof description === "string" && description.trim()) {
-      return truncate(description.trim(), 72);
-    }
-    return undefined;
-  }
-
   const query =
     record.query ??
     record.original_query ??

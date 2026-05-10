@@ -35,6 +35,7 @@ import { useSdk } from "../../sdk";
 import {
   ConversationChatPane,
   makeBookReference,
+  makeChapterReference,
   makeHighlightReference,
   makeNoteReference,
   makePassageReference,
@@ -158,6 +159,7 @@ type ReaderMeta = {
   chapterTitle: string;
   chapterOrder: number;
   chapterCount: number;
+  sectionKey: string;
 };
 
 const ReaderMetaContext = createContext<{
@@ -294,30 +296,37 @@ function ReaderShell({
     return promise;
   }, [client, doc.id, doc.title, readerConversation]);
 
+  const contextReference = useMemo<MessageReference>(() => {
+    if (meta) {
+      return makeChapterReference({
+        document: doc,
+        sectionKey: meta.sectionKey,
+        sectionOrder: meta.chapterOrder,
+        sectionTitle: meta.chapterTitle,
+      });
+    }
+    return makeBookReference(doc);
+  }, [doc, meta]);
+
   const openAsk = useCallback(
     (payload?: ReaderAskPayload) => {
-      const references = payload?.references?.length
-        ? [...payload.references]
-        : [makeBookReference(doc)];
+      const references = payload?.references?.length ? [...payload.references] : [];
       setPendingReferences(references);
       setDraftSeed(payload?.prompt ?? "");
       setDraftSeedKey(String(Date.now()));
       setAiOpen(true);
       void ensureReaderConversation();
     },
-    [doc, ensureReaderConversation],
+    [ensureReaderConversation],
   );
 
   const handleAskSubmit = useCallback(
     (value: string) => {
       const trimmed = value.trim();
       setAskDraft("");
-      openAsk({
-        prompt: trimmed,
-        references: [makeBookReference(doc)],
-      });
+      openAsk({ prompt: trimmed });
     },
-    [doc, openAsk],
+    [openAsk],
   );
 
   useEffect(() => {
@@ -440,6 +449,7 @@ function ReaderShell({
                 conversation={readerConversation}
                 error={conversationError}
                 pendingReferences={pendingReferences}
+                contextReference={contextReference}
                 draftSeed={draftSeed}
                 draftSeedKey={draftSeedKey}
                 onPendingReferencesChange={setPendingReferences}
@@ -526,6 +536,7 @@ function ReaderShell({
             conversation={readerConversation}
             error={conversationError}
             pendingReferences={pendingReferences}
+            contextReference={contextReference}
             draftSeed={draftSeed}
             draftSeedKey={draftSeedKey}
             onPendingReferencesChange={setPendingReferences}
@@ -750,6 +761,7 @@ function ReaderBody({ doc }: { doc: Document }) {
       chapterTitle: currentSection.title,
       chapterOrder: order,
       chapterCount: manifest.chapterCount,
+      sectionKey: currentSection.sectionKey,
     });
     return () => setMeta(null);
   }, [manifest, currentSection, order, setMeta]);
@@ -966,6 +978,7 @@ function ReaderChatPanel({
   conversation,
   error,
   pendingReferences,
+  contextReference,
   draftSeed,
   draftSeedKey,
   onPendingReferencesChange,
@@ -974,6 +987,7 @@ function ReaderChatPanel({
   conversation: Conversation | null;
   error: string | null;
   pendingReferences: ReadonlyArray<MessageReference>;
+  contextReference: MessageReference | null;
   draftSeed: string;
   draftSeedKey?: string;
   onPendingReferencesChange: (references: MessageReference[]) => void;
@@ -1000,6 +1014,7 @@ function ReaderChatPanel({
       key={conversation.id}
       conversation={conversation}
       pendingReferences={pendingReferences}
+      contextReference={contextReference}
       draftSeed={draftSeed}
       draftSeedKey={draftSeedKey}
       onPendingReferencesChange={onPendingReferencesChange}
@@ -1013,6 +1028,7 @@ function ReaderChatOverlay({
   conversation,
   error,
   pendingReferences,
+  contextReference,
   draftSeed,
   draftSeedKey,
   onPendingReferencesChange,
@@ -1022,6 +1038,7 @@ function ReaderChatOverlay({
   conversation: Conversation | null;
   error: string | null;
   pendingReferences: ReadonlyArray<MessageReference>;
+  contextReference: MessageReference | null;
   draftSeed: string;
   draftSeedKey?: string;
   onPendingReferencesChange: (references: MessageReference[]) => void;
@@ -1063,6 +1080,7 @@ function ReaderChatOverlay({
           conversation={conversation}
           error={error}
           pendingReferences={pendingReferences}
+          contextReference={contextReference}
           draftSeed={draftSeed}
           draftSeedKey={draftSeedKey}
           onPendingReferencesChange={onPendingReferencesChange}

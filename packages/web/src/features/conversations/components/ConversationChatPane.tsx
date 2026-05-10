@@ -34,6 +34,7 @@ const agentsHost = import.meta.env.VITE_AGENTS_HOST || undefined;
 type Props = {
   conversation: Conversation;
   pendingReferences?: ReadonlyArray<MessageReference>;
+  contextReference?: MessageReference | null;
   draftSeed?: string;
   draftSeedKey?: string;
   onClear?: () => void;
@@ -44,6 +45,7 @@ type Props = {
 export function ConversationChatPane({
   conversation,
   pendingReferences = [],
+  contextReference,
   draftSeed,
   draftSeedKey,
   onClear,
@@ -111,9 +113,22 @@ export function ConversationChatPane({
 
   const handleSubmit = (value: string) => {
     if (isStreaming) return;
-    if (pendingReferences.length > 0) {
+    const refs: MessageReference[] = [];
+    const seen = new Set<string>();
+    if (contextReference) {
+      const key = referenceKey(contextReference);
+      seen.add(key);
+      refs.push(contextReference);
+    }
+    for (const ref of pendingReferences) {
+      const key = referenceKey(ref);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      refs.push(ref);
+    }
+    if (refs.length > 0) {
       const parts: BaindarChatMessage["parts"] = [
-        ...pendingReferences.map(referenceDataPart),
+        ...refs.map(referenceDataPart),
         { type: "text", text: value },
       ];
       void sendMessage({ role: "user", parts });
@@ -190,7 +205,12 @@ export function ConversationChatPane({
             value={draft}
             onValueChange={setDraft}
             onSubmit={handleSubmit}
-            references={referencesToTags(pendingReferences, openReference, removePendingReference)}
+            references={composerReferenceTags(
+              contextReference,
+              pendingReferences,
+              openReference,
+              removePendingReference,
+            )}
             disabled={isStreaming}
             submitting={isStreaming}
             placeholder="Continue the thread..."
@@ -296,6 +316,41 @@ function referencesToTags(
     onOpen: () => onOpen(reference),
     onRemove: onRemove ? () => onRemove(reference) : undefined,
   }));
+}
+
+function composerReferenceTags(
+  contextReference: MessageReference | null | undefined,
+  pendingReferences: ReadonlyArray<MessageReference>,
+  onOpen: (reference: MessageReference) => void,
+  onRemovePending: (reference: MessageReference) => void,
+): ChatReference[] {
+  const tags: ChatReference[] = [];
+  const seen = new Set<string>();
+  if (contextReference) {
+    const key = referenceKey(contextReference);
+    seen.add(key);
+    tags.push({
+      id: key,
+      label: referenceLabel(contextReference),
+      description: referenceDescription(contextReference),
+      color: referenceColor(contextReference),
+      onOpen: () => onOpen(contextReference),
+    });
+  }
+  for (const reference of pendingReferences) {
+    const key = referenceKey(reference);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push({
+      id: key,
+      label: referenceLabel(reference),
+      description: referenceDescription(reference),
+      color: referenceColor(reference),
+      onOpen: () => onOpen(reference),
+      onRemove: () => onRemovePending(reference),
+    });
+  }
+  return tags;
 }
 
 function referenceColor(reference: MessageReference): string | undefined {
