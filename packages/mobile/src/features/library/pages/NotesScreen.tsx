@@ -28,6 +28,7 @@ type EditorState = Note | "new" | null;
 type EnrichedNote = LibraryNote & { highlight?: Highlight };
 type ReaderNoteParams = {
   id: string;
+  ask?: string;
   chapter?: string;
   highlight?: string;
   note: string;
@@ -168,6 +169,9 @@ export function NotesScreen() {
               palette={palette}
               onPress={() => setEditor(note)}
               onOpen={() => router.push({ pathname: "/read/[id]", params: readerNoteParams(note) })}
+              onAsk={() =>
+                router.push({ pathname: "/read/[id]", params: readerNoteParams(note, true) })
+              }
             />
           ))
         )}
@@ -187,11 +191,12 @@ export function NotesScreen() {
   );
 }
 
-function readerNoteParams(note: EnrichedNote): ReaderNoteParams {
+function readerNoteParams(note: EnrichedNote, ask = false): ReaderNoteParams {
   const sectionKey = note.sectionKey ?? note.highlight?.sectionKey ?? null;
   const order = sectionKey ? sectionOrderFromKey(sectionKey) : null;
   return {
     id: note.document.id,
+    ...(ask ? { ask: "note" } : {}),
     ...(order !== null ? { chapter: String(order) } : {}),
     ...(note.highlight ? { highlight: note.highlight.id } : {}),
     note: note.id,
@@ -210,12 +215,14 @@ function NoteItem({
   palette,
   onPress,
   onOpen,
+  onAsk,
 }: {
   note: EnrichedNote;
   styles: NotesScreenStyles;
   palette: ThemeColors;
   onPress: () => void;
   onOpen: () => void;
+  onAsk: () => void;
 }) {
   const attached = Boolean(note.highlight);
   const accent = note.highlight ? HIGHLIGHT_COLOR[note.highlight.color] : palette.fgMuted;
@@ -253,7 +260,9 @@ function NoteItem({
         <Pressable accessibilityRole="button" onPress={onOpen}>
           <Text style={styles.noteAction}>{attached ? "Open in book" : "Attach to passage"}</Text>
         </Pressable>
-        <Text style={styles.noteAsk}>Ask Baindar</Text>
+        <Pressable accessibilityRole="button" onPress={onAsk}>
+          <Text style={styles.noteAsk}>Ask Baindar</Text>
+        </Pressable>
       </View>
     </Pressable>
   );

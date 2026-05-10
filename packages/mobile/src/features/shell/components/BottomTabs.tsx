@@ -1,6 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useContext } from "react";
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import {
+  BottomTabBarHeightCallbackContext,
+  type BottomTabBarProps,
+} from "@react-navigation/bottom-tabs";
 import {
   Icons,
   font,
@@ -40,6 +44,14 @@ export function BottomTabs({ state, navigation }: Props) {
   const styles = useThemedStyles(buildStyles);
   const palette = useThemeColors();
   const activeRouteName = state.routes[state.index]?.name;
+  const onHeightChange = useContext(BottomTabBarHeightCallbackContext);
+
+  const handleLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      onHeightChange?.(event.nativeEvent.layout.height);
+    },
+    [onHeightChange],
+  );
 
   const handlePress = (tabKey: BottomTabKey) => {
     const targetName = ROUTE_BY_TAB[tabKey];
@@ -57,7 +69,7 @@ export function BottomTabs({ state, navigation }: Props) {
   };
 
   return (
-    <View style={[styles.tabs, { paddingBottom: insets.bottom + 10 }]}>
+    <View style={[styles.tabs, { paddingBottom: insets.bottom + 10 }]} onLayout={handleLayout}>
       {TABS.map((tab) => {
         const selected = activeRouteName === ROUTE_BY_TAB[tab.key];
         if (tab.primary) {

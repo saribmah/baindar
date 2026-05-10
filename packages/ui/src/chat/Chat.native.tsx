@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import {
+  ActivityIndicator,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -225,6 +227,7 @@ type MarkdownBlock =
   | { type: "heading"; text: string; level: 1 | 2 | 3 }
   | { type: "quote"; text: string }
   | { type: "code"; text: string }
+  | { type: "table"; headers: string[]; rows: string[][] }
   | { type: "list"; ordered: boolean; items: string[] };
 
 export function ChatMarkdown({ children, style, textStyle }: ChatMarkdownProps) {
@@ -294,6 +297,56 @@ export function ChatMarkdown({ children, style, textStyle }: ChatMarkdownProps) 
                 </View>
               ))}
             </View>
+          );
+        }
+        if (block.type === "table") {
+          return (
+            <ScrollView key={index} horizontal showsHorizontalScrollIndicator={false}>
+              <View style={[styles.markdownTable, { borderColor: palette.border }]}>
+                <View style={[styles.markdownTableRow, { borderBottomColor: palette.border }]}>
+                  {block.headers.map((header, headerIndex) => (
+                    <Text
+                      key={`${index}-h-${headerIndex}`}
+                      style={[
+                        styles.markdownTableCell,
+                        styles.markdownTableHeader,
+                        { color: palette.fg, borderRightColor: palette.border },
+                      ]}
+                    >
+                      {renderInlineMarkdown(header, [
+                        styles.markdownTableCell,
+                        styles.markdownTableHeader,
+                        { color: palette.fg },
+                      ])}
+                    </Text>
+                  ))}
+                </View>
+                {block.rows.map((row, rowIndex) => (
+                  <View
+                    key={`${index}-r-${rowIndex}`}
+                    style={[
+                      styles.markdownTableRow,
+                      rowIndex < block.rows.length - 1 && { borderBottomColor: palette.border },
+                    ]}
+                  >
+                    {block.headers.map((_, cellIndex) => (
+                      <Text
+                        key={`${index}-r-${rowIndex}-${cellIndex}`}
+                        style={[
+                          styles.markdownTableCell,
+                          { color: palette.fg, borderRightColor: palette.border },
+                        ]}
+                      >
+                        {renderInlineMarkdown(row[cellIndex] ?? "", [
+                          styles.markdownTableCell,
+                          { color: palette.fg },
+                        ])}
+                      </Text>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
           );
         }
         return (
@@ -399,6 +452,9 @@ export function ChatToolCard({ tool, onToggle, style }: ChatToolCardProps) {
 }
 
 export function ChatToolStatus({ state }: { state: ChatToolState }) {
+  if (state === "running") {
+    return <ActivityIndicator size={12} color={color.wine[700]} style={styles.statusSpinner} />;
+  }
   if (state === "success") {
     return (
       <View style={[styles.status, styles.statusSuccess]}>
@@ -413,7 +469,7 @@ export function ChatToolStatus({ state }: { state: ChatToolState }) {
       </View>
     );
   }
-  return <View style={[styles.status, state === "running" ? styles.statusRunning : null]} />;
+  return <View style={styles.status} />;
 }
 
 export type ChatComposerProps = {
@@ -515,9 +571,6 @@ export function ChatComposer({
             style={[styles.composerInput, { color: palette.fg }]}
             onChangeText={onValueChange}
           />
-          <Pressable accessibilityRole="button" accessibilityLabel="Voice input" disabled>
-            <Icons.Mic size={16} color={palette.fgMuted} />
-          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Send"
@@ -769,7 +822,8 @@ function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
     list = null;
   };
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex] ?? "";
     const trimmed = line.trim();
 
     if (trimmed.startsWith("```")) {
@@ -792,6 +846,22 @@ function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
     if (!trimmed) {
       flushParagraph();
       flushList();
+      continue;
+    }
+
+    const nextLine = lines[lineIndex + 1]?.trim() ?? "";
+    if (isMarkdownTableRow(trimmed) && isMarkdownTableSeparator(nextLine)) {
+      flushParagraph();
+      flushList();
+      const headers = parseMarkdownTableCells(trimmed);
+      const rows: string[][] = [];
+      lineIndex += 2;
+      while (lineIndex < lines.length && isMarkdownTableRow(lines[lineIndex]?.trim() ?? "")) {
+        rows.push(parseMarkdownTableCells(lines[lineIndex] ?? ""));
+        lineIndex++;
+      }
+      lineIndex--;
+      blocks.push({ type: "table", headers, rows });
       continue;
     }
 
@@ -837,9 +907,27 @@ function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
   return blocks;
 }
 
+function isMarkdownTableRow(line: string): boolean {
+  return line.includes("|") && parseMarkdownTableCells(line).length > 1;
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  const cells = parseMarkdownTableCells(line);
+  return cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function parseMarkdownTableCells(line: string): string[] {
+  return line
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
 function renderInlineMarkdown(text: string, fallbackStyle?: StyleProp<TextStyle>) {
   const nodes: ReactNode[] = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_)/g;
+  const pattern =
+    /(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\*[^*]+\*|_[^_]+_)/g;
   let cursor = 0;
   let match: RegExpExecArray | null;
 
@@ -848,7 +936,23 @@ function renderInlineMarkdown(text: string, fallbackStyle?: StyleProp<TextStyle>
     const token = match[0];
     const content = token.replace(/^(`|\*\*|__|\*|_)/, "").replace(/(`|\*\*|__|\*|_)$/, "");
 
-    if (token.startsWith("`")) {
+    if (token.startsWith("[")) {
+      const link = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/.exec(token);
+      const label = link?.[1] ?? token;
+      const href = link?.[2];
+      nodes.push(
+        <Text
+          key={`${match.index}-link`}
+          accessibilityRole="link"
+          style={[styles.markdownLink, fallbackStyle]}
+          onPress={() => {
+            if (href) void Linking.openURL(href);
+          }}
+        >
+          {label}
+        </Text>,
+      );
+    } else if (token.startsWith("`")) {
       nodes.push(
         <Text key={`${match.index}-code`} style={[styles.markdownInlineCode, fallbackStyle]}>
           {content}
@@ -858,6 +962,12 @@ function renderInlineMarkdown(text: string, fallbackStyle?: StyleProp<TextStyle>
       nodes.push(
         <Text key={`${match.index}-strong`} style={styles.markdownStrong}>
           {content}
+        </Text>,
+      );
+    } else if (token.startsWith("~~")) {
+      nodes.push(
+        <Text key={`${match.index}-strike`} style={styles.markdownStrike}>
+          {token.slice(2, -2)}
         </Text>,
       );
     } else {
@@ -1074,14 +1184,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
+  markdownTable: {
+    minWidth: 280,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderRadius: 10,
+  },
+  markdownTableRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+  },
+  markdownTableCell: {
+    minWidth: 110,
+    maxWidth: 180,
+    borderRightWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontFamily: font.nativeFamily.ui,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  markdownTableHeader: {
+    fontWeight: "700",
+  },
   markdownInlineCode: {
     borderRadius: 4,
     backgroundColor: color.paper[200],
     fontFamily: font.nativeFamily.mono,
     fontSize: 12,
   },
+  markdownLink: {
+    color: color.wine[700],
+    textDecorationLine: "underline",
+  },
   markdownStrong: {
     fontWeight: "700",
+  },
+  markdownStrike: {
+    textDecorationLine: "line-through",
   },
   markdownEmphasis: {
     fontStyle: "italic",
@@ -1193,12 +1333,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: color.paper[300],
   },
-  statusRunning: {
+  statusSpinner: {
     width: 12,
     height: 12,
-    borderWidth: 1.5,
-    borderColor: color.wine[700],
-    backgroundColor: "transparent",
   },
   statusSuccess: {
     width: 14,

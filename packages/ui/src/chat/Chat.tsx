@@ -423,9 +423,6 @@ export function ChatComposer({
             onChange={(event) => onValueChange(event.currentTarget.value)}
             onKeyDown={handleKeyDown}
           />
-          <button type="button" className="bd-chat-composer-icon" aria-label="Voice input" disabled>
-            <Icons.Mic size={16} />
-          </button>
           <button
             type="submit"
             className="bd-chat-composer-send"

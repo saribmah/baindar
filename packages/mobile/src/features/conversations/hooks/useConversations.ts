@@ -3,6 +3,10 @@ import type { Conversation } from "@baindar/sdk";
 import { useSdk } from "../../../sdk/sdk.provider.tsx";
 
 type Status = "loading" | "ready" | "error";
+type CreateConversationInput = {
+  title?: string;
+  primaryDocId?: string;
+};
 
 export function useConversations() {
   const { client } = useSdk();
@@ -39,22 +43,25 @@ export function useConversations() {
     [conversations, selectedId],
   );
 
-  const create = useCallback(async () => {
-    try {
-      const res = await client.conversation.create({});
-      if (!res.data) {
-        setError("Failed to start a conversation");
+  const create = useCallback(
+    async (input: CreateConversationInput = {}) => {
+      try {
+        const res = await client.conversation.create(input);
+        if (!res.data) {
+          setError("Failed to start a conversation");
+          return null;
+        }
+        setConversations((prev) => [res.data, ...prev]);
+        setSelectedId(res.data.id);
+        setError(null);
+        return res.data;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
         return null;
       }
-      setConversations((prev) => [res.data, ...prev]);
-      setSelectedId(res.data.id);
-      setError(null);
-      return res.data;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      return null;
-    }
-  }, [client]);
+    },
+    [client],
+  );
 
   const rename = useCallback(
     async (id: string, title: string) => {

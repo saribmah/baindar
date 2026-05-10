@@ -2,7 +2,6 @@ import { useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  ChatComposer,
   ChatConversationListItem,
   Icons,
   Skeleton,
@@ -11,13 +10,24 @@ import {
   useThemeColors,
 } from "@baindar/ui";
 import type { Conversation } from "@baindar/sdk";
+import { ConversationChatPane } from "../components/ConversationChatPane.tsx";
 import { useConversations } from "../hooks/useConversations.ts";
 
 export function ConversationsScreen() {
   const palette = useThemeColors();
   const insets = useSafeAreaInsets();
-  const { conversations, selected, selectedId, status, error, select, create, rename, remove } =
-    useConversations();
+  const {
+    conversations,
+    selected,
+    selectedId,
+    status,
+    error,
+    select,
+    create,
+    rename,
+    remove,
+    refresh,
+  } = useConversations();
   const [actionConversation, setActionConversation] = useState<Conversation | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -36,7 +46,15 @@ export function ConversationsScreen() {
 
   if (selected) {
     return (
-      <ConversationDetail key={selected.id} conversation={selected} onClose={() => select(null)} />
+      <View style={[styles.root, { backgroundColor: palette.bg, paddingTop: insets.top }]}>
+        <ConversationChatPane
+          key={selected.id}
+          conversation={selected}
+          onActivity={() => void refresh()}
+          onClear={() => void refresh()}
+          onClose={() => select(null)}
+        />
+      </View>
     );
   }
 
@@ -177,74 +195,6 @@ export function ConversationsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
-  );
-}
-
-function ConversationDetail({
-  conversation,
-  onClose,
-}: {
-  conversation: Conversation;
-  onClose: () => void;
-}) {
-  const palette = useThemeColors();
-  const insets = useSafeAreaInsets();
-  const [draft, setDraft] = useState("");
-  const sourceLabel = conversation.primaryDocId
-    ? "Reader conversation"
-    : "Binder-wide conversation";
-  const description = conversation.primaryDocId
-    ? "Mobile chat is coming soon. This thread is anchored to a document — continue it from the web app for now."
-    : "Mobile chat is coming soon. Ask Baindar about anything across your binder from the web app for now.";
-
-  return (
-    <View style={[styles.root, { backgroundColor: palette.bg, paddingTop: insets.top + 12 }]}>
-      <View style={styles.detailHeader}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.kicker, { color: palette.fgMuted }]}>{sourceLabel}</Text>
-          <Text style={[styles.detailTitle, { color: palette.fg }]} numberOfLines={2}>
-            {conversation.title}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          style={[styles.iconButton, { backgroundColor: palette.surfaceRaised }]}
-          onPress={onClose}
-        >
-          <Icons.Close size={16} color={palette.fg} />
-        </Pressable>
-      </View>
-
-      <ScrollView
-        style={styles.detailBody}
-        contentContainerStyle={[styles.detailBodyContent, { paddingBottom: insets.bottom + 24 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.empty}>
-          <View style={[styles.emptyIcon, { backgroundColor: palette.surfaceRaised }]}>
-            <Icons.Sparkles size={22} color={color.wine[700]} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: palette.fg }]}>Continue this thread</Text>
-          <Text style={[styles.emptyBody, { color: palette.fgSubtle }]}>{description}</Text>
-        </View>
-      </ScrollView>
-
-      <View
-        style={[
-          styles.composerWrap,
-          { borderTopColor: palette.border, paddingBottom: insets.bottom + 12 },
-        ]}
-      >
-        <ChatComposer
-          value={draft}
-          onValueChange={setDraft}
-          onSubmit={() => setDraft("")}
-          placeholder="Mobile chat is coming soon"
-          disabled
-        />
-      </View>
     </View>
   );
 }
@@ -419,32 +369,6 @@ const styles = StyleSheet.create({
     padding: 12,
     fontFamily: font.nativeFamily.ui,
     fontSize: 13,
-  },
-  detailHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingBottom: 14,
-  },
-  detailTitle: {
-    marginTop: 4,
-    fontFamily: font.nativeFamily.display,
-    fontSize: 22,
-    fontWeight: "500",
-  },
-  detailBody: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  detailBodyContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-  },
-  composerWrap: {
-    borderTopWidth: 1,
-    paddingHorizontal: 18,
-    paddingTop: 12,
   },
   empty: {
     minHeight: 320,

@@ -33,6 +33,7 @@ type DetailTab = "contents" | "notes" | "highlights";
 type NoteFilter = "all" | "attached" | "standalone";
 type ReaderNoteParams = {
   id: string;
+  ask?: string;
   chapter?: string;
   highlight?: string;
   note: string;
@@ -115,9 +116,9 @@ export function LibraryDetailScreen() {
     [doc, router],
   );
   const openNoteInReader = useCallback(
-    (note: Note & { highlight?: Highlight }) => {
+    (note: Note & { highlight?: Highlight }, ask = false) => {
       if (!doc) return;
-      router.push({ pathname: "/read/[id]", params: readerNoteParams(doc.id, note) });
+      router.push({ pathname: "/read/[id]", params: readerNoteParams(doc.id, note, ask) });
     },
     [doc, router],
   );
@@ -340,7 +341,7 @@ function NotesTab({
   onFilterChange: (filter: NoteFilter) => void;
   onSave: () => void;
   onEdit: (note: Note) => void;
-  onOpenReader: (note: Note & { highlight?: Highlight }) => void;
+  onOpenReader: (note: Note & { highlight?: Highlight }, ask?: boolean) => void;
 }) {
   return (
     <View>
@@ -403,7 +404,7 @@ function NotesTab({
             palette={palette}
             onEdit={() => onEdit(note)}
             onOpen={() => onOpenReader(note)}
-            onAsk={() => onOpenReader(note)}
+            onAsk={() => onOpenReader(note, true)}
           />
         ))
       )}
@@ -414,6 +415,7 @@ function NotesTab({
 function readerNoteParams(
   documentId: string,
   note: Note & { highlight?: Highlight },
+  ask = false,
 ): ReaderNoteParams {
   const sectionKey = note.sectionKey ?? note.highlight?.sectionKey ?? null;
   const order = sectionKey ? sectionOrderFromKey(sectionKey) : null;
@@ -422,6 +424,7 @@ function readerNoteParams(
     ...(order !== null ? { chapter: String(order) } : {}),
     ...(note.highlight ? { highlight: note.highlight.id } : {}),
     note: note.id,
+    ...(ask ? { ask: "note" } : {}),
     target: "1",
   };
 }
