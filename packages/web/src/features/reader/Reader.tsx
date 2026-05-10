@@ -819,10 +819,7 @@ function ReaderBody({ doc }: { doc: Document }) {
   return (
     <>
       <header className="mb-9 text-center">
-        <div className="font-display text-[28px] leading-tight font-medium tracking-[0] text-[var(--bd-fg)]">
-          Chapter {String(order + 1).padStart(2, "0")}
-        </div>
-        <h1 className="mt-2 font-display text-[28px] leading-tight font-normal tracking-[0] text-[var(--bd-fg)]">
+        <h1 className="font-display text-[28px] leading-tight font-normal tracking-[0] text-[var(--bd-fg)]">
           {currentSection.title}
         </h1>
       </header>

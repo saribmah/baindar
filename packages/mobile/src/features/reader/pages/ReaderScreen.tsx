@@ -506,9 +506,6 @@ const ReaderBody = forwardRef<
 
   return (
     <>
-      <Text style={[shellStyles.chapterKicker, { color: palette.text }]}>
-        Chapter {String(order + 1).padStart(2, "0")}
-      </Text>
       <Text style={[shellStyles.chapterTitle, { color: palette.text }]}>
         {currentSection.title}
       </Text>
@@ -772,14 +769,6 @@ const shellStyles = StyleSheet.create({
   },
   body: { flex: 1 },
   bodyContent: { paddingHorizontal: 24, paddingTop: 28 },
-  chapterKicker: {
-    fontFamily: font.nativeFamily.display,
-    fontSize: 22,
-    fontWeight: "500",
-    lineHeight: 27,
-    marginBottom: 8,
-    textAlign: "center",
-  },
   chapterTitle: {
     fontFamily: font.nativeFamily.display,
     fontSize: 22,
