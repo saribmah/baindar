@@ -2,10 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  ChatAssistantTurn,
   ChatComposer,
   ChatConversationListItem,
-  ChatThread,
   Icons,
   Skeleton,
   color,
@@ -36,18 +34,17 @@ export function ConversationsScreen() {
     setRenaming(false);
   };
 
+  if (selected) {
+    return (
+      <ConversationDetail key={selected.id} conversation={selected} onClose={() => select(null)} />
+    );
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: palette.bg, paddingTop: insets.top + 12 }]}>
       <View style={styles.topbar}>
         <Text style={[styles.wordmark, { color: palette.fg }]}>baindar</Text>
         <View style={styles.headerActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Search conversations"
-            style={[styles.iconButton, { backgroundColor: palette.surfaceRaised }]}
-          >
-            <Icons.Search size={16} color={palette.fg} />
-          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="New conversation"
@@ -96,37 +93,6 @@ export function ConversationsScreen() {
               onMore={() => openActions(conversation)}
             />
           ))
-        )}
-
-        {selected && (
-          <View style={[styles.preview, { borderColor: palette.border }]}>
-            <ChatThread>
-              <ChatAssistantTurn
-                sub="ready"
-                tools={[
-                  {
-                    id: "conversation-context",
-                    kind: selected.primaryDocId ? "searchBook" : "searchLibrary",
-                    state: "success",
-                    query: selected.primaryDocId ? "reader context" : "binder context",
-                  },
-                ]}
-                footerCitations={selected.primaryDocId ? ["Started in reader"] : ["Binder-wide"]}
-              >
-                {selected.primaryDocId
-                  ? "This thread is anchored to a document. Continue it from the reader or ask a follow-up here."
-                  : "This thread can search across your binder. Ask about receipts, contracts, notes, or highlights."}
-              </ChatAssistantTurn>
-            </ChatThread>
-            <ChatComposer
-              value=""
-              onValueChange={() => {}}
-              onSubmit={() => {}}
-              placeholder="Continue..."
-              suggestions={["Show sources", "Summarize", "Find related notes"]}
-              disabled
-            />
-          </View>
         )}
       </ScrollView>
 
@@ -211,6 +177,74 @@ export function ConversationsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+    </View>
+  );
+}
+
+function ConversationDetail({
+  conversation,
+  onClose,
+}: {
+  conversation: Conversation;
+  onClose: () => void;
+}) {
+  const palette = useThemeColors();
+  const insets = useSafeAreaInsets();
+  const [draft, setDraft] = useState("");
+  const sourceLabel = conversation.primaryDocId
+    ? "Reader conversation"
+    : "Binder-wide conversation";
+  const description = conversation.primaryDocId
+    ? "Mobile chat is coming soon. This thread is anchored to a document — continue it from the web app for now."
+    : "Mobile chat is coming soon. Ask Baindar about anything across your binder from the web app for now.";
+
+  return (
+    <View style={[styles.root, { backgroundColor: palette.bg, paddingTop: insets.top + 12 }]}>
+      <View style={styles.detailHeader}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.kicker, { color: palette.fgMuted }]}>{sourceLabel}</Text>
+          <Text style={[styles.detailTitle, { color: palette.fg }]} numberOfLines={2}>
+            {conversation.title}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={[styles.iconButton, { backgroundColor: palette.surfaceRaised }]}
+          onPress={onClose}
+        >
+          <Icons.Close size={16} color={palette.fg} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        style={styles.detailBody}
+        contentContainerStyle={[styles.detailBodyContent, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.empty}>
+          <View style={[styles.emptyIcon, { backgroundColor: palette.surfaceRaised }]}>
+            <Icons.Sparkles size={22} color={color.wine[700]} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: palette.fg }]}>Continue this thread</Text>
+          <Text style={[styles.emptyBody, { color: palette.fgSubtle }]}>{description}</Text>
+        </View>
+      </ScrollView>
+
+      <View
+        style={[
+          styles.composerWrap,
+          { borderTopColor: palette.border, paddingBottom: insets.bottom + 12 },
+        ]}
+      >
+        <ChatComposer
+          value={draft}
+          onValueChange={setDraft}
+          onSubmit={() => setDraft("")}
+          placeholder="Mobile chat is coming soon"
+          disabled
+        />
+      </View>
     </View>
   );
 }
@@ -386,22 +420,63 @@ const styles = StyleSheet.create({
     fontFamily: font.nativeFamily.ui,
     fontSize: 13,
   },
-  preview: {
-    marginTop: 18,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
+  detailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingBottom: 14,
+  },
+  detailTitle: {
+    marginTop: 4,
+    fontFamily: font.nativeFamily.display,
+    fontSize: 22,
+    fontWeight: "500",
+  },
+  detailBody: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  detailBodyContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  composerWrap: {
+    borderTopWidth: 1,
+    paddingHorizontal: 18,
+    paddingTop: 12,
   },
   empty: {
     minHeight: 320,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
+    paddingHorizontal: 12,
   },
   emptyText: {
     fontFamily: font.nativeFamily.reading,
     fontSize: 18,
     lineHeight: 27,
+  },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: {
+    fontFamily: font.nativeFamily.display,
+    fontSize: 22,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  emptyBody: {
+    maxWidth: 320,
+    fontFamily: font.nativeFamily.reading,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
   },
   emptyButton: {
     height: 36,

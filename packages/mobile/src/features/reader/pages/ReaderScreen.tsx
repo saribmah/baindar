@@ -4,11 +4,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Button,
-  ChatAssistantTurn,
   ChatComposer,
   ChatPanelHeader,
-  ChatThread,
-  ChatUserTurn,
   FloatingToolbar,
   FloatingToolbarButton,
   IconButton,
@@ -676,45 +673,143 @@ function ReaderAiSheet({
   quote: string | null;
   prompt: string;
 }) {
-  const [draft, setDraft] = useState("");
-  const quoteText =
-    quote ??
-    "Affordances define what actions are possible. Signifiers specify how people discover those possibilities.";
-  const promptText = prompt || "What's the most important idea in this chapter?";
   return (
-    <Sheet visible={visible} onClose={onClose}>
-      <ChatPanelHeader sub={chapterLabel} onClose={onClose} />
-      <ChatThread>
-        <ChatUserTurn attachment={{ label: chapterLabel, text: quoteText }}>
-          {promptText}
-        </ChatUserTurn>
-        <ChatAssistantTurn
-          sub="just now"
-          tools={[
-            { id: "reader-search", kind: "searchBook", state: "success", query: promptText },
-            { id: "reader-lookup", kind: "lookup", state: "success", query: "current chapter" },
-          ]}
-          footerCitations={["Current chapter"]}
-          actions={[
-            { label: "Save", icon: <Icons.Note size={11} color={palette.fgMuted} /> },
-            { label: "Copy", icon: <Icons.Copy size={11} color={palette.fgMuted} /> },
-          ]}
-        >
-          Norman is drawing a careful line. An affordance is what is possible. A signifier is the
-          visible cue that tells you that possibility exists.
-        </ChatAssistantTurn>
-      </ChatThread>
-      <ChatComposer
-        value={draft}
-        onValueChange={setDraft}
-        onSubmit={() => setDraft("")}
-        context={{ label: chapterLabel, text: quoteText }}
-        placeholder="Ask a follow-up..."
-        suggestions={["Give me an example", "Why does this matter?", "Save to notes"]}
+    <Sheet visible={visible} onClose={onClose} style={readerAiStyles.sheet}>
+      <ReaderAiSheetBody
+        key={visible ? `${chapterLabel}:${quote ?? ""}:${prompt}` : "closed"}
+        onClose={onClose}
+        palette={palette}
+        chapterLabel={chapterLabel}
+        quote={quote}
+        prompt={prompt}
       />
     </Sheet>
   );
 }
+
+function ReaderAiSheetBody({
+  onClose,
+  palette,
+  chapterLabel,
+  quote,
+  prompt,
+}: {
+  onClose: () => void;
+  palette: ThemeColors;
+  chapterLabel: string;
+  quote: string | null;
+  prompt: string;
+}) {
+  const [draft, setDraft] = useState(prompt);
+  const contextAttachment = quote ? { label: chapterLabel, text: quote } : undefined;
+  const headline = quote ? "Ask about this passage" : "Ask about this chapter";
+  const description = quote
+    ? "Mobile chat is coming soon. In the meantime, open this passage from the web app to chat with Baindar in context."
+    : "Mobile chat is coming soon. In the meantime, ask Baindar about this chapter from the web app.";
+  return (
+    <View style={readerAiStyles.body}>
+      <ChatPanelHeader sub={chapterLabel} onClose={onClose} />
+      <ScrollView
+        style={readerAiStyles.scroll}
+        contentContainerStyle={readerAiStyles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {quote && (
+          <View
+            style={[
+              readerAiStyles.quoteCard,
+              { backgroundColor: palette.surfaceRaised, borderLeftColor: color.wine[700] },
+            ]}
+          >
+            <Text style={[readerAiStyles.quoteLabel, { color: palette.fgMuted }]}>
+              FROM {chapterLabel.toUpperCase()}
+            </Text>
+            <Text style={[readerAiStyles.quoteText, { color: palette.fgSubtle }]}>“{quote}”</Text>
+          </View>
+        )}
+
+        <View style={readerAiStyles.empty}>
+          <View style={[readerAiStyles.emptyIcon, { backgroundColor: palette.surfaceRaised }]}>
+            <Icons.Sparkles size={22} color={color.wine[700]} />
+          </View>
+          <Text style={[readerAiStyles.emptyTitle, { color: palette.fg }]}>{headline}</Text>
+          <Text style={[readerAiStyles.emptyBody, { color: palette.fgSubtle }]}>{description}</Text>
+        </View>
+      </ScrollView>
+
+      <ChatComposer
+        value={draft}
+        onValueChange={setDraft}
+        onSubmit={() => setDraft("")}
+        context={contextAttachment}
+        placeholder="Mobile chat is coming soon"
+        disabled
+      />
+    </View>
+  );
+}
+
+const readerAiStyles = StyleSheet.create({
+  sheet: {
+    height: "82%",
+  },
+  body: {
+    flex: 1,
+    gap: 12,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: 4,
+    paddingBottom: 12,
+    gap: 18,
+  },
+  quoteCard: {
+    borderLeftWidth: 3,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 6,
+  },
+  quoteLabel: {
+    fontFamily: font.nativeFamily.ui,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+  quoteText: {
+    fontFamily: font.nativeFamily.reading,
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  empty: {
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+  },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: {
+    fontFamily: font.nativeFamily.display,
+    fontSize: 22,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  emptyBody: {
+    maxWidth: 320,
+    fontFamily: font.nativeFamily.reading,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+  },
+});
 
 function ReaderState({ children }: { children: React.ReactNode }) {
   const palette = useThemeColors();

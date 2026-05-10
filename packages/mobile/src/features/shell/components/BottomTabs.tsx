@@ -10,28 +10,32 @@ import {
   type ThemeColors,
 } from "@baindar/ui";
 
-export type BottomTabKey = "home" | "library" | "conversations" | "settings";
+export type BottomTabKey = "home" | "library" | "ask" | "highlights" | "notes";
 
 const ROUTE_BY_TAB: Record<BottomTabKey, string> = {
   home: "dashboard",
   library: "library",
-  conversations: "conversations",
-  settings: "settings",
+  ask: "conversations",
+  highlights: "highlights",
+  notes: "notes",
 };
 
-const TABS = [
+const TABS: ReadonlyArray<{
+  key: BottomTabKey;
+  icon: (typeof Icons)[keyof typeof Icons];
+  name: string;
+  primary?: boolean;
+}> = [
   { key: "home", icon: Icons.Home, name: "Home" },
   { key: "library", icon: Icons.Library, name: "Library" },
-  { key: "add", icon: Icons.Plus, name: "Add", primary: true },
-  { key: "conversations", icon: Icons.Sparkles, name: "Chat" },
-  { key: "settings", icon: Icons.User, name: "You" },
-] as const;
+  { key: "ask", icon: Icons.Sparkles, name: "Ask", primary: true },
+  { key: "highlights", icon: Icons.Highlight, name: "Highlights" },
+  { key: "notes", icon: Icons.Note, name: "Notes" },
+];
 
-type Props = BottomTabBarProps & {
-  onUpload: () => void;
-};
+type Props = BottomTabBarProps;
 
-export function BottomTabs({ state, navigation, onUpload }: Props) {
+export function BottomTabs({ state, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(buildStyles);
   const palette = useThemeColors();
@@ -55,31 +59,31 @@ export function BottomTabs({ state, navigation, onUpload }: Props) {
   return (
     <View style={[styles.tabs, { paddingBottom: insets.bottom + 10 }]}>
       {TABS.map((tab) => {
-        if ("primary" in tab && tab.primary) {
+        const selected = activeRouteName === ROUTE_BY_TAB[tab.key];
+        if (tab.primary) {
           return (
             <Pressable
               key={tab.key}
               accessibilityRole="button"
               accessibilityLabel={tab.name}
-              onPress={onUpload}
+              onPress={() => handlePress(tab.key)}
               style={styles.tabItem}
             >
               <View style={styles.primaryTab}>
                 <tab.icon size={20} color={palette.actionFg} />
               </View>
-              <Text style={styles.tabLabel}>{tab.name}</Text>
+              <Text style={[styles.tabLabel, selected ? styles.tabLabelActive : null]}>
+                {tab.name}
+              </Text>
             </Pressable>
           );
         }
-
-        const tabKey = tab.key as BottomTabKey;
-        const selected = activeRouteName === ROUTE_BY_TAB[tabKey];
         return (
           <Pressable
             key={tab.key}
             accessibilityRole="button"
             accessibilityLabel={tab.name}
-            onPress={() => handlePress(tabKey)}
+            onPress={() => handlePress(tab.key)}
             style={styles.tabItem}
           >
             <tab.icon
