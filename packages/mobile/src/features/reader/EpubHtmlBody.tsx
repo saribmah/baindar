@@ -43,6 +43,15 @@ export type EpubHtmlBodyHandle = {
   clearSelection: () => void;
 };
 
+export type EpubAskPayload =
+  | {
+      kind: "passage";
+      text: string;
+      position: { offsetStart: number; offsetEnd: number };
+    }
+  | { kind: "highlight"; highlight: Highlight }
+  | { kind: "note"; note: Note; highlight?: Highlight };
+
 type WebMessage =
   | { type: "ready" }
   | { type: "height"; value: number }
@@ -68,7 +77,7 @@ export type EpubHtmlBodyProps = {
   targetHighlightId?: string | null;
   targetRequestId?: string | null;
   onTargetHighlight?: (offsetY: number) => void;
-  onAskSelection?: (quote: string) => void;
+  onAskSelection?: (payload: EpubAskPayload) => void;
   onSelectionChange?: (selection: SelectionState | null) => void;
 };
 
@@ -251,8 +260,15 @@ export const EpubHtmlBody = forwardRef<EpubHtmlBodyHandle, EpubHtmlBodyProps>(fu
 
   const handleAskSelection = useCallback(() => {
     if (!selection) return;
-    const captured = selection.text;
-    onAskSelection?.(captured);
+    const captured = selection;
+    onAskSelection?.({
+      kind: "passage",
+      text: captured.text,
+      position: {
+        offsetStart: captured.charRange.start,
+        offsetEnd: captured.charRange.end,
+      },
+    });
     clearWebSelection();
   }, [selection, onAskSelection, clearWebSelection]);
 
@@ -367,7 +383,7 @@ export const EpubHtmlBody = forwardRef<EpubHtmlBodyHandle, EpubHtmlBodyProps>(fu
             onChangeColor={handleChangeFocusedColor}
             onEditNote={handleEditFocusedNote}
             onAsk={() => {
-              onAskSelection?.(focused.textSnippet);
+              onAskSelection?.({ kind: "highlight", highlight: focused });
               setFocused(null);
             }}
             onDelete={handleDeleteFocused}
@@ -394,11 +410,23 @@ export const EpubHtmlBody = forwardRef<EpubHtmlBodyHandle, EpubHtmlBodyProps>(fu
             }
             onCancel={() => setNoteDraft(null)}
             onAsk={() => {
-              const quote =
-                noteDraft.kind === "edit"
-                  ? noteDraft.highlight.textSnippet
-                  : noteDraft.selection.text;
-              onAskSelection?.(quote);
+              if (noteDraft.kind === "edit") {
+                const note = notesByHighlightId.get(noteDraft.highlight.id);
+                if (note) {
+                  onAskSelection?.({ kind: "note", note, highlight: noteDraft.highlight });
+                } else {
+                  onAskSelection?.({ kind: "highlight", highlight: noteDraft.highlight });
+                }
+              } else {
+                onAskSelection?.({
+                  kind: "passage",
+                  text: noteDraft.selection.text,
+                  position: {
+                    offsetStart: noteDraft.selection.charRange.start,
+                    offsetEnd: noteDraft.selection.charRange.end,
+                  },
+                });
+              }
               setNoteDraft(null);
             }}
             onSave={handleSaveNote}

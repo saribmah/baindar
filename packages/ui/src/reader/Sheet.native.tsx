@@ -32,17 +32,20 @@ export function Sheet({ visible, onClose, showHandle = true, children, style }: 
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Pressable style={[styles.backdrop, { backgroundColor: backdropColor }]} onPress={onClose}>
+        <View style={styles.backdrop}>
           <Pressable
-            style={[styles.sheet, { backgroundColor: palette.surface }, style]}
-            onPress={() => undefined}
-          >
+            accessibilityRole="button"
+            accessibilityLabel="Close sheet"
+            style={[StyleSheet.absoluteFill, { backgroundColor: backdropColor }]}
+            onPress={onClose}
+          />
+          <View style={[styles.sheet, { backgroundColor: palette.surface }, style]}>
             {showHandle && (
               <View style={[styles.handle, { backgroundColor: palette.borderStrong }]} />
             )}
             {children}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

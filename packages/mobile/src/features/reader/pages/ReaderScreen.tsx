@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Button,
-  ChatComposer,
   ChatPanelHeader,
   FloatingToolbar,
   FloatingToolbarButton,
@@ -21,11 +20,20 @@ import {
   type Theme,
   type ThemeColors,
 } from "@baindar/ui";
-import type { Document, DocumentManifest, DocumentSectionSummary, EpubTocItem } from "@baindar/sdk";
+import type {
+  Conversation,
+  Document,
+  DocumentManifest,
+  DocumentSectionSummary,
+  EpubTocItem,
+  Highlight,
+  Note,
+} from "@baindar/sdk";
 import { useSdk } from "../../../sdk/sdk.provider.tsx";
 import {
   EpubHtmlBody,
   floatingBgFor,
+  type EpubAskPayload,
   type EpubHtmlBodyHandle,
   type SelectionState,
 } from "../EpubHtmlBody.tsx";
@@ -33,6 +41,16 @@ import type { AssetCache } from "../inlineAssets.ts";
 import { NotesSheet } from "../NotesSheet.tsx";
 import { useReaderHighlights } from "../useReaderHighlights.ts";
 import { useProfile } from "../../profile";
+import {
+  ConversationChatPane,
+  makeBookReference,
+  makeChapterReference,
+  makeHighlightReference,
+  makeNoteReference,
+  makePassageReference,
+  parseSectionOrder as parseReferenceSectionOrder,
+  type MessageReference,
+} from "../../conversations";
 
 type NotesContext = {
   sections?: ReadonlyArray<DocumentSectionSummary>;
@@ -49,6 +67,12 @@ type TocContext = {
 };
 
 type ReaderFontScale = "standard" | "large";
+
+type ReaderAskState = {
+  references: MessageReference[];
+  prompt: string;
+  seedKey: string;
+};
 
 export function ReaderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -127,13 +151,36 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
   const [notesState, setNotesState] = useState<NotesContext | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiQuote, setAiQuote] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
+  const [askState, setAskState] = useState<ReaderAskState | null>(null);
   const [fontScale, setFontScale] = useState<ReaderFontScale>("standard");
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const { profile } = useProfile();
   const defaultColor: HighlightColor = profile?.defaultHighlightColor ?? "pink";
+  const currentAskSection = useMemo(() => {
+    const sections = tocState?.sections ?? notesState?.sections;
+    const order = tocState?.currentOrder ?? notesState?.currentOrder;
+    if (!sections || order === undefined) return null;
+    return sections.find((section) => section.order === order) ?? null;
+  }, [notesState, tocState]);
+
+  const openAsk = useCallback((references: MessageReference[], prompt = "") => {
+    setAskState({ references, prompt, seedKey: String(Date.now()) });
+  }, []);
+
+  const openCurrentAsk = useCallback(() => {
+    if (currentAskSection) {
+      openAsk([
+        makeChapterReference({
+          document: doc,
+          sectionKey: currentAskSection.sectionKey,
+          sectionOrder: currentAskSection.order,
+          sectionTitle: currentAskSection.title,
+        }),
+      ]);
+      return;
+    }
+    openAsk([makeBookReference(doc)], "What should I know about this book?");
+  }, [currentAskSection, doc, openAsk]);
 
   const toggleFontScale = useCallback(() => {
     setFontScale((curr) => (curr === "standard" ? "large" : "standard"));
@@ -185,10 +232,8 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
           onScrollToOffset={(offset) => {
             scrollRef.current?.scrollTo({ y: Math.max(0, offset - 120), animated: true });
           }}
-          onAskSelection={(quote) => {
-            setAiQuote(quote);
-            setAiPrompt("What does this passage mean?");
-            setAiOpen(true);
+          onAskSelection={(reference, prompt) => {
+            openAsk([reference], prompt ?? "What does this passage mean?");
           }}
           onSelectionChange={setSelection}
         />
@@ -229,14 +274,7 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
           >
             <Icons.Note size={20} color={palette.text} />
           </FloatingToolbarButton>
-          <FloatingToolbarButton
-            aria-label="Ask Baindar"
-            onPress={() => {
-              setAiQuote(null);
-              setAiPrompt("");
-              setAiOpen(true);
-            }}
-          >
+          <FloatingToolbarButton aria-label="Ask Baindar" onPress={openCurrentAsk}>
             <Icons.Sparkles size={20} color={palette.text} />
           </FloatingToolbarButton>
           <FloatingToolbarButton
@@ -289,12 +327,11 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
       )}
 
       <ReaderAiSheet
-        visible={aiOpen}
-        onClose={() => setAiOpen(false)}
+        visible={askState !== null}
+        onClose={() => setAskState(null)}
+        doc={doc}
         palette={palette}
-        chapterLabel={position ?? "Current chapter"}
-        quote={aiQuote}
-        prompt={aiPrompt}
+        askState={askState}
       />
     </View>
   );
@@ -313,7 +350,7 @@ const ReaderBody = forwardRef<
     onNotesChange: (s: NotesContext | null) => void;
     fontScale: ReaderFontScale;
     onScrollToOffset: (offset: number) => void;
-    onAskSelection: (quote: string) => void;
+    onAskSelection: (reference: MessageReference, prompt?: string) => void;
     onSelectionChange: (selection: SelectionState | null) => void;
   }
 >(function ReaderBody(
@@ -333,12 +370,15 @@ const ReaderBody = forwardRef<
   ref,
 ) {
   const params = useLocalSearchParams<{
+    ask?: string;
     chapter?: string;
     highlight?: string;
+    note?: string;
     target?: string;
   }>();
   const { client, baseUrl, authedFetch } = useSdk();
   const documentId = doc.id;
+  const handledAskRef = useRef<string | null>(null);
   const initialOrderParam = params.chapter !== undefined ? Number(params.chapter) : null;
   const initialOrder = doc.progress?.sectionKey
     ? (parseSectionOrder(doc.progress.sectionKey) ?? 0)
@@ -376,6 +416,8 @@ const ReaderBody = forwardRef<
     () => manifest?.sections.find((s) => s.order === order) ?? null,
     [manifest, order],
   );
+  const askTarget = params.ask;
+  const targetNoteId = params.note;
 
   const highlightLayer = useReaderHighlights({
     client,
@@ -418,6 +460,72 @@ const ReaderBody = forwardRef<
       cancelled = true;
     };
   }, [client, documentId, order]);
+
+  useEffect(() => {
+    if (!askTarget || !currentSection) return;
+    const key = `${askTarget}:${documentId}:${targetNoteId ?? ""}:${params.highlight ?? ""}:${
+      params.target ?? ""
+    }`;
+    if (handledAskRef.current === key) return;
+    handledAskRef.current = key;
+
+    if (askTarget === "book") {
+      onAskSelection(makeBookReference(doc), "What should I know about this book?");
+      return;
+    }
+
+    if (askTarget === "chapter") {
+      onAskSelection(
+        makeChapterReference({
+          document: doc,
+          sectionKey: currentSection.sectionKey,
+          sectionOrder: order,
+          sectionTitle: currentSection.title,
+        }),
+      );
+      return;
+    }
+
+    if (askTarget === "note" && targetNoteId) {
+      let cancelled = false;
+      client.note
+        .get({ id: targetNoteId })
+        .then(async (noteRes) => {
+          if (cancelled || !noteRes.data) return;
+          const note = noteRes.data;
+          let highlight: Highlight | undefined;
+          if (note.highlightId) {
+            const highlights = await client.highlight.list({ documentId });
+            highlight = highlights.data?.items.find((item) => item.id === note.highlightId);
+          }
+          if (cancelled) return;
+          onAskSelection(
+            makeNoteReference({
+              document: doc,
+              note,
+              highlight,
+              sectionOrder: parseReferenceSectionOrder(note.sectionKey ?? highlight?.sectionKey),
+            }),
+            "What should I notice about this note?",
+          );
+        })
+        .catch(() => undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [
+    askTarget,
+    client,
+    currentSection,
+    doc,
+    documentId,
+    onAskSelection,
+    order,
+    params.highlight,
+    params.target,
+    targetNoteId,
+  ]);
 
   // Persist progress after the user stabilizes on a chapter for ~1s.
   useEffect(() => {
@@ -524,7 +632,19 @@ const ReaderBody = forwardRef<
         targetHighlightId={target?.highlightId}
         targetRequestId={target?.requestId}
         onTargetHighlight={onScrollToOffset}
-        onAskSelection={onAskSelection}
+        onAskSelection={(payload) => {
+          onAskSelection(
+            askPayloadToReference({
+              payload,
+              document: doc,
+              section: currentSection,
+              sectionOrder: order,
+            }),
+            payload.kind === "note"
+              ? "What should I notice about this note?"
+              : "What does this passage mean?",
+          );
+        }}
         onSelectionChange={onSelectionChange}
       />
       <ChapterNav
@@ -538,6 +658,46 @@ const ReaderBody = forwardRef<
     </>
   );
 });
+
+function askPayloadToReference({
+  payload,
+  document,
+  section,
+  sectionOrder,
+}: {
+  payload: EpubAskPayload;
+  document: Pick<Document, "id" | "title">;
+  section: DocumentSectionSummary;
+  sectionOrder: number;
+}): MessageReference {
+  if (payload.kind === "highlight") {
+    return makeHighlightReference({
+      document,
+      highlight: payload.highlight,
+      sectionOrder,
+    });
+  }
+
+  if (payload.kind === "note") {
+    return makeNoteReference({
+      document,
+      note: payload.note,
+      highlight: payload.highlight,
+      sectionOrder:
+        parseReferenceSectionOrder(payload.note.sectionKey ?? payload.highlight?.sectionKey) ??
+        sectionOrder,
+    });
+  }
+
+  return makePassageReference({
+    document,
+    sectionKey: section.sectionKey,
+    sectionOrder,
+    sectionTitle: section.title,
+    position: payload.position,
+    previewText: payload.text,
+  });
+}
 
 // ─── Chapter navigation row ─────────────────────────────────────────────
 function ChapterNav({
@@ -661,89 +821,128 @@ function TocSheet({
 function ReaderAiSheet({
   visible,
   onClose,
+  doc,
   palette,
-  chapterLabel,
-  quote,
-  prompt,
+  askState,
 }: {
   visible: boolean;
   onClose: () => void;
+  doc: Document;
   palette: ThemeColors;
-  chapterLabel: string;
-  quote: string | null;
-  prompt: string;
+  askState: ReaderAskState | null;
 }) {
   return (
     <Sheet visible={visible} onClose={onClose} style={readerAiStyles.sheet}>
-      <ReaderAiSheetBody
-        key={visible ? `${chapterLabel}:${quote ?? ""}:${prompt}` : "closed"}
-        onClose={onClose}
-        palette={palette}
-        chapterLabel={chapterLabel}
-        quote={quote}
-        prompt={prompt}
-      />
+      <ReaderAiSheetBody onClose={onClose} doc={doc} palette={palette} askState={askState} />
     </Sheet>
   );
 }
 
 function ReaderAiSheetBody({
   onClose,
+  doc,
   palette,
-  chapterLabel,
-  quote,
-  prompt,
+  askState,
 }: {
   onClose: () => void;
+  doc: Document;
   palette: ThemeColors;
-  chapterLabel: string;
-  quote: string | null;
-  prompt: string;
+  askState: ReaderAskState | null;
 }) {
-  const [draft, setDraft] = useState(prompt);
-  const contextAttachment = quote ? { label: chapterLabel, text: quote } : undefined;
-  const headline = quote ? "Ask about this passage" : "Ask about this chapter";
-  const description = quote
-    ? "Mobile chat is coming soon. In the meantime, open this passage from the web app to chat with Baindar in context."
-    : "Mobile chat is coming soon. In the meantime, ask Baindar about this chapter from the web app.";
-  return (
-    <View style={readerAiStyles.body}>
-      <ChatPanelHeader sub={chapterLabel} onClose={onClose} />
-      <ScrollView
-        style={readerAiStyles.scroll}
-        contentContainerStyle={readerAiStyles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {quote && (
-          <View
-            style={[
-              readerAiStyles.quoteCard,
-              { backgroundColor: palette.surfaceRaised, borderLeftColor: color.wine[700] },
-            ]}
-          >
-            <Text style={[readerAiStyles.quoteLabel, { color: palette.fgMuted }]}>
-              FROM {chapterLabel.toUpperCase()}
-            </Text>
-            <Text style={[readerAiStyles.quoteText, { color: palette.fgSubtle }]}>“{quote}”</Text>
-          </View>
-        )}
+  const { client } = useSdk();
+  const conversationPromiseRef = useRef<Promise<Conversation | null> | null>(null);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  const ensureConversation = useCallback(async (): Promise<Conversation | null> => {
+    if (conversation) return conversation;
+    if (conversationPromiseRef.current) return conversationPromiseRef.current;
+
+    const promise = (async () => {
+      try {
+        setError(null);
+        const list = await client.conversation.list();
+        const existing = list.data?.items.find((item) => item.primaryDocId === doc.id) ?? null;
+        if (existing) {
+          setConversation(existing);
+          return existing;
+        }
+
+        const created = await client.conversation.create({
+          title: doc.title,
+          primaryDocId: doc.id,
+        });
+        if (!created.data) throw new Error("Could not start a reader conversation");
+        setConversation(created.data);
+        return created.data;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return null;
+      } finally {
+        conversationPromiseRef.current = null;
+      }
+    })();
+
+    conversationPromiseRef.current = promise;
+    return promise;
+  }, [client, conversation, doc.id, doc.title]);
+
+  const startNewConversation = useCallback(async () => {
+    try {
+      setError(null);
+      const created = await client.conversation.create({
+        title: doc.title,
+        primaryDocId: doc.id,
+      });
+      if (!created.data) throw new Error("Could not start a reader conversation");
+      setConversation(created.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [client, doc.id, doc.title]);
+
+  useEffect(() => {
+    if (!askState) return;
+    void ensureConversation();
+  }, [askState, ensureConversation]);
+
+  if (error) {
+    return (
+      <View style={readerAiStyles.body}>
+        <ChatPanelHeader sub="reader" onClose={onClose} />
+        <View style={readerAiStyles.empty}>
+          <Text style={[readerAiStyles.emptyTitle, { color: palette.fg }]}>Conversation error</Text>
+          <Text style={[readerAiStyles.emptyBody, { color: palette.fgSubtle }]}>{error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!conversation || !askState) {
+    return (
+      <View style={readerAiStyles.body}>
+        <ChatPanelHeader sub="reader" onClose={onClose} />
         <View style={readerAiStyles.empty}>
           <View style={[readerAiStyles.emptyIcon, { backgroundColor: palette.surfaceRaised }]}>
             <Icons.Sparkles size={22} color={color.wine[700]} />
           </View>
-          <Text style={[readerAiStyles.emptyTitle, { color: palette.fg }]}>{headline}</Text>
-          <Text style={[readerAiStyles.emptyBody, { color: palette.fgSubtle }]}>{description}</Text>
+          <Text style={[readerAiStyles.emptyTitle, { color: palette.fg }]}>
+            Starting conversation
+          </Text>
         </View>
-      </ScrollView>
+      </View>
+    );
+  }
 
-      <ChatComposer
-        value={draft}
-        onValueChange={setDraft}
-        onSubmit={() => setDraft("")}
-        context={contextAttachment}
-        placeholder="Mobile chat is coming soon"
-        disabled
+  return (
+    <View style={readerAiStyles.body}>
+      <ConversationChatPane
+        conversation={conversation}
+        pendingReferences={askState.references}
+        draftSeed={askState.prompt}
+        draftSeedKey={askState.seedKey}
+        onClose={onClose}
+        onNewConversation={() => void startNewConversation()}
       />
     </View>
   );
@@ -755,6 +954,7 @@ const readerAiStyles = StyleSheet.create({
   },
   body: {
     flex: 1,
+    minHeight: 0,
     gap: 12,
   },
   scroll: {

@@ -7,3 +7,4 @@ const defaultHost = Platform.OS === "android" ? "10.0.2.2" : "localhost";
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? `http://${defaultHost}:8787`;
 export const AUTH_URL = process.env.EXPO_PUBLIC_AUTH_URL ?? `${API_URL}/auth`;
+export const AGENTS_HOST = process.env.EXPO_PUBLIC_AGENTS_HOST ?? API_URL;
