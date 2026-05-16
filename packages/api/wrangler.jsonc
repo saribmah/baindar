@@ -153,12 +153,12 @@
 				// secrets (they identify SKUs in Polar's dashboard) so they
 				// live in vars; credentials live in `secrets.required` below.
 				// `POLAR_SERVER` is either `sandbox` (default) or `production`.
-				"POLAR_SERVER": "sandbox",
-				"POLAR_ORGANIZATION_ID": "",
-				"POLAR_PRODUCT_PERSONAL": "",
-				"POLAR_PRODUCT_PRO": "",
-				"POLAR_PRODUCT_BYOK": "",
-				"POLAR_SUCCESS_URL": ""
+				"POLAR_SERVER": "production",
+				"POLAR_ORGANIZATION_ID": "82e66247-f975-4954-965c-73f5e6111016",
+				"POLAR_PRODUCT_PERSONAL": "3ac26a55-76db-4d4a-89e3-0429b4ec5d91",
+				"POLAR_PRODUCT_PRO": "978f57d1-71ce-4dd3-8f66-d7a3a0a70cf7",
+				"POLAR_PRODUCT_BYOK": "dbf8e67b-46cd-41c3-b886-0ef2cbb69163",
+				"POLAR_SUCCESS_URL": "/settings"
 			},
 			"d1_databases": [
 				{
