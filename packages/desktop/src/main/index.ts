@@ -1,4 +1,9 @@
-import Electrobun, { BrowserView, BrowserWindow, type ElectrobunEvent } from "electrobun/bun";
+import Electrobun, {
+  BrowserView,
+  BrowserWindow,
+  Utils,
+  type ElectrobunEvent,
+} from "electrobun/bun";
 import { AUTH_CALLBACK_PATH, DEEP_LINK_SCHEME, type DesktopRPCSchema } from "../shared/rpc";
 import { clearKeychainToken, getKeychainToken, setKeychainToken } from "./keychain";
 
@@ -31,9 +36,30 @@ const rpc = BrowserView.defineRPC<DesktopRPCSchema>({
       "auth.clearToken": async () => {
         await clearKeychainToken();
       },
+      // Open an external URL in the OS default browser. The Electrobun
+      // webview ignores `target="_blank"` and won't navigate cross-origin
+      // (especially out of `views://mainview/`), so renderer code routes
+      // external links through this RPC. Only http/https/mailto schemes are
+      // forwarded; anything else is dropped to avoid arbitrary URL handlers.
+      "system.openExternal": ({ url }) => {
+        if (!isSafeExternalUrl(url)) {
+          console.warn("[baindar-desktop] dropped unsafe openExternal:", url);
+          return;
+        }
+        Utils.openExternal(url);
+      },
     },
   },
 });
+
+const isSafeExternalUrl = (raw: string): boolean => {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "http:" || url.protocol === "https:" || url.protocol === "mailto:";
+  } catch {
+    return false;
+  }
+};
 
 const mainWindow = new BrowserWindow({
   title: "Baindar",

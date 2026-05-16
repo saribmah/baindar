@@ -30,4 +30,6 @@ export const bridge = {
   setToken: (token: string): Promise<void> =>
     rpc.request["auth.setToken"]({ token }) as unknown as Promise<void>,
   clearToken: (): Promise<void> => rpc.request["auth.clearToken"]() as unknown as Promise<void>,
+  openExternal: (url: string): Promise<void> =>
+    rpc.request["system.openExternal"]({ url }) as unknown as Promise<void>,
 };

@@ -14,6 +14,7 @@ export type DesktopRPCSchema = {
       "auth.getToken": { params: undefined; response: string | null };
       "auth.setToken": { params: { token: string }; response: void };
       "auth.clearToken": { params: undefined; response: void };
+      "system.openExternal": { params: { url: string }; response: void };
     };
     messages: Record<never, unknown>;
   };

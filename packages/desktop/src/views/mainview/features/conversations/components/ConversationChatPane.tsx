@@ -17,6 +17,7 @@ import {
   type ChatReference,
   type ChatToolCall,
 } from "@baindar/ui";
+import { getAuthToken } from "../../auth/auth.client";
 import { BillingLimitDialog, useBillingStatus } from "../../billing";
 import { chatToolFromPart } from "../chatTools";
 import {
@@ -67,6 +68,10 @@ export function ConversationChatPane({
     agent: "ChatAgent",
     name: conversation.agentName,
     host: agentsHost,
+    // Desktop has no cookies — propagate the Keychain bearer token via
+    // `?token=` so the API's bootstrap promotes it to Authorization on the
+    // WebSocket upgrade (packages/api/src/instance/bootstrap.ts).
+    query: async () => ({ token: getAuthToken() ?? "" }),
   });
   const { messages, sendMessage, status, clearHistory } = useAgentChat<unknown, BaindarChatMessage>(
     { agent, credentials: "include" },
