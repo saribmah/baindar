@@ -280,6 +280,130 @@
           "targetKey"
         ]
       },
+      "BillingPlan": {
+        "type": "string",
+        "enum": [
+          "free",
+          "personal",
+          "pro",
+          "byok"
+        ]
+      },
+      "BillingSubscriptionStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "trialing",
+          "past_due",
+          "canceled",
+          "incomplete"
+        ]
+      },
+      "BillingQuota": {
+        "type": "object",
+        "properties": {
+          "chatTurnsLimit": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "summariesLimit": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "documentsLimit": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "chatTurnsLimit",
+          "summariesLimit",
+          "documentsLimit"
+        ]
+      },
+      "BillingUsagePeriod": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
+          },
+          "chatTurns": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "summaries": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "inputTokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "costUsdMicros": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "userId",
+          "periodStart",
+          "periodEnd",
+          "chatTurns",
+          "summaries",
+          "inputTokens",
+          "outputTokens",
+          "costUsdMicros"
+        ]
+      },
+      "BillingStatus": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/BillingPlan"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BillingSubscriptionStatus"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/BillingQuota"
+          },
+          "currentPeriod": {
+            "$ref": "#/components/schemas/BillingUsagePeriod"
+          },
+          "periodResetAt": {
+            "type": "string"
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "plan",
+          "status",
+          "quota",
+          "currentPeriod",
+          "periodResetAt",
+          "cancelAtPeriodEnd"
+        ]
+      },
       "Conversation": {
         "type": "object",
         "properties": {
@@ -1363,6 +1487,28 @@
                 "$ref": "#/components/schemas/AiSummarizeInput"
               }
             }
+          }
+        }
+      }
+    },
+    "/billing/me": {
+      "get": {
+        "operationId": "billing.me",
+        "summary": "Get the caller's billing status",
+        "description": "Returns the caller's plan, subscription status, current-period usage, and quota limits. The Free plan is implicit — users without an explicit subscription row get `plan: \"free\", status: \"active\"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1).",
+        "responses": {
+          "200": {
+            "description": "Billing status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
           }
         }
       }

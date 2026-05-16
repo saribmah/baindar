@@ -216,6 +216,7 @@ describe("Ai feature", () => {
         return {
           summary: `summary of ${input.documentTitle} (${input.targetType})`,
           model: "test-model",
+          usage: { inputTokens: 100, outputTokens: 25 },
         };
       };
     };

@@ -50,6 +50,13 @@
       "when": 1778252302982,
       "tag": "0006_talented_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1778901372076,
+      "tag": "0007_loud_cable",
+      "breakpoints": true
     }
   ]
 }

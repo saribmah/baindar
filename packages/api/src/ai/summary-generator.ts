@@ -42,6 +42,14 @@ export namespace SummaryGenerator {
   export type GenerateResult = {
     summary: string;
     model: string;
+    // Token usage from the underlying LLM call. Surfaced so the billing
+    // layer can meter cost without re-tokenizing the prompt. Defaults to
+    // zero when the SDK returns no usage (test stubs, model errors that
+    // still produced output).
+    usage: {
+      inputTokens: number;
+      outputTokens: number;
+    };
   };
 
   export type Generator = (input: GenerateInput) => Promise<GenerateResult>;
@@ -69,6 +77,8 @@ export namespace SummaryGenerator {
     const prompt = buildPrompt(input);
 
     let text: string;
+    let inputTokens = 0;
+    let outputTokens = 0;
     try {
       const result = await generateText({
         model: anthropic(modelId),
@@ -76,6 +86,8 @@ export namespace SummaryGenerator {
         prompt,
       });
       text = result.text;
+      inputTokens = result.usage?.inputTokens ?? 0;
+      outputTokens = result.usage?.outputTokens ?? 0;
     } catch (e) {
       throw new LlmCallFailedError({
         kind: "model_error",
@@ -90,7 +102,7 @@ export namespace SummaryGenerator {
         message: "LLM returned an empty summary",
       });
     }
-    return { summary, model: modelId };
+    return { summary, model: modelId, usage: { inputTokens, outputTokens } };
   };
 
   const SYSTEM_PROMPT = [
