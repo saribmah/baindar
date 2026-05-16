@@ -23,7 +23,17 @@
 				// `@ai-sdk/anthropic` default (the official API). Override per env
 				// to point at a proxy or alternative provider.
 				"ANTHROPIC_BASE_URL": "https://opencode.ai/zen/go/v1",
-				"ANTHROPIC_MODEL": "minimax-m2.7"
+				"ANTHROPIC_MODEL": "minimax-m2.7",
+				// Polar (billing) — set per-environment. Product IDs are not
+				// secrets (they identify SKUs in Polar's dashboard) so they
+				// live in vars; credentials live in `secrets.required` below.
+				// `POLAR_SERVER` is either `sandbox` (default) or `production`.
+				"POLAR_SERVER": "sandbox",
+				"POLAR_ORGANIZATION_ID": "",
+				"POLAR_PRODUCT_PERSONAL": "",
+				"POLAR_PRODUCT_PRO": "",
+				"POLAR_PRODUCT_BYOK": "",
+				"POLAR_SUCCESS_URL": ""
 			},
 			"d1_databases": [
 				{
@@ -102,7 +112,9 @@
 					"GOOGLE_CLIENT_SECRET",
 					"APPLE_CLIENT_ID",
 					"APPLE_CLIENT_SECRET",
-					"ANTHROPIC_API_KEY"
+					"ANTHROPIC_API_KEY",
+					"POLAR_ACCESS_TOKEN",
+					"POLAR_WEBHOOK_SECRET"
 				]
 			}
 		},
@@ -136,7 +148,17 @@
 				// Chat agent model. Empty `ANTHROPIC_BASE_URL` uses the SDK's
 				// default (the official Anthropic API).
 				"ANTHROPIC_BASE_URL": "https://opencode.ai/zen/go/v1",
-				"ANTHROPIC_MODEL": "minimax-m2.7"
+				"ANTHROPIC_MODEL": "minimax-m2.7",
+				// Polar (billing) — set per-environment. Product IDs are not
+				// secrets (they identify SKUs in Polar's dashboard) so they
+				// live in vars; credentials live in `secrets.required` below.
+				// `POLAR_SERVER` is either `sandbox` (default) or `production`.
+				"POLAR_SERVER": "sandbox",
+				"POLAR_ORGANIZATION_ID": "",
+				"POLAR_PRODUCT_PERSONAL": "",
+				"POLAR_PRODUCT_PRO": "",
+				"POLAR_PRODUCT_BYOK": "",
+				"POLAR_SUCCESS_URL": ""
 			},
 			"d1_databases": [
 				{
@@ -214,7 +236,9 @@
 					"GOOGLE_CLIENT_SECRET",
 					"APPLE_CLIENT_ID",
 					"APPLE_CLIENT_SECRET",
-					"ANTHROPIC_API_KEY"
+					"ANTHROPIC_API_KEY",
+					"POLAR_ACCESS_TOKEN",
+					"POLAR_WEBHOOK_SECRET"
 				]
 			}
 		}

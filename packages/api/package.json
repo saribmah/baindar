@@ -27,6 +27,8 @@
     "@better-auth/expo": "^1.6.9",
     "@cloudflare/ai-chat": "^0.6.2",
     "@hono/standard-validator": "^0.2.2",
+    "@polar-sh/better-auth": "^1.8.4",
+    "@polar-sh/sdk": "^0.47.1",
     "@standard-community/standard-json": "^0.3.5",
     "@standard-community/standard-openapi": "^0.2.9",
     "agents": "^0.12.3",

@@ -103,6 +103,52 @@ export namespace BillingStore {
     return raced;
   };
 
+  // Idempotent upsert from a Polar subscription event. The Better Auth Polar
+  // plugin uses `externalId === user.id`, so the webhook callback can pass
+  // the user id directly. Always overwrites plan/status/period fields — the
+  // webhook is authoritative for what Polar believes the subscription state
+  // to be. Re-deliveries of the same event are safe (last-write-wins on a
+  // unique row).
+  export const upsertSubscriptionFromPolar = async (input: {
+    userId: string;
+    plan: Billing.Plan;
+    status: Billing.SubscriptionStatus;
+    providerCustomerId: string | null;
+    providerSubscriptionId: string | null;
+    currentPeriodStart: Date | null;
+    currentPeriodEnd: Date | null;
+    cancelAtPeriodEnd: boolean;
+  }): Promise<void> => {
+    const now = new Date();
+    await Instance.db
+      .insert(subscription)
+      .values({
+        userId: input.userId,
+        plan: input.plan,
+        status: input.status,
+        providerCustomerId: input.providerCustomerId,
+        providerSubscriptionId: input.providerSubscriptionId,
+        currentPeriodStart: input.currentPeriodStart,
+        currentPeriodEnd: input.currentPeriodEnd,
+        cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: subscription.userId,
+        set: {
+          plan: input.plan,
+          status: input.status,
+          providerCustomerId: input.providerCustomerId,
+          providerSubscriptionId: input.providerSubscriptionId,
+          currentPeriodStart: input.currentPeriodStart,
+          currentPeriodEnd: input.currentPeriodEnd,
+          cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+          updatedAt: now,
+        },
+      });
+  };
+
   // ---- UsagePeriod ------------------------------------------------------
   export const usagePeriodSelect = {
     userId: usagePeriod.userId,

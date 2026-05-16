@@ -5,6 +5,7 @@ import type { AppEnv } from "../../app/context";
 import { Document } from "../../document/document";
 import { Instance } from "../../instance";
 import { requireAuth } from "../../middleware/auth";
+import { requireSummarizeQuota } from "../../middleware/quota";
 import { createErrorMapper } from "../error-mapper";
 
 const aiRouter = new Hono<AppEnv>();
@@ -97,12 +98,14 @@ aiRouter.post(
       },
       400: { description: "Invalid input" },
       401: { description: "Not authenticated" },
+      402: { description: "Out of summary quota for the current period" },
       404: { description: "Document or summary target not found" },
       409: { description: "Document is not processed yet" },
       502: { description: "LLM call failed" },
     },
   }),
   requireAuth,
+  requireSummarizeQuota,
   validator("json", Ai.SummarizeInput),
   async (c) => {
     const body = c.req.valid("json");

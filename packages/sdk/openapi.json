@@ -373,6 +373,21 @@
           "costUsdMicros"
         ]
       },
+      "BillingUpgradeOption": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/BillingPlan"
+          },
+          "checkoutUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan",
+          "checkoutUrl"
+        ]
+      },
       "BillingStatus": {
         "type": "object",
         "properties": {
@@ -393,6 +408,22 @@
           },
           "cancelAtPeriodEnd": {
             "type": "boolean"
+          },
+          "upgradeOptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingUpgradeOption"
+            }
+          },
+          "portalUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -401,7 +432,9 @@
           "quota",
           "currentPeriod",
           "periodResetAt",
-          "cancelAtPeriodEnd"
+          "cancelAtPeriodEnd",
+          "upgradeOptions",
+          "portalUrl"
         ]
       },
       "Conversation": {
@@ -1468,6 +1501,9 @@
           },
           "401": {
             "description": "Not authenticated"
+          },
+          "402": {
+            "description": "Out of summary quota for the current period"
           },
           "404": {
             "description": "Document or summary target not found"

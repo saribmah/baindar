@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Text, View } from "react-native";
-import type { BillingStatus } from "@baindar/sdk";
-import { Progress, useThemedStyles } from "@baindar/ui";
+import { Linking, Pressable, Text, View } from "react-native";
+import type { BillingStatus, BillingUpgradeOption } from "@baindar/sdk";
+import { Progress, useThemeColors, useThemedStyles } from "@baindar/ui";
 import { buildBillingStyles } from "../billing.styles";
 import {
   formatCostUsd,
@@ -37,11 +37,72 @@ export function BillingGroup({ billing }: { billing: BillingStatus }) {
       <Row
         label="Tokens this period"
         sub={`${formatTokens(billing.currentPeriod.inputTokens)} in · ${formatTokens(billing.currentPeriod.outputTokens)} out`}
-        last
+        last={!hasActions(billing)}
       >
         <Pill>{formatCostUsd(billing.currentPeriod.costUsdMicros)}</Pill>
       </Row>
+      <BillingActions billing={billing} />
     </Group>
+  );
+}
+
+const hasActions = (billing: BillingStatus): boolean =>
+  (billing.upgradeOptions ?? []).length > 0 || billing.portalUrl !== null;
+
+function BillingActions({ billing }: { billing: BillingStatus }) {
+  const upgradeOptions = billing.upgradeOptions ?? [];
+  const portalUrl = billing.portalUrl;
+  if (!hasActions(billing)) return null;
+  return (
+    <Row label={portalUrl ? "Manage plan" : "Upgrade"} last>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {upgradeOptions.map((opt: BillingUpgradeOption) => (
+          <LinkButton
+            key={opt.plan}
+            url={opt.checkoutUrl}
+            label={`Upgrade to ${formatPlanLabel(opt.plan)}`}
+            tone="primary"
+          />
+        ))}
+        {portalUrl && <LinkButton url={portalUrl} label="Manage plan" tone="secondary" />}
+      </View>
+    </Row>
+  );
+}
+
+function LinkButton({
+  url,
+  label,
+  tone,
+}: {
+  url: string;
+  label: string;
+  tone: "primary" | "secondary";
+}) {
+  const palette = useThemeColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => void Linking.openURL(url)}
+      style={{
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: tone === "primary" ? palette.action : palette.surfaceRaised,
+        borderWidth: tone === "primary" ? 0 : 1,
+        borderColor: palette.border,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: "600",
+          color: tone === "primary" ? palette.bg : palette.fg,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 

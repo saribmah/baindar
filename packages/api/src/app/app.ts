@@ -3,6 +3,7 @@ import type { MiddlewareHandler } from "hono";
 import { openAPIRouteHandler } from "hono-openapi";
 import { requireOwnAgentInstance } from "../middleware/agent-instance";
 import { requireAuth } from "../middleware/auth";
+import { requireChatQuota } from "../middleware/quota";
 import server from "../server/server";
 import type { AppEnv } from "./context";
 import { withBase } from "./with-base";
@@ -48,13 +49,13 @@ export const openApiDocumentation = {
 export const apiApp = withBase(new Hono<AppEnv>());
 // Cloudflare Agents — handles WebSocket upgrades and HTTP requests routed to
 // `/agents/:agent/:instance/*`. Must run before the catch-all server router.
-apiApp.use("/agents/*", requireAuth, requireOwnAgentInstance, agentsLazy);
+apiApp.use("/agents/*", requireAuth, requireOwnAgentInstance, requireChatQuota, agentsLazy);
 apiApp.route("/", server);
 apiApp.get("/openapi.json", openAPIRouteHandler(apiApp, { documentation: openApiDocumentation }));
 
 // Dev / fallback composite. Used by `wrangler dev` and by the default
 // `*.workers.dev` hostname when custom-domain subdomains aren't attached yet.
 export const devApp = withBase(new Hono<AppEnv>());
-devApp.use("/agents/*", requireAuth, requireOwnAgentInstance, agentsLazy);
+devApp.use("/agents/*", requireAuth, requireOwnAgentInstance, requireChatQuota, agentsLazy);
 devApp.route("/", server);
 devApp.get("/openapi.json", openAPIRouteHandler(devApp, { documentation: openApiDocumentation }));

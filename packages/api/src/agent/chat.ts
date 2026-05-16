@@ -4,6 +4,7 @@ import {
   convertToModelMessages,
   stepCountIs,
   streamText,
+  type ModelMessage,
   type StreamTextOnFinishCallback,
   type ToolSet,
 } from "ai";
@@ -19,6 +20,7 @@ import {
 } from "./message-reference";
 import { SYSTEM_PROMPT } from "./prompt";
 import { buildAgentTools } from "./tools";
+import { trimToTokenBudget } from "./trim-token-budget";
 
 // ChatAgent — per-conversation Durable Object. Identity is composite:
 // `idFromName(\`${userId}:${conversationId}\`)` so reverse-resolving owner
@@ -103,12 +105,14 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
         }
         await onFinish(event);
       };
+      const modelMessages = await convertToModelMessages(messages, {
+        convertDataPart: referenceDataPartToModelPart,
+      });
+      const trimmedMessages = trimToTokenBudget(modelMessages);
       const result = streamText({
         model: anthropic(this.env.ANTHROPIC_MODEL),
         system: SYSTEM_PROMPT,
-        messages: await convertToModelMessages(messages, {
-          convertDataPart: referenceDataPartToModelPart,
-        }),
+        messages: trimmedMessages,
         abortSignal: options?.abortSignal,
         tools,
         // Cap the model→tool→model loop. Typed tools (Phase 5) finish in

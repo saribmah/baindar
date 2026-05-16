@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 import type { BillingStatus } from "@baindar/sdk";
 import { Progress, useThemedStyles } from "@baindar/ui";
 import { buildBillingStyles } from "../billing.styles";
@@ -22,6 +22,7 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
 
   const remaining = Math.max(0, limit - used);
   const exhausted = used >= limit;
+  const upgradeUrl = exhausted ? billing.upgradeOptions?.[0]?.checkoutUrl : undefined;
   return (
     <View style={styles.meterCard}>
       <View style={styles.meterHeader}>
@@ -31,7 +32,15 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
         </Text>
       </View>
       <Progress value={used} max={limit} size="thin" tone={exhausted ? "wine" : "ink"} />
-      <Text style={styles.meterReset}>{formatPeriodReset(billing.periodResetAt)}</Text>
+      {upgradeUrl ? (
+        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(upgradeUrl)}>
+          <Text style={[styles.meterReset, { textDecorationLine: "underline" }]}>
+            Upgrade to keep chatting
+          </Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.meterReset}>{formatPeriodReset(billing.periodResetAt)}</Text>
+      )}
     </View>
   );
 }

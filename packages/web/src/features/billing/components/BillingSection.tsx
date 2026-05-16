@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { BillingStatus } from "@baindar/sdk";
-import { Chip, Progress } from "@baindar/ui";
+import type { BillingStatus, BillingUpgradeOption } from "@baindar/sdk";
+import { Button, Chip, Progress } from "@baindar/ui";
 import {
   formatCostUsd,
   formatPeriodReset,
@@ -43,9 +43,44 @@ export function BillingSection({ billing }: { billing: BillingStatus }) {
       >
         <Chip variant="outline">{formatCostUsd(billing.currentPeriod.costUsdMicros)}</Chip>
       </Row>
+      <BillingActions billing={billing} />
     </Section>
   );
 }
+
+function BillingActions({ billing }: { billing: BillingStatus }) {
+  const upgradeOptions = billing.upgradeOptions ?? [];
+  const portalUrl = billing.portalUrl;
+  if (upgradeOptions.length === 0 && !portalUrl) return null;
+  return (
+    <Row label={portalUrl ? "Manage plan" : "Upgrade"} sub={ctaSubtitle(billing)}>
+      <div className="flex flex-wrap items-center gap-2">
+        {upgradeOptions.map((opt: BillingUpgradeOption) => (
+          <a key={opt.plan} href={opt.checkoutUrl} target="_blank" rel="noreferrer">
+            <Button variant="primary" size="sm">
+              Upgrade to {formatPlanLabel(opt.plan)}
+            </Button>
+          </a>
+        ))}
+        {portalUrl && (
+          <a href={portalUrl} target="_blank" rel="noreferrer">
+            <Button variant="secondary" size="sm">
+              Manage plan
+            </Button>
+          </a>
+        )}
+      </div>
+    </Row>
+  );
+}
+
+const ctaSubtitle = (billing: BillingStatus): string => {
+  if (billing.portalUrl)
+    return "Change plan, update payment, or cancel in Polar's customer portal.";
+  if ((billing.upgradeOptions ?? []).length > 0)
+    return "Pick a plan to unlock more chat turns and summaries.";
+  return "";
+};
 
 function UsageRow({
   label,

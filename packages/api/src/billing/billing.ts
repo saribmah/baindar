@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Config } from "../config/config";
 import { NamedError } from "../utils/error";
 import { BillingStore } from "./billing-store";
 
@@ -83,6 +84,14 @@ export namespace Billing {
   };
   export type UsagePeriod = z.infer<typeof UsagePeriod.Entity>;
 
+  export const UpgradeOption = z
+    .object({
+      plan: Plan,
+      checkoutUrl: z.string(),
+    })
+    .meta({ ref: "BillingUpgradeOption" });
+  export type UpgradeOption = z.infer<typeof UpgradeOption>;
+
   export const StatusResponse = z
     .object({
       plan: Plan,
@@ -91,6 +100,12 @@ export namespace Billing {
       currentPeriod: UsagePeriod.Entity,
       periodResetAt: z.string(),
       cancelAtPeriodEnd: z.boolean(),
+      // Frontend-ready checkout + portal URLs derived from configured Polar
+      // products. `upgradeOptions` lists plans the user can switch to (i.e.
+      // not their current plan). `portalUrl` is null until Polar is fully
+      // configured AND the user has a subscription record at Polar.
+      upgradeOptions: z.array(UpgradeOption),
+      portalUrl: z.string().nullable(),
     })
     .meta({ ref: "BillingStatus" });
   export type StatusResponse = z.infer<typeof StatusResponse>;
@@ -142,6 +157,7 @@ export namespace Billing {
       getCurrentPeriod(userId),
     ]);
     const quota = getQuotaForPlan(subscription.plan);
+    const urls = buildUpgradeUrls(subscription.plan, subscription.providerSubscriptionId);
     return {
       plan: subscription.plan,
       status: subscription.status,
@@ -149,7 +165,38 @@ export namespace Billing {
       currentPeriod: period,
       periodResetAt: period.periodEnd,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      upgradeOptions: urls.upgradeOptions,
+      portalUrl: urls.portalUrl,
     };
+  };
+
+  // Build the public-facing checkout + portal URLs from the configured
+  // Polar products. Returns an empty list / null when Polar isn't wired
+  // (local dev without credentials, OpenAPI codegen) so callers don't have
+  // to special-case "is Polar configured" — they just render zero options.
+  //
+  // We compute these on the server so the frontend doesn't need to know
+  // the API origin or the Polar plugin's URL conventions. If we move off
+  // Polar later, the URL shape changes in exactly one place.
+  const buildUpgradeUrls = (
+    currentPlan: Plan,
+    providerSubscriptionId: string | null,
+  ): { upgradeOptions: UpgradeOption[]; portalUrl: string | null } => {
+    const apiHost = Config.getApiPublicHost();
+    const polar = Config.getPolar();
+    if (!apiHost || !polar) {
+      return { upgradeOptions: [], portalUrl: null };
+    }
+    const baseUrl = apiHost.replace(/\/$/, "");
+    const products = Config.getPolarProducts();
+    const upgradeOptions = products
+      .filter((p) => p.plan !== currentPlan)
+      .map((p) => ({ plan: p.plan as Plan, checkoutUrl: `${baseUrl}/auth/checkout/${p.plan}` }));
+    // Portal route only makes sense once the user has a real Polar
+    // subscription on file. Free-plan users (no providerSubscriptionId)
+    // have nothing to manage yet.
+    const portalUrl = providerSubscriptionId ? `${baseUrl}/auth/customer/portal` : null;
+    return { upgradeOptions, portalUrl };
   };
 
   // Remaining quota for the active period. A value of -1 means "unlimited"
@@ -173,6 +220,63 @@ export namespace Billing {
       plan: status.plan,
       periodResetAt: status.periodResetAt,
     };
+  };
+
+  // ---- Polar webhook integration ---------------------------------------
+
+  // Minimal projection of a Polar subscription webhook payload. We only
+  // touch fields needed to maintain our subscription row — the rest of
+  // Polar's rich payload (line items, prices, addresses, …) is ignored.
+  export type PolarSubscriptionEvent = {
+    kind: "created" | "updated" | "canceled" | "uncanceled" | "active" | "revoked";
+    subscriptionId: string;
+    productId: string;
+    externalUserId: string | null;
+    customerId: string;
+    status: SubscriptionStatus;
+    currentPeriodStart: Date | null;
+    currentPeriodEnd: Date | null;
+    cancelAtPeriodEnd: boolean;
+  };
+
+  // Upserts the subscription row from a Polar event. The product → plan
+  // mapping is resolved via Config; an unknown product is logged + ignored
+  // so a bad webhook can't corrupt the user's plan. `revoked` and `canceled`
+  // both downgrade to free at period end (cancelAtPeriodEnd handles the
+  // grace period; `revoked` arrives at the actual end-of-access moment).
+  export const applyPolarEvent = async (event: PolarSubscriptionEvent): Promise<void> => {
+    if (!event.externalUserId) {
+      console.warn("[billing] polar event missing externalUserId", event.subscriptionId);
+      return;
+    }
+
+    const isRevocation = event.kind === "canceled" || event.kind === "revoked";
+    let plan: Plan;
+    if (isRevocation && !event.cancelAtPeriodEnd) {
+      // Hard cancellation already happened — downgrade now.
+      plan = "free";
+    } else {
+      const mapped = Config.getPolarPlanForProduct(event.productId);
+      if (!mapped) {
+        console.warn(
+          "[billing] polar event references unknown productId, ignoring",
+          event.productId,
+        );
+        return;
+      }
+      plan = mapped;
+    }
+
+    await BillingStore.upsertSubscriptionFromPolar({
+      userId: event.externalUserId,
+      plan,
+      status: event.status,
+      providerCustomerId: event.customerId,
+      providerSubscriptionId: event.subscriptionId,
+      currentPeriodStart: event.currentPeriodStart,
+      currentPeriodEnd: event.currentPeriodEnd,
+      cancelAtPeriodEnd: event.cancelAtPeriodEnd,
+    });
   };
 
   export type RecordUsageInput = {

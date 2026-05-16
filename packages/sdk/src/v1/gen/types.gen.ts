@@ -98,6 +98,11 @@ export type BillingUsagePeriod = {
   costUsdMicros: number;
 };
 
+export type BillingUpgradeOption = {
+  plan: BillingPlan;
+  checkoutUrl: string;
+};
+
 export type BillingStatus = {
   plan: BillingPlan;
   status: BillingSubscriptionStatus;
@@ -105,6 +110,8 @@ export type BillingStatus = {
   currentPeriod: BillingUsagePeriod;
   periodResetAt: string;
   cancelAtPeriodEnd: boolean;
+  upgradeOptions: Array<BillingUpgradeOption>;
+  portalUrl: string | null;
 };
 
 export type Conversation = {
@@ -412,6 +419,10 @@ export type AiSummarizeErrors = {
    * Not authenticated
    */
   401: unknown;
+  /**
+   * Out of summary quota for the current period
+   */
+  402: unknown;
   /**
    * Document or summary target not found
    */
