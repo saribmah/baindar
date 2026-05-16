@@ -115,18 +115,23 @@ const buildPolarPlugins = (env: RuntimeEnv) => {
         portal(),
         webhooks({
           secret: config.webhookSecret,
-          onSubscriptionCreated: async (payload) =>
-            void Billing.applyPolarEvent(toBillingEvent("created", payload)),
-          onSubscriptionUpdated: async (payload) =>
-            void Billing.applyPolarEvent(toBillingEvent("updated", payload)),
-          onSubscriptionActive: async (payload) =>
-            void Billing.applyPolarEvent(toBillingEvent("active", payload)),
-          onSubscriptionCanceled: async (payload) =>
-            void Billing.applyPolarEvent(toBillingEvent("canceled", payload)),
-          onSubscriptionRevoked: async (payload) =>
-            void Billing.applyPolarEvent(toBillingEvent("revoked", payload)),
-          onSubscriptionUncanceled: async (payload) =>
-            void Billing.applyPolarEvent(toBillingEvent("uncanceled", payload)),
+          // Return the promise (no `void`) so the plugin's Promise.all
+          // actually awaits the D1 write. With `void` the outer async
+          // arrow resolves immediately, the webhook returns 200, and on
+          // Cloudflare the isolate can tear down before applyPolarEvent
+          // finishes — leaving the subscription row stuck on free.
+          onSubscriptionCreated: (payload) =>
+            Billing.applyPolarEvent(toBillingEvent("created", payload)),
+          onSubscriptionUpdated: (payload) =>
+            Billing.applyPolarEvent(toBillingEvent("updated", payload)),
+          onSubscriptionActive: (payload) =>
+            Billing.applyPolarEvent(toBillingEvent("active", payload)),
+          onSubscriptionCanceled: (payload) =>
+            Billing.applyPolarEvent(toBillingEvent("canceled", payload)),
+          onSubscriptionRevoked: (payload) =>
+            Billing.applyPolarEvent(toBillingEvent("revoked", payload)),
+          onSubscriptionUncanceled: (payload) =>
+            Billing.applyPolarEvent(toBillingEvent("uncanceled", payload)),
         }),
       ],
     }),
