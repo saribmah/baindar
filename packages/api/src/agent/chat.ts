@@ -1,9 +1,11 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
   convertToModelMessages,
   stepCountIs,
   streamText,
+  type LanguageModel,
   type ModelMessage,
   type StreamTextOnFinishCallback,
   type ToolSet,
@@ -13,6 +15,7 @@ import { Billing } from "../billing/billing";
 import { Conversation } from "../conversation/conversation";
 import { createDb } from "../db/db";
 import { Instance } from "../instance";
+import { Provider } from "../provider/provider";
 import {
   referenceDataPartToModelPart,
   validateReferenceDataParts,
@@ -80,16 +83,27 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
       // row vanished mid-turn.
       await Conversation.touch(userId, conversationId).catch(() => {});
 
-      const anthropic = createAnthropic({
-        apiKey: this.env.ANTHROPIC_API_KEY,
-        baseURL: this.env.ANTHROPIC_BASE_URL || undefined,
-      });
+      // Resolve the model adapter. When the user has a BYOK provider on
+      // file, we use it directly — their key, their base URL, their
+      // model. Otherwise we fall through to the platform Anthropic key.
+      const provider = await Provider.resolveForChat(userId).catch(() => null);
+      const model: LanguageModel = provider
+        ? buildModelFromProvider(provider)
+        : createAnthropic({
+            apiKey: this.env.ANTHROPIC_API_KEY,
+            baseURL: this.env.ANTHROPIC_BASE_URL || undefined,
+          })(this.env.ANTHROPIC_MODEL);
+      const usingByok = provider !== null;
       const tools: ToolSet = buildAgentTools({ userId });
       // Wrap the framework-supplied onFinish so we can meter token usage
       // before delegating. Recording is best-effort: a billing write failure
       // must never break the user-facing stream, so errors are caught and
       // logged. The append-only UsageEvent ledger lets us reconcile lost
       // rollups later if needed.
+      //
+      // BYOK turns still write a ledger row (so the user's own usage UI
+      // can show what they would have paid) but the rollup skips quota
+      // counters — see Billing.recordUsage.
       const meteredOnFinish: StreamTextOnFinishCallback<ToolSet> = async (event) => {
         try {
           const totalUsage = event.totalUsage ?? event.usage;
@@ -99,6 +113,7 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
             inputTokens: totalUsage?.inputTokens ?? 0,
             outputTokens: totalUsage?.outputTokens ?? 0,
             sourceId: conversationId,
+            byok: usingByok,
           });
         } catch (err) {
           console.error("[billing] chat usage record failed", err);
@@ -110,7 +125,7 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
       });
       const trimmedMessages = trimToTokenBudget(modelMessages);
       const result = streamText({
-        model: anthropic(this.env.ANTHROPIC_MODEL),
+        model,
         system: SYSTEM_PROMPT,
         messages: trimmedMessages,
         abortSignal: options?.abortSignal,
@@ -170,3 +185,15 @@ const agentAuth = (userId: string): AuthContext => ({
   user: null,
   authMethod: "session",
 });
+
+// Resolve a BYOK provider config to an AI SDK model adapter. The `spec`
+// determines which wire protocol to speak — Anthropic users hit the
+// Anthropic adapter; everyone else (OpenAI, OpenRouter, LiteLLM,
+// self-hosted, …) hits the OpenAI-compatible adapter with the supplied
+// base URL.
+const buildModelFromProvider = (config: Provider.ResolvedConfig): LanguageModel => {
+  if (config.spec === "anthropic") {
+    return createAnthropic({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
+  }
+  return createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
+};

@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ReactNode } from "react";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BillingPlan, type BillingStatus } from "@baindar/sdk";
 import {
@@ -24,6 +25,8 @@ import {
   isUnlimited,
 } from "../utils/format";
 import { UsageBar } from "../components/UsageBar";
+import { ProviderRow } from "../components/ProviderRow";
+import { CheckoutWelcomeSheet } from "../components/CheckoutWelcomeSheet";
 
 export function PlanUsageScreen() {
   const insets = useSafeAreaInsets();
@@ -32,50 +35,103 @@ export function PlanUsageScreen() {
   const palette = useThemeColors();
   const { counts } = useLibraryDocuments();
   const { billing, loading } = useBillingStatus();
+  const params = useLocalSearchParams<{ checkout?: string }>();
+
+  // ?checkout=<id|success> means the user just landed back from Polar
+  // (e.g. via a deep link). Pop the welcome sheet once. BYOK users get a
+  // CTA into the provider sheet from inside it.
+  const [welcomeOpen, setWelcomeOpen] = useState<boolean>(params.checkout != null);
+  const [providerSheetRequested, setProviderSheetRequested] = useState(false);
+
+  useEffect(() => {
+    if (params.checkout != null) {
+      router.setParams({ checkout: undefined });
+    }
+    // run once on mount based on initial query; subsequent changes won't re-pop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dismissWelcome = () => setWelcomeOpen(false);
+  const openProviderSheet = () => {
+    setWelcomeOpen(false);
+    setProviderSheetRequested(true);
+  };
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 },
-      ]}
-    >
-      <View style={styles.topBar}>
-        <Button
-          variant="secondary"
-          size="sm"
-          onPress={() => router.back()}
-          iconStart={<Icons.Back size={14} color={palette.fg} />}
-        >
-          Back
-        </Button>
-      </View>
-
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>PLAN & USAGE</Text>
-        <Text style={styles.title}>Your plan</Text>
-      </View>
-
-      {billing ? (
-        <PlanUsage billing={billing} documentsUsed={counts.all} />
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.bodyMuted}>
-            {loading ? "Loading billing..." : "Billing is not available right now."}
-          </Text>
+    <>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 },
+        ]}
+      >
+        <View style={styles.topBar}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => router.back()}
+            iconStart={<Icons.Back size={14} color={palette.fg} />}
+          >
+            Back
+          </Button>
         </View>
-      )}
-    </ScrollView>
+
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>PLAN & USAGE</Text>
+          <Text style={styles.title}>Your plan</Text>
+        </View>
+
+        {billing ? (
+          <PlanUsage
+            billing={billing}
+            documentsUsed={counts.all}
+            providerSheetRequested={providerSheetRequested}
+            onProviderSheetHandled={() => setProviderSheetRequested(false)}
+          />
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.bodyMuted}>
+              {loading ? "Loading billing..." : "Billing is not available right now."}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      <CheckoutWelcomeSheet
+        billing={billing}
+        visible={welcomeOpen && billing != null}
+        onClose={dismissWelcome}
+        onConnectProvider={openProviderSheet}
+      />
+    </>
   );
 }
 
-function PlanUsage({ billing, documentsUsed }: { billing: BillingStatus; documentsUsed: number }) {
+function PlanUsage({
+  billing,
+  documentsUsed,
+  providerSheetRequested,
+  onProviderSheetHandled,
+}: {
+  billing: BillingStatus;
+  documentsUsed: number;
+  providerSheetRequested: boolean;
+  onProviderSheetHandled: () => void;
+}) {
   const router = useRouter();
   const styles = useThemedStyles(buildStyles);
   const palette = useThemeColors();
   const plan = getPlanDetails(billing.plan);
   const paid = billing.plan !== BillingPlan.Free;
+  const isByok = billing.plan === BillingPlan.Byok;
+
+  // Mark the request consumed once we've passed it down — otherwise the
+  // ProviderRow's `initiallyOpen` prop would re-open the sheet every render.
+  useEffect(() => {
+    if (providerSheetRequested) onProviderSheetHandled();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerSheetRequested]);
 
   return (
     <View style={styles.stack}>
@@ -140,6 +196,8 @@ function PlanUsage({ billing, documentsUsed }: { billing: BillingStatus; documen
           </Pressable>
         </View>
       </View>
+
+      {isByok && <ProviderRow billing={billing} initiallyOpen={providerSheetRequested} />}
 
       <View>
         <View style={styles.sectionHeader}>

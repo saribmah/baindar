@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ReactNode } from "react";
 import { BillingPlan, type BillingStatus } from "@baindar/sdk";
@@ -16,6 +17,8 @@ import {
   formatTokens,
   isUnlimited,
 } from "../utils/format";
+import { CheckoutWelcomeDialog } from "../components/CheckoutWelcomeDialog";
+import { ProviderRow } from "../components/ProviderRow";
 import { UsageBar } from "../components/UsageBar";
 
 export function PlanUsagePage() {
@@ -23,7 +26,31 @@ export function PlanUsagePage() {
   const { documents, counts, uploading, uploadDocument } = useLibraryDocuments();
   const { shelves } = useLibraryShelves(documents);
   const { billing, loading } = useBillingStatus();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ?checkout=<id|success> means the user just landed back from Polar.
+  // We pop the welcome dialog once and strip the param so a refresh
+  // doesn't re-pop. The dialog stays open until the user dismisses;
+  // BYOK users get a CTA into the provider sheet from inside it.
+  const checkoutSignal = searchParams.get("checkout");
+  const [welcomeOpen, setWelcomeOpen] = useState<boolean>(checkoutSignal !== null);
+  const [providerSheetRequested, setProviderSheetRequested] = useState(false);
+
+  useEffect(() => {
+    if (checkoutSignal !== null) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("checkout");
+      setSearchParams(next, { replace: true });
+    }
+    // run once on mount based on initial query; subsequent changes won't re-pop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dismissWelcome = () => setWelcomeOpen(false);
+  const openProviderSheet = () => {
+    setWelcomeOpen(false);
+    setProviderSheetRequested(true);
+  };
 
   return (
     <main className="flex h-dvh min-h-screen overflow-hidden bg-bd-bg text-bd-fg">
@@ -43,18 +70,13 @@ export function PlanUsagePage() {
             </h1>
           </div>
 
-          {searchParams.get("checkout") === "success" && (
-            <div className="rounded-lg border border-bd-border bg-bd-surface-raised px-4 py-3 text-bd-fg">
-              <div className="t-label-l">Plan update received</div>
-              <div className="t-body-s mt-0.5 text-bd-fg-muted">
-                Polar is syncing your subscription. This page refreshes billing status in the
-                background.
-              </div>
-            </div>
-          )}
-
           {billing ? (
-            <PlanUsage billing={billing} documentsUsed={counts.all} />
+            <PlanUsage
+              billing={billing}
+              documentsUsed={counts.all}
+              providerSheetRequested={providerSheetRequested}
+              onProviderSheetHandled={() => setProviderSheetRequested(false)}
+            />
           ) : (
             <div className="rounded-xl border border-bd-border bg-bd-surface p-8">
               <div className="t-body-m text-bd-fg-muted">
@@ -64,13 +86,39 @@ export function PlanUsagePage() {
           )}
         </div>
       </section>
+
+      {welcomeOpen && billing && (
+        <CheckoutWelcomeDialog
+          billing={billing}
+          onClose={dismissWelcome}
+          onConnectProvider={openProviderSheet}
+        />
+      )}
     </main>
   );
 }
 
-function PlanUsage({ billing, documentsUsed }: { billing: BillingStatus; documentsUsed: number }) {
+function PlanUsage({
+  billing,
+  documentsUsed,
+  providerSheetRequested,
+  onProviderSheetHandled,
+}: {
+  billing: BillingStatus;
+  documentsUsed: number;
+  providerSheetRequested: boolean;
+  onProviderSheetHandled: () => void;
+}) {
   const plan = getPlanDetails(billing.plan);
   const paid = billing.plan !== BillingPlan.Free;
+  const isByok = billing.plan === BillingPlan.Byok;
+
+  // Mark the request consumed once we've passed it down — otherwise the
+  // ProviderRow's `initiallyOpen` prop would re-open the sheet every render.
+  useEffect(() => {
+    if (providerSheetRequested) onProviderSheetHandled();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerSheetRequested]);
 
   return (
     <>
@@ -123,6 +171,8 @@ function PlanUsage({ billing, documentsUsed }: { billing: BillingStatus; documen
           <PlanMeta label="Counters" value={formatPeriodReset(billing.periodResetAt)} />
         </div>
       </section>
+
+      {isByok && <ProviderRow billing={billing} initiallyOpen={providerSheetRequested} />}
 
       <section>
         <div className="mb-3 flex items-baseline justify-between gap-4">

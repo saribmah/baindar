@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Config } from "../config/config";
+import { Provider } from "../provider/provider";
 import { NamedError } from "../utils/error";
 import { BillingStore } from "./billing-store";
 
@@ -106,6 +107,9 @@ export namespace Billing {
       // configured AND the user has a subscription record at Polar.
       upgradeOptions: z.array(UpgradeOption),
       portalUrl: z.string().nullable(),
+      // True when the user has configured a BYOK provider. Drives the
+      // "AI Provider" row visibility / state on the billing page.
+      providerConfigured: z.boolean(),
     })
     .meta({ ref: "BillingStatus" });
   export type StatusResponse = z.infer<typeof StatusResponse>;
@@ -152,9 +156,10 @@ export namespace Billing {
   };
 
   export const getStatus = async (userId: string): Promise<StatusResponse> => {
-    const [subscription, period] = await Promise.all([
+    const [subscription, period, providerConfigured] = await Promise.all([
       getSubscription(userId),
       getCurrentPeriod(userId),
+      Provider.hasConfigured(userId).catch(() => false),
     ]);
     const quota = getQuotaForPlan(subscription.plan);
     const urls = buildUpgradeUrls(subscription.plan, subscription.providerSubscriptionId);
@@ -167,6 +172,7 @@ export namespace Billing {
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       upgradeOptions: urls.upgradeOptions,
       portalUrl: urls.portalUrl,
+      providerConfigured,
     };
   };
 

@@ -91,6 +91,13 @@ import {
   type ProgressPosition,
   type ProgressUpsertErrors,
   type ProgressUpsertResponses,
+  type ProviderMeErrors,
+  type ProviderMeResponses,
+  type ProviderRemoveErrors,
+  type ProviderRemoveResponses,
+  type ProviderSetErrors,
+  type ProviderSetInput,
+  type ProviderSetResponses,
   type ShelfAddDocumentErrors,
   type ShelfAddDocumentResponses,
   type ShelfCreateErrors,
@@ -1466,6 +1473,65 @@ export class Profile extends HeyApiClient {
   }
 }
 
+export class Provider extends HeyApiClient {
+  /**
+   * Remove the caller's AI provider settings
+   *
+   * Deletes the user's stored provider configuration. Subsequent chat turns fall back to the platform key (subject to the user's plan quota) — but BYOK-plan users will be required to re-add a key before chatting (see 428 from the chat route).
+   */
+  public remove<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).delete<
+      ProviderRemoveResponses,
+      ProviderRemoveErrors,
+      ThrowOnError
+    >({ url: "/provider/me", ...options });
+  }
+
+  /**
+   * Get the caller's AI provider settings
+   *
+   * Returns `{ configured: false, settings: null }` when the user has no provider on file, or `{ configured: true, settings }` with the spec, base URL, model, and the last 4 characters of the API key. The key itself is never returned.
+   */
+  public me<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<
+      ProviderMeResponses,
+      ProviderMeErrors,
+      ThrowOnError
+    >({ url: "/provider/me", ...options });
+  }
+
+  /**
+   * Set the caller's AI provider settings
+   *
+   * Validates the supplied API key by issuing a 1-token completion against the provider, then encrypts and stores it. Subsequent chat turns will use this key + base URL + model instead of the platform key. Returns the sanitized entity (no decrypted key).
+   */
+  public set<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerSetInput: ProviderSetInput;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ key: "providerSetInput", map: "body" }] }],
+    );
+    return (options?.client ?? this.client).put<
+      ProviderSetResponses,
+      ProviderSetErrors,
+      ThrowOnError
+    >({
+      url: "/provider/me",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+}
+
 export class Health extends HeyApiClient {
   /**
    * Health check
@@ -1597,6 +1663,11 @@ export class ApiClient extends HeyApiClient {
   private _profile?: Profile;
   get profile(): Profile {
     return (this._profile ??= new Profile({ client: this.client }));
+  }
+
+  private _provider?: Provider;
+  get provider(): Provider {
+    return (this._provider ??= new Provider({ client: this.client }));
   }
 
   private _health?: Health;

@@ -112,6 +112,7 @@ export type BillingStatus = {
   cancelAtPeriodEnd: boolean;
   upgradeOptions: Array<BillingUpgradeOption>;
   portalUrl: string | null;
+  providerConfigured: boolean;
 };
 
 export type Conversation = {
@@ -323,6 +324,34 @@ export type Profile = {
   notifyWeeklyDigest: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export enum ProviderSpec {
+  Anthropic = "anthropic",
+  Openai = "openai",
+}
+
+export type ProviderSettings = {
+  spec: ProviderSpec;
+  baseUrl: string;
+  model: string;
+  keyLastFour: string;
+  lastValidatedAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProviderStatus = {
+  configured: boolean;
+  settings: ProviderSettings | null;
+};
+
+export type ProviderSetInput = {
+  spec: ProviderSpec;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
 };
 
 export type TestModeStatusResponse = {
@@ -1817,6 +1846,91 @@ export type ProfileUpdateResponses = {
 };
 
 export type ProfileUpdateResponse = ProfileUpdateResponses[keyof ProfileUpdateResponses];
+
+export type ProviderRemoveData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/provider/me";
+};
+
+export type ProviderRemoveErrors = {
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * BYOK plan required
+   */
+  403: unknown;
+};
+
+export type ProviderRemoveResponses = {
+  /**
+   * Removed
+   */
+  204: void;
+};
+
+export type ProviderRemoveResponse = ProviderRemoveResponses[keyof ProviderRemoveResponses];
+
+export type ProviderMeData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/provider/me";
+};
+
+export type ProviderMeErrors = {
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * BYOK plan required
+   */
+  403: unknown;
+};
+
+export type ProviderMeResponses = {
+  /**
+   * Provider status
+   */
+  200: ProviderStatus;
+};
+
+export type ProviderMeResponse = ProviderMeResponses[keyof ProviderMeResponses];
+
+export type ProviderSetData = {
+  body: ProviderSetInput;
+  path?: never;
+  query?: never;
+  url: "/provider/me";
+};
+
+export type ProviderSetErrors = {
+  /**
+   * Invalid input or provider rejected the key
+   */
+  400: unknown;
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * BYOK plan required
+   */
+  403: unknown;
+};
+
+export type ProviderSetResponses = {
+  /**
+   * Saved
+   */
+  200: ProviderSettings;
+};
+
+export type ProviderSetResponse = ProviderSetResponses[keyof ProviderSetResponses];
 
 export type GetTestStatusData = {
   body?: never;

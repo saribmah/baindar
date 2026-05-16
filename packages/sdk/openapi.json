@@ -424,6 +424,9 @@
                 "type": "null"
               }
             ]
+          },
+          "providerConfigured": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -434,7 +437,8 @@
           "periodResetAt",
           "cancelAtPeriodEnd",
           "upgradeOptions",
-          "portalUrl"
+          "portalUrl",
+          "providerConfigured"
         ]
       },
       "Conversation": {
@@ -1345,6 +1349,114 @@
           "notifyWeeklyDigest",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "ProviderSpec": {
+        "type": "string",
+        "enum": [
+          "anthropic",
+          "openai"
+        ]
+      },
+      "ProviderSettings": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "$ref": "#/components/schemas/ProviderSpec"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "keyLastFour": {
+            "type": "string"
+          },
+          "lastValidatedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "spec",
+          "baseUrl",
+          "model",
+          "keyLastFour",
+          "lastValidatedAt",
+          "lastUsedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ProviderStatus": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configured",
+          "settings"
+        ]
+      },
+      "ProviderSetInput": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "$ref": "#/components/schemas/ProviderSpec"
+          },
+          "baseUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "apiKey": {
+            "type": "string",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "spec",
+          "baseUrl",
+          "model",
+          "apiKey"
         ]
       },
       "TestModeStatusResponse": {
@@ -3383,6 +3495,83 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/provider/me": {
+      "get": {
+        "operationId": "provider.me",
+        "summary": "Get the caller's AI provider settings",
+        "description": "Returns `{ configured: false, settings: null }` when the user has no provider on file, or `{ configured: true, settings }` with the spec, base URL, model, and the last 4 characters of the API key. The key itself is never returned.",
+        "responses": {
+          "200": {
+            "description": "Provider status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "BYOK plan required"
+          }
+        }
+      },
+      "put": {
+        "operationId": "provider.set",
+        "summary": "Set the caller's AI provider settings",
+        "description": "Validates the supplied API key by issuing a 1-token completion against the provider, then encrypts and stores it. Subsequent chat turns will use this key + base URL + model instead of the platform key. Returns the sanitized entity (no decrypted key).",
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or provider rejected the key"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "BYOK plan required"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderSetInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "provider.remove",
+        "summary": "Remove the caller's AI provider settings",
+        "description": "Deletes the user's stored provider configuration. Subsequent chat turns fall back to the platform key (subject to the user's plan quota) — but BYOK-plan users will be required to re-add a key before chatting (see 428 from the chat route).",
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "BYOK plan required"
           }
         }
       }

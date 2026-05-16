@@ -4,7 +4,10 @@ import type { AppEnv } from "../../app/context";
 import { Billing } from "../../billing/billing";
 import { BillingStore } from "../../billing/billing-store";
 import { createTestRuntime } from "../../document/__tests__/test-db";
+import { ProviderStore } from "../../provider/provider-store";
 import { requireChatQuota, requireSummarizeQuota } from "../quota";
+
+const TEST_ENCRYPTION_KEY = "Q1mZ8oP9o3xKLLwM/jw3qb0H6L2nF6Pp/dXR5N6m9KE=";
 
 // Quota middleware is wired into the chat + summarize routes ahead of the
 // model call. These tests exercise it against a minimal Hono app so the
@@ -21,7 +24,9 @@ const buildApp = (kind: "chat" | "summary") => {
 describe("quota middleware", () => {
   let runtime: ReturnType<typeof createTestRuntime>;
   beforeEach(() => {
-    runtime = createTestRuntime([{ id: "user-a", name: "Alice", email: "alice@example.com" }]);
+    runtime = createTestRuntime([{ id: "user-a", name: "Alice", email: "alice@example.com" }], {
+      PROVIDER_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
+    });
   });
   afterEach(() => {
     runtime.close();
@@ -64,7 +69,7 @@ describe("quota middleware", () => {
       });
     });
 
-    it("allows BYOK users through regardless of usage counters", async () => {
+    it("returns 428 when BYOK plan has no provider configured (prevents free use of platform key)", async () => {
       const app = buildApp("chat");
       await runtime.runAs("user-a", async () => {
         await BillingStore.upsertSubscriptionFromPolar({
@@ -77,7 +82,37 @@ describe("quota middleware", () => {
           currentPeriodEnd: new Date("2026-06-01T00:00:00Z"),
           cancelAtPeriodEnd: false,
         });
-        // Even with usage on the books, BYOK bypasses (limit=-1).
+        const res = await app.request("/gated");
+        expect(res.status).toBe(428);
+        const body = (await res.json()) as { name: string; data: { plan: string } };
+        expect(body.name).toBe("ProviderNotConfiguredError");
+        expect(body.data.plan).toBe("byok");
+      });
+    });
+
+    it("allows BYOK users with a configured provider through, ignoring usage counters", async () => {
+      const app = buildApp("chat");
+      await runtime.runAs("user-a", async () => {
+        await BillingStore.upsertSubscriptionFromPolar({
+          userId: "user-a",
+          plan: "byok",
+          status: "active",
+          providerCustomerId: "cus_byok",
+          providerSubscriptionId: "sub_byok",
+          currentPeriodStart: new Date("2026-05-01T00:00:00Z"),
+          currentPeriodEnd: new Date("2026-06-01T00:00:00Z"),
+          cancelAtPeriodEnd: false,
+        });
+        await ProviderStore.upsertSettings({
+          userId: "user-a",
+          spec: "anthropic",
+          baseUrl: "https://api.anthropic.com/v1",
+          model: "claude-sonnet-4-5",
+          encryptedApiKey: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 99]),
+          keyLastFour: "abcd",
+          lastValidatedAt: new Date(),
+        });
+        // Burn fake usage — should still pass through because BYOK + configured.
         for (let i = 0; i < 50; i++) {
           await Billing.recordUsage({
             userId: "user-a",

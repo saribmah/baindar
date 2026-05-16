@@ -10,6 +10,7 @@ import documentRouter from "./routes/document";
 import highlightRouter from "./routes/highlight";
 import noteRouter from "./routes/note";
 import profileRouter from "./routes/profile";
+import providerRouter from "./routes/provider";
 import shelfRouter from "./routes/shelf";
 import testModeRouter from "./routes/test-mode";
 import userRouter from "./routes/user";
@@ -30,6 +31,7 @@ server.route("/notes", noteRouter);
 server.route("/shelves", shelfRouter);
 server.route("/user", userRouter);
 server.route("/profile", profileRouter);
+server.route("/provider", providerRouter);
 // Test-mode endpoints are always mounted but each handler 404s unless
 // `TEST_MODE=true` is set on the env (only the local `dev:test` script does).
 server.route("/__test__", testModeRouter);

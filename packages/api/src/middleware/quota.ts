@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "../app/context";
 import { Billing } from "../billing/billing";
 import { Instance } from "../instance";
+import { Provider } from "../provider/provider";
 
 // Quota enforcement middleware. Runs after requireAuth so Instance.userId is
 // always populated.
@@ -26,8 +27,24 @@ const checkQuota = (
     const userId = Instance.userId;
     const status = await Billing.getStatus(userId);
     const limit = pickLimit(status);
-    // limit < 0 means unlimited (BYOK); always allow.
+    // limit < 0 means unlimited (BYOK plan). But BYOK only earns the
+    // unlimited grant when the user has actually configured a provider —
+    // otherwise we'd be giving away the platform Anthropic key for free.
     if (limit < 0) {
+      const hasProvider = await Provider.hasConfigured(userId);
+      if (!hasProvider) {
+        return c.json(
+          {
+            name: "ProviderNotConfiguredError",
+            data: {
+              kind,
+              plan: status.plan,
+              message: "BYOK plan requires an AI provider key. Add one in Settings → AI Provider.",
+            },
+          },
+          428,
+        );
+      }
       await next();
       return;
     }

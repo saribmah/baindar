@@ -162,6 +162,30 @@ export namespace Config {
     return out;
   };
 
+  // ---- Provider (BYOK key encryption) ----------------------------------
+
+  export const ProviderEncryptionKeyNotConfiguredError = NamedError.create(
+    "ProviderEncryptionKeyNotConfiguredError",
+    z.object({ message: z.string().optional() }),
+  );
+  export type ProviderEncryptionKeyNotConfiguredError = InstanceType<
+    typeof ProviderEncryptionKeyNotConfiguredError
+  >;
+
+  // Master key used to encrypt user-supplied API keys at rest. 32 bytes of
+  // entropy, base64-encoded. Generate with `openssl rand -base64 32`.
+  // Rotation requires a re-encrypt pass; until then, treat as forever-stable.
+  export const getProviderEncryptionKey = (): string | null => {
+    const value = Instance.env.PROVIDER_ENCRYPTION_KEY as string | undefined;
+    return typeof value === "string" && value.length > 0 ? value : null;
+  };
+
+  export const requireProviderEncryptionKey = (): string => {
+    const key = getProviderEncryptionKey();
+    if (!key) throw new ProviderEncryptionKeyNotConfiguredError({});
+    return key;
+  };
+
   // Local-only flag that gates the `/__test__/*` endpoints used by the
   // `@baindar/testing` package. Both env types declare `TEST_MODE: "false"`
   // statically (so `Config.isTestMode` type-checks); the `dev:test` script

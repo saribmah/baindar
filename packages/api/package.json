@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.75",
+    "@ai-sdk/openai": "^3.0.64",
     "@better-auth/expo": "^1.6.9",
     "@cloudflare/ai-chat": "^0.6.2",
     "@hono/standard-validator": "^0.2.2",
