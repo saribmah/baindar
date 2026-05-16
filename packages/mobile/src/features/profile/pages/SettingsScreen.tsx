@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipButton, Icons, Wordmark, useThemeColors, useThemedStyles } from "@baindar/ui";
 import { ProfileHighlightColor, ProfileTheme } from "@baindar/sdk";
-import { BillingGroup, UsageMeter, useBillingStatus } from "../../billing";
+import { BillingGroup, useBillingStatus } from "../../billing";
 import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
 import { buildLibraryStyles } from "../../library/library.styles";
 import { signOutProfile } from "../actions";
@@ -68,8 +68,6 @@ export function SettingsScreen() {
             <Text style={styles.settingSub}>{email || "Reader profile"}</Text>
           </View>
         </View>
-
-        {billing && <UsageMeter billing={billing} />}
 
         <Group label="Reading">
           <Row label="Theme" sub="Light · Sepia · Night">
@@ -141,6 +139,8 @@ export function SettingsScreen() {
           </Row>
         </Group>
 
+        {billing && <BillingGroup billing={billing} />}
+
         <Group label="Notifications">
           <Row label="Daily reading nudge">
             <Toggle
@@ -167,8 +167,6 @@ export function SettingsScreen() {
             <Icons.Chevron size={14} color={palette.fgMuted} />
           </Row>
         </Group>
-
-        {billing && <BillingGroup billing={billing} />}
       </ScrollView>
     </View>
   );

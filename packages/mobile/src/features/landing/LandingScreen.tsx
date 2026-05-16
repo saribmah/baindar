@@ -20,6 +20,7 @@ export function LandingScreen() {
   const palette = useThemeColors();
   const goToSignIn = () => router.push("/signin");
   const goToSignUp = () => router.push("/signup");
+  const goToPlans = () => router.push("/plans");
 
   return (
     <ScrollView
@@ -75,6 +76,9 @@ export function LandingScreen() {
         </Button>
         <Button variant="ghost" size="sm" fullWidth onPress={goToSignIn}>
           I already have an account
+        </Button>
+        <Button variant="ghost" size="sm" fullWidth onPress={goToPlans}>
+          See plans
         </Button>
       </View>
     </ScrollView>

@@ -17,6 +17,7 @@ import {
   type ChatReference,
   type ChatToolCall,
 } from "@baindar/ui";
+import { BillingLimitDialog, useBillingStatus } from "../../billing";
 import { chatToolFromPart } from "../chatTools";
 import {
   messageReferences,
@@ -57,6 +58,8 @@ export function ConversationChatPane({
 }: Props) {
   const navigate = useNavigate();
   const [draft, setDraft] = useState("");
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const { billing } = useBillingStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const lastDraftSeedKeyRef = useRef<string | null>(null);
@@ -116,6 +119,10 @@ export function ConversationChatPane({
 
   const handleSubmit = (value: string) => {
     if (isStreaming) return;
+    if (isChatLimitReached(billing)) {
+      setLimitDialogOpen(true);
+      return;
+    }
     const refs: MessageReference[] = [];
     const seen = new Set<string>();
     if (contextReference) {
@@ -228,9 +235,20 @@ export function ConversationChatPane({
           />
         </div>
       </div>
+      <BillingLimitDialog
+        billing={billing}
+        kind="chat"
+        open={limitDialogOpen}
+        onClose={() => setLimitDialogOpen(false)}
+      />
     </section>
   );
 }
+
+const isChatLimitReached = (billing: ReturnType<typeof useBillingStatus>["billing"]): boolean => {
+  if (!billing || billing.quota.chatTurnsLimit < 0) return false;
+  return billing.currentPeriod.chatTurns >= billing.quota.chatTurnsLimit;
+};
 
 function EmptyConversation() {
   return (

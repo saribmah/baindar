@@ -23,3 +23,10 @@ export const formatDayLabel = () =>
     .format(new Date())
     .replace(",", " ·")
     .toUpperCase();
+
+export const formatGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};

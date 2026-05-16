@@ -11,8 +11,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const palette = useThemeColors();
   const inSignIn = segments[0] === "signin";
   const inSignUp = segments[0] === "signup";
+  const inPlans = segments[0] === "plans";
   const inLanding = pathname === "/";
-  const inPublicRoute = inLanding || inSignIn || inSignUp;
+  const inPublicRoute = inLanding || inPlans || inSignIn || inSignUp;
   const isAuthed = !!session.data?.user;
 
   // Track whether we've ever resolved a session. Better Auth flips

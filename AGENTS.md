@@ -349,6 +349,24 @@ Order:
 Side-effect imports grouped at the top. Prefer `import type` for type-only
 imports. Remove unused imports.
 
+## Version control
+
+- **NEVER commit or push directly to `main`.** All changes go on a feature
+  branch + PR, including one-line fixes, doc tweaks, and "obviously safe"
+  patches. There are no exceptions for urgency, small diffs, or being
+  locally green — main is the deployed branch and bypassing review can
+  ship a broken build to production users.
+- Before any `git commit` or `git push`, verify the current branch with
+  `git branch --show-current`. If it's `main`, stop and create a feature
+  branch first (`git switch -c sarib/<short-slug>`).
+- Treat a prior PR approval as scoped to that PR only. A merged PR does
+  not authorize follow-up commits on main, even for the same logical fix.
+- Never use `git push --force` or `git push --force-with-lease` against
+  `main` under any circumstance.
+- When in doubt, open a PR. The cost of a 30-second review round-trip is
+  trivial; the cost of an unreviewed push to main is potentially a
+  production outage.
+
 ## Secrets
 
 - Local development secrets live in `.env` in the service directory.

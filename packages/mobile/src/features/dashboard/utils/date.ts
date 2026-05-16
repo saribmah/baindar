@@ -46,3 +46,10 @@ export const formatDayLabel = () => {
   const date = new Date();
   return `${WEEKDAYS[date.getDay()]} · ${MONTHS[date.getMonth()]} ${date.getDate()}`.toUpperCase();
 };
+
+export const formatGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};

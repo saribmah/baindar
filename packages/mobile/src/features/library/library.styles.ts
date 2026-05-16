@@ -18,6 +18,11 @@ export const buildLibraryStyles = (palette: ThemeColors) =>
       alignItems: "center",
       justifyContent: "space-between",
     },
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
     actions: {
       flexDirection: "row",
       gap: 8,

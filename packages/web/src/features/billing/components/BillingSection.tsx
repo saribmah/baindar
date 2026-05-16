@@ -1,135 +1,36 @@
-import type { ReactNode } from "react";
-import type { BillingStatus, BillingUpgradeOption } from "@baindar/sdk";
-import { Button, Chip, Progress } from "@baindar/ui";
-import {
-  formatCostUsd,
-  formatPeriodReset,
-  formatPlanLabel,
-  formatQuotaCeiling,
-  formatTokens,
-  isUnlimited,
-} from "../utils/format";
+import { Link } from "react-router-dom";
+import type { BillingStatus } from "@baindar/sdk";
+import { Icons } from "@baindar/ui";
+import { formatPeriodReset, formatPlanLabel, isUnlimited } from "../utils/format";
 
-// Full Billing section for the SettingsPage. Mirrors the local Section/Row
-// shape used elsewhere in SettingsPage — keep these helpers private so the
-// section file stays self-contained and SettingsPage can swap in this
-// component without exposing layout primitives.
 export function BillingSection({ billing }: { billing: BillingStatus }) {
-  const chatUsed = billing.currentPeriod.chatTurns;
-  const summariesUsed = billing.currentPeriod.summaries;
-  const chatLimit = billing.quota.chatTurnsLimit;
-  const summariesLimit = billing.quota.summariesLimit;
-
-  return (
-    <Section label="Billing">
-      <Row label="Plan" sub={`${formatPlanLabel(billing.plan)} · ${billing.status}`}>
-        <Chip variant="outline">{formatPlanLabel(billing.plan)}</Chip>
-      </Row>
-      <UsageRow
-        label="Chat turns"
-        used={chatUsed}
-        limit={chatLimit}
-        reset={billing.periodResetAt}
-      />
-      <UsageRow
-        label="Summaries"
-        used={summariesUsed}
-        limit={summariesLimit}
-        reset={billing.periodResetAt}
-      />
-      <Row
-        label="Tokens this period"
-        sub={`${formatTokens(billing.currentPeriod.inputTokens)} in · ${formatTokens(billing.currentPeriod.outputTokens)} out`}
-      >
-        <Chip variant="outline">{formatCostUsd(billing.currentPeriod.costUsdMicros)}</Chip>
-      </Row>
-      <BillingActions billing={billing} />
-    </Section>
+  const chatRemaining = remainingLabel(
+    billing.currentPeriod.chatTurns,
+    billing.quota.chatTurnsLimit,
   );
-}
 
-function BillingActions({ billing }: { billing: BillingStatus }) {
-  const upgradeOptions = billing.upgradeOptions ?? [];
-  const portalUrl = billing.portalUrl;
-  if (upgradeOptions.length === 0 && !portalUrl) return null;
-  return (
-    <Row label={portalUrl ? "Manage plan" : "Upgrade"} sub={ctaSubtitle(billing)}>
-      <div className="flex flex-wrap items-center gap-2">
-        {upgradeOptions.map((opt: BillingUpgradeOption) => (
-          <a key={opt.plan} href={opt.checkoutUrl} target="_blank" rel="noreferrer">
-            <Button variant="primary" size="sm">
-              Upgrade to {formatPlanLabel(opt.plan)}
-            </Button>
-          </a>
-        ))}
-        {portalUrl && (
-          <a href={portalUrl} target="_blank" rel="noreferrer">
-            <Button variant="secondary" size="sm">
-              Manage plan
-            </Button>
-          </a>
-        )}
-      </div>
-    </Row>
-  );
-}
-
-const ctaSubtitle = (billing: BillingStatus): string => {
-  if (billing.portalUrl)
-    return "Change plan, update payment, or cancel in Polar's customer portal.";
-  if ((billing.upgradeOptions ?? []).length > 0)
-    return "Pick a plan to unlock more chat turns and summaries.";
-  return "";
-};
-
-function UsageRow({
-  label,
-  used,
-  limit,
-  reset,
-}: {
-  label: string;
-  used: number;
-  limit: number;
-  reset: string;
-}) {
-  if (isUnlimited(limit)) {
-    return (
-      <Row label={label} sub={`${used.toLocaleString()} this period · unlimited`}>
-        <Chip variant="outline">∞</Chip>
-      </Row>
-    );
-  }
-  const remaining = Math.max(0, limit - used);
-  return (
-    <Row
-      label={label}
-      sub={`${used.toLocaleString()} of ${formatQuotaCeiling(limit)} · ${remaining.toLocaleString()} left · ${formatPeriodReset(reset)}`}
-    >
-      <div className="w-32">
-        <Progress value={used} max={limit} size="thin" tone={used >= limit ? "wine" : "ink"} />
-      </div>
-    </Row>
-  );
-}
-
-function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="grid gap-4 border-b border-bd-border py-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8">
-      <div className="t-label-s text-bd-fg-muted">{label}</div>
-      <div className="flex flex-col gap-4">{children}</div>
+      <div className="t-label-s text-bd-fg-muted">Plan & usage</div>
+      <Link
+        to="/settings/plan"
+        className="-m-3 flex items-center gap-4 rounded-xl border border-transparent p-3 text-bd-fg no-underline transition-colors hover:border-bd-border hover:bg-bd-surface-hover"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="t-label-l text-bd-fg">Your plan</div>
+          <div className="t-body-s mt-0.5 text-bd-fg-muted">
+            {chatRemaining} · {formatPeriodReset(billing.periodResetAt)}
+          </div>
+        </div>
+        <span className="bd-chip bd-chip-outline shrink-0">{formatPlanLabel(billing.plan)}</span>
+        <Icons.Chevron size={14} color="var(--bd-fg-muted)" />
+      </Link>
     </section>
   );
 }
 
-function Row({ label, sub, children }: { label: string; sub?: string; children?: ReactNode }) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="min-w-0 flex-1">
-        <div className="t-label-l text-bd-fg">{label}</div>
-        {sub && <div className="t-body-s mt-0.5 text-bd-fg-muted">{sub}</div>}
-      </div>
-      {children}
-    </div>
-  );
-}
+const remainingLabel = (used: number, limit: number): string => {
+  if (isUnlimited(limit)) return "Unlimited chats";
+  const remaining = Math.max(0, limit - used);
+  return `${remaining.toLocaleString()} chat${remaining === 1 ? "" : "s"} left`;
+};

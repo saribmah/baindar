@@ -18,6 +18,11 @@ export const buildDashboardStyles = (palette: ThemeColors) =>
       alignItems: "center",
       justifyContent: "space-between",
     },
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
     navActions: {
       flexDirection: "row",
       gap: 8,

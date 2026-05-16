@@ -17,6 +17,7 @@ import {
   type ChatToolKind,
   type ChatToolState,
 } from "@baindar/ui";
+import { BillingLimitDialog, useBillingStatus } from "../../billing";
 
 const agentsHost = import.meta.env.VITE_AGENTS_HOST || undefined;
 
@@ -28,6 +29,8 @@ type Props = {
 
 export function ConversationChatPane({ conversation, onClear, onClose }: Props) {
   const [draft, setDraft] = useState("");
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const { billing } = useBillingStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const agent = useAgent({
@@ -62,6 +65,10 @@ export function ConversationChatPane({ conversation, onClear, onClose }: Props) 
 
   const handleSubmit = (value: string) => {
     if (isStreaming) return;
+    if (isChatLimitReached(billing)) {
+      setLimitDialogOpen(true);
+      return;
+    }
     void sendMessage({ text: value });
     setDraft("");
     scrollToBottom("smooth", true);
@@ -139,9 +146,20 @@ export function ConversationChatPane({ conversation, onClear, onClose }: Props) 
           />
         </div>
       </div>
+      <BillingLimitDialog
+        billing={billing}
+        kind="chat"
+        open={limitDialogOpen}
+        onClose={() => setLimitDialogOpen(false)}
+      />
     </section>
   );
 }
+
+const isChatLimitReached = (billing: ReturnType<typeof useBillingStatus>["billing"]): boolean => {
+  if (!billing || billing.quota.chatTurnsLimit < 0) return false;
+  return billing.currentPeriod.chatTurns >= billing.quota.chatTurnsLimit;
+};
 
 function EmptyConversation() {
   return (

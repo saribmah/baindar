@@ -1,8 +1,9 @@
 import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Icons, Input, Wordmark, useThemeColors, useThemedStyles } from "@baindar/ui";
+import { PlanBadge } from "../../billing";
 import { buildDashboardStyles } from "../dashboard.styles";
-import { formatDayLabel } from "../utils/date";
+import { formatDayLabel, formatGreeting } from "../utils/date";
 
 export function DashboardHeader({
   reader,
@@ -23,7 +24,10 @@ export function DashboardHeader({
   return (
     <View>
       <View style={styles.nav}>
-        <Wordmark size="sm" />
+        <View style={styles.brandRow}>
+          <Wordmark size="sm" />
+          <PlanBadge />
+        </View>
         <View style={styles.navActions}>
           <Pressable accessibilityRole="button" onPress={onToggleSearch} style={styles.iconButton}>
             <Icons.Search size={16} color={palette.fg} />
@@ -54,7 +58,7 @@ export function DashboardHeader({
       <View style={styles.greeting}>
         <Text style={styles.eyebrow}>{formatDayLabel()}</Text>
         <Text style={styles.title}>
-          Good evening,{"\n"}
+          {formatGreeting()},{"\n"}
           {reader}.
         </Text>
       </View>

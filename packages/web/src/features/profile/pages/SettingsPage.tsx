@@ -139,6 +139,8 @@ export function SettingsPage() {
               </Row>
             </Section>
 
+            {billing && <BillingSection billing={billing} />}
+
             <Section label="Account">
               <Row label="Email" sub={email || "Not available"} />
               <Row label="Imports" sub={`${counts.all} documents in your binder`} />
@@ -148,8 +150,6 @@ export function SettingsPage() {
                 </Button>
               </Row>
             </Section>
-
-            {billing && <BillingSection billing={billing} />}
 
             <Section label="Notifications">
               <Row label="Daily reading nudge" sub="A quiet evening reminder">

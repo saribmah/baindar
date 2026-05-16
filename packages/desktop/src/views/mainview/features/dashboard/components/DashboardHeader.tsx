@@ -1,5 +1,5 @@
 import { Icons, Input } from "@baindar/ui";
-import { formatDayLabel } from "../utils/date";
+import { formatDayLabel, formatGreeting } from "../utils/date";
 
 export function DashboardHeader({
   reader,
@@ -17,7 +17,7 @@ export function DashboardHeader({
       <div>
         <div className="t-label-s text-bd-fg-muted">{formatDayLabel()}</div>
         <h1 className="mt-1 font-display text-[40px] font-normal leading-[1.05] tracking-normal text-bd-fg lg:text-[44px]">
-          Good evening, {reader}.
+          {formatGreeting()}, {reader}.
         </h1>
       </div>
       {showSearch ? (

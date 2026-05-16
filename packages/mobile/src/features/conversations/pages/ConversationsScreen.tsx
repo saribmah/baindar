@@ -10,6 +10,7 @@ import {
   useThemeColors,
 } from "@baindar/ui";
 import type { Conversation } from "@baindar/sdk";
+import { PlanBadge } from "../../billing";
 import { ConversationChatPane } from "../components/ConversationChatPane.tsx";
 import { useConversations } from "../hooks/useConversations.ts";
 
@@ -61,7 +62,10 @@ export function ConversationsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: palette.bg, paddingTop: insets.top + 12 }]}>
       <View style={styles.topbar}>
-        <Text style={[styles.wordmark, { color: palette.fg }]}>baindar</Text>
+        <View style={styles.brandRow}>
+          <Text style={[styles.wordmark, { color: palette.fg }]}>baindar</Text>
+          <PlanBadge />
+        </View>
         <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
@@ -303,6 +307,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 24,
     paddingBottom: 8,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   wordmark: {
     fontFamily: font.nativeFamily.display,

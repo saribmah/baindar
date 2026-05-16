@@ -17,6 +17,7 @@ import {
 } from "@baindar/ui";
 import type { Document, Highlight, Note } from "@baindar/sdk";
 import { useSdk } from "../../../sdk/sdk.provider";
+import { PlanBadge } from "../../billing";
 import { HIGHLIGHT_COLOR } from "../constants";
 import { useLibraryDocuments } from "../hooks/useLibraryDocuments";
 import { useLibraryHighlights } from "../hooks/useLibraryHighlights";
@@ -124,7 +125,10 @@ export function NotesScreen() {
         ]}
       >
         <View style={library.header}>
-          <Wordmark size="sm" />
+          <View style={library.brandRow}>
+            <Wordmark size="sm" />
+            <PlanBadge />
+          </View>
         </View>
 
         <View style={library.titleBlock}>

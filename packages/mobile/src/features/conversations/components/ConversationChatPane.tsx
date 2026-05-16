@@ -25,6 +25,7 @@ import {
 import type { Conversation } from "@baindar/sdk";
 import { AGENTS_HOST } from "../../../config.ts";
 import { useSdk } from "../../../sdk/sdk.provider.tsx";
+import { BillingLimitSheet, useBillingStatus } from "../../billing";
 import { chatToolFromPart } from "../chatTools.ts";
 import {
   composerReferenceTags,
@@ -69,6 +70,8 @@ export function ConversationChatPane({
   const router = useRouter();
   const { authHeaders } = useSdk();
   const [draft, setDraft] = useState("");
+  const [limitSheetOpen, setLimitSheetOpen] = useState(false);
+  const { billing } = useBillingStatus();
   const scrollRef = useRef<ScrollView>(null);
   const lastDraftSeedKeyRef = useRef<string | null>(null);
   const authedWebSocket = useMemo(() => createAuthedWebSocket(authHeaders), [authHeaders]);
@@ -132,6 +135,10 @@ export function ConversationChatPane({
 
   const handleSubmit = (value: string) => {
     if (isStreaming) return;
+    if (isChatLimitReached(billing)) {
+      setLimitSheetOpen(true);
+      return;
+    }
     const refs: MessageReference[] = [];
     const seen = new Set<string>();
     if (contextReference) {
@@ -250,9 +257,20 @@ export function ConversationChatPane({
           onSuggestionPress={setDraft}
         />
       </View>
+      <BillingLimitSheet
+        billing={billing}
+        kind="chat"
+        visible={limitSheetOpen}
+        onClose={() => setLimitSheetOpen(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
+
+const isChatLimitReached = (billing: ReturnType<typeof useBillingStatus>["billing"]): boolean => {
+  if (!billing || billing.quota.chatTurnsLimit < 0) return false;
+  return billing.currentPeriod.chatTurns >= billing.quota.chatTurnsLimit;
+};
 
 function EmptyConversation() {
   const palette = useThemeColors();

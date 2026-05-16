@@ -14,6 +14,7 @@ import {
   useThemedStyles,
 } from "@baindar/ui";
 import type { Document } from "@baindar/sdk";
+import { PlanBadge } from "../../billing";
 import { FILTER_LABEL, type LibraryFilter } from "../constants";
 import { LibraryCover } from "../components/LibraryCover";
 import { ShelfCard } from "../components/ShelfArtwork";
@@ -100,7 +101,10 @@ export function LibraryScreen() {
         ListHeaderComponent={
           <>
             <View style={styles.header}>
-              <Wordmark size="sm" />
+              <View style={styles.brandRow}>
+                <Wordmark size="sm" />
+                <PlanBadge />
+              </View>
               <View style={styles.actions}>
                 <Pressable
                   accessibilityRole="button"

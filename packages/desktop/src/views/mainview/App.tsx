@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@baindar/ui";
 import { RequireAuth, SignIn, SignUp } from "./features/auth";
-import { BillingProvider } from "./features/billing";
+import { BillingProvider, PlansPage, PlanUsagePage } from "./features/billing";
 import { ConversationsPage } from "./features/conversations";
 import { Dashboard } from "./features/dashboard";
 import { Landing } from "./features/landing";
@@ -28,6 +28,7 @@ export function App() {
       <div aria-hidden className="app-drag-region electrobun-webkit-app-region-drag" />
       <Routes>
         <Route index element={<Landing />} />
+        <Route path="/plans" element={<PlansPage />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
         <Route element={<RequireAuth />}>
@@ -40,6 +41,7 @@ export function App() {
             <Route path="/highlights" element={<Highlights />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/plan" element={<PlanUsagePage />} />
             <Route path="/read/:id" element={<Reader />} />
           </Route>
         </Route>

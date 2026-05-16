@@ -2,7 +2,12 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { Button, Icons, Wordmark } from "@baindar/ui";
 import { authClient } from "../auth";
 
-const navItems = ["Why Baindar", "For students", "For readers", "Pricing"];
+const navItems = [
+  { label: "Why Baindar", kind: "scroll" },
+  { label: "For students", kind: "scroll" },
+  { label: "For readers", kind: "scroll" },
+  { label: "Pricing", kind: "plans" },
+] as const;
 const formats = ["EPUB", "PDF", "Articles", "Web links"];
 
 const valueCards = [
@@ -57,12 +62,12 @@ export function Landing() {
         <nav aria-label="Landing" className="hidden items-center gap-7 lg:flex">
           {navItems.map((item) => (
             <button
-              key={item}
+              key={item.label}
               type="button"
-              onClick={scrollToWhy}
+              onClick={() => (item.kind === "plans" ? navigate("/plans") : scrollToWhy())}
               className="t-label-m border-0 bg-transparent p-0 text-bd-fg-subtle"
             >
-              {item}
+              {item.label}
             </button>
           ))}
         </nav>

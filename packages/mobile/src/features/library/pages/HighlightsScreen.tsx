@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipButton, Skeleton, Wordmark, useThemedStyles } from "@baindar/ui";
 import type { Highlight } from "@baindar/sdk";
+import { PlanBadge } from "../../billing";
 import { HIGHLIGHT_COLOR, HIGHLIGHT_LABEL } from "../constants";
 import { useLibraryDocuments } from "../hooks/useLibraryDocuments";
 import { useLibraryHighlights, type LibraryHighlight } from "../hooks/useLibraryHighlights";
@@ -60,7 +61,10 @@ export function HighlightsScreen() {
         ]}
       >
         <View style={styles.header}>
-          <Wordmark size="sm" />
+          <View style={styles.brandRow}>
+            <Wordmark size="sm" />
+            <PlanBadge />
+          </View>
         </View>
 
         <View style={styles.titleBlock}>
