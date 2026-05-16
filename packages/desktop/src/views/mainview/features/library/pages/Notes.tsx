@@ -164,7 +164,7 @@ export function Notes() {
                     location={`${noteDateLabel(note.createdAt)}`}
                     onEdit={() => setEditor(note)}
                     onOpen={() => navigate(readerNotePath(note))}
-                    onAsk={() => navigate(readerNotePath(note))}
+                    onAsk={() => navigate(readerNotePath(note, true))}
                   />
                 ))
               )}
@@ -202,13 +202,17 @@ export function Notes() {
   );
 }
 
-function readerNotePath(note: Note & { document: Document; highlight?: Highlight }): string {
+function readerNotePath(
+  note: Note & { document: Document; highlight?: Highlight },
+  ask = false,
+): string {
   const sectionKey = note.sectionKey ?? note.highlight?.sectionKey ?? null;
   const order = sectionKey ? sectionOrderFromKey(sectionKey) : null;
   const params = new URLSearchParams();
   if (order !== null) params.set("chapter", String(order));
   if (note.highlight) params.set("highlight", note.highlight.id);
   params.set("note", note.id);
+  if (ask) params.set("ask", "note");
   params.set("target", "1");
   return `/read/${note.document.id}?${params.toString()}`;
 }
