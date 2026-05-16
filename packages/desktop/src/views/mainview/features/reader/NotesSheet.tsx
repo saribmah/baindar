@@ -8,7 +8,8 @@ export type NotesSheetProps = {
   sections?: ReadonlyArray<DocumentSectionSummary>;
   currentOrder?: number;
   refreshToken: number;
-  onJumpToTarget?: (order: number, highlightId?: string | null) => void;
+  targetNoteId?: string | null;
+  onJumpToTarget?: (order: number, highlightId?: string | null, noteId?: string | null) => void;
   onClose: () => void;
 };
 
@@ -38,6 +39,7 @@ export function NotesSheet({
   sections,
   currentOrder,
   refreshToken,
+  targetNoteId,
   onJumpToTarget,
   onClose,
 }: NotesSheetProps) {
@@ -47,6 +49,7 @@ export function NotesSheet({
   const [highlightsById, setHighlightsById] = useState<Map<string, Highlight>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const targetNoteRef = useRef<HTMLButtonElement | null>(null);
 
   const sectionInfoByKey = useMemo(() => {
     const map = new Map<string, { order: number; title: string }>();
@@ -89,6 +92,10 @@ export function NotesSheet({
   useEffect(() => {
     sheetRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    targetNoteRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [items, targetNoteId]);
 
   const backdropBg = theme === "dark" ? "rgba(0, 0, 0, 0.6)" : "rgba(20, 15, 10, 0.35)";
 
@@ -159,16 +166,18 @@ export function NotesSheet({
               const info = sectionKey ? sectionInfoByKey.get(sectionKey) : undefined;
               const positionLabel = labelFor(info, n);
               const isCurrent = info?.order === currentOrder;
+              const isTarget = n.id === targetNoteId;
               const targetHighlightId = highlight?.id ?? null;
               return (
                 <li key={n.id} className="mb-2 last:mb-0">
                   <button
+                    ref={isTarget ? targetNoteRef : undefined}
                     type="button"
                     onClick={() => {
-                      if (info) onJumpToTarget?.(info.order, targetHighlightId);
+                      if (info) onJumpToTarget?.(info.order, targetHighlightId, n.id);
                     }}
                     className={`block w-full rounded-xl p-3 text-left transition-colors ${cardBg} ${
-                      isCurrent ? activeRing : ""
+                      isCurrent || isTarget ? activeRing : ""
                     }`}
                   >
                     <div className="flex items-center gap-2">

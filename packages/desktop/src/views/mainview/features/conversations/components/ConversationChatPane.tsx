@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Conversation } from "@baindar/sdk";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
@@ -13,32 +14,63 @@ import {
   Icons,
   useSmoothText,
   type ChatAction,
+  type ChatReference,
   type ChatToolCall,
-  type ChatToolKind,
-  type ChatToolState,
 } from "@baindar/ui";
 import { BillingLimitDialog, useBillingStatus } from "../../billing";
+import { chatToolFromPart } from "../chatTools";
+import {
+  messageReferences,
+  messageText,
+  referenceDataPart,
+  referenceDescription,
+  referenceKey,
+  referenceLabel,
+  referenceToReaderPath,
+  type BaindarChatMessage,
+  type MessageReference,
+} from "../messageReferences";
 
 const agentsHost = import.meta.env.VITE_AGENTS_HOST || undefined;
 
 type Props = {
   conversation: Conversation;
+  pendingReferences?: ReadonlyArray<MessageReference>;
+  contextReference?: MessageReference | null;
+  draftSeed?: string;
+  draftSeedKey?: string;
   onClear?: () => void;
   onClose?: () => void;
+  onNewConversation?: () => void;
+  onPendingReferencesChange?: (references: MessageReference[]) => void;
 };
 
-export function ConversationChatPane({ conversation, onClear, onClose }: Props) {
+export function ConversationChatPane({
+  conversation,
+  pendingReferences = [],
+  contextReference,
+  draftSeed,
+  draftSeedKey,
+  onClear,
+  onClose,
+  onNewConversation,
+  onPendingReferencesChange,
+}: Props) {
+  const navigate = useNavigate();
   const [draft, setDraft] = useState("");
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
   const { billing } = useBillingStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const lastDraftSeedKeyRef = useRef<string | null>(null);
   const agent = useAgent({
     agent: "ChatAgent",
     name: conversation.agentName,
     host: agentsHost,
   });
-  const { messages, sendMessage, status, clearHistory } = useAgentChat({ agent });
+  const { messages, sendMessage, status, clearHistory } = useAgentChat<unknown, BaindarChatMessage>(
+    { agent, credentials: "include" },
+  );
   const isStreaming = status === "streaming" || status === "submitted";
   const latestMessage = messages[messages.length - 1];
   const latestMessageText = latestMessage ? messageText(latestMessage.parts) : "";
@@ -63,24 +95,69 @@ export function ConversationChatPane({ conversation, onClear, onClose }: Props) 
     scrollToBottom(isStreaming ? "auto" : "smooth");
   }, [isStreaming, latestMessage?.id, latestMessageText, messages.length, scrollToBottom]);
 
+  useEffect(() => {
+    if (!draftSeedKey || lastDraftSeedKeyRef.current === draftSeedKey) return;
+    lastDraftSeedKeyRef.current = draftSeedKey;
+    setDraft(draftSeed ?? "");
+  }, [draftSeed, draftSeedKey]);
+
+  const openReference = useCallback(
+    (reference: MessageReference) => {
+      navigate(referenceToReaderPath(reference, String(Date.now())));
+    },
+    [navigate],
+  );
+
+  const removePendingReference = useCallback(
+    (reference: MessageReference) => {
+      onPendingReferencesChange?.(
+        pendingReferences.filter((item) => referenceKey(item) !== referenceKey(reference)),
+      );
+    },
+    [onPendingReferencesChange, pendingReferences],
+  );
+
   const handleSubmit = (value: string) => {
     if (isStreaming) return;
     if (isChatLimitReached(billing)) {
       setLimitDialogOpen(true);
       return;
     }
-    void sendMessage({ text: value });
+    const refs: MessageReference[] = [];
+    const seen = new Set<string>();
+    if (contextReference) {
+      const key = referenceKey(contextReference);
+      seen.add(key);
+      refs.push(contextReference);
+    }
+    for (const ref of pendingReferences) {
+      const key = referenceKey(ref);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      refs.push(ref);
+    }
+    if (refs.length > 0) {
+      const parts: BaindarChatMessage["parts"] = [
+        ...refs.map(referenceDataPart),
+        { type: "text", text: value },
+      ];
+      void sendMessage({ role: "user", parts });
+      onPendingReferencesChange?.([]);
+    } else {
+      void sendMessage({ text: value });
+    }
     setDraft("");
     scrollToBottom("smooth", true);
   };
 
   const clear = () => {
     clearHistory();
+    onPendingReferencesChange?.([]);
     onClear?.();
   };
 
   return (
-    <section className="flex h-full min-h-0 flex-1 flex-col bg-bd-bg text-bd-fg">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bd-bg text-bd-fg">
       <div className="border-b border-bd-border px-6 py-5 lg:px-12">
         <div className="mx-auto flex max-w-[760px] items-center gap-4">
           <div className="min-w-0 flex-1">
@@ -98,6 +175,11 @@ export function ConversationChatPane({ conversation, onClear, onClose }: Props) 
               Clear
             </button>
           )}
+          {onNewConversation && (
+            <IconButton aria-label="Start new conversation" size="sm" onClick={onNewConversation}>
+              <Icons.Plus size={14} />
+            </IconButton>
+          )}
           {onClose && (
             <IconButton aria-label="Close" size="sm" onClick={onClose}>
               <Icons.Close size={14} />
@@ -111,7 +193,7 @@ export function ConversationChatPane({ conversation, onClear, onClose }: Props) 
         className="min-h-0 flex-1 overflow-y-auto px-5 py-7 lg:px-12"
         onScroll={handleScroll}
       >
-        <ChatThread className="mx-auto max-w-[760px]">
+        <ChatThread className="mx-auto w-full max-w-[760px]">
           {messages.length === 0 ? (
             <EmptyConversation />
           ) : (
@@ -121,6 +203,7 @@ export function ConversationChatPane({ conversation, onClear, onClose }: Props) 
                 role={message.role}
                 parts={message.parts}
                 streaming={isStreaming && message.id === messages[messages.length - 1]?.id}
+                onOpenReference={openReference}
                 onContentChange={() => scrollToBottom("auto")}
               />
             ))
@@ -129,11 +212,17 @@ export function ConversationChatPane({ conversation, onClear, onClose }: Props) 
       </div>
 
       <div className="border-t border-bd-border px-5 py-4 lg:px-12">
-        <div className="mx-auto max-w-[760px]">
+        <div className="mx-auto w-full max-w-[760px]">
           <ChatComposer
             value={draft}
             onValueChange={setDraft}
             onSubmit={handleSubmit}
+            references={composerReferenceTags(
+              contextReference,
+              pendingReferences,
+              openReference,
+              removePendingReference,
+            )}
             disabled={isStreaming}
             submitting={isStreaming}
             placeholder="Continue the thread..."
@@ -177,14 +266,17 @@ function MessageTurn({
   role,
   parts,
   streaming,
+  onOpenReference,
   onContentChange,
 }: {
   role: string;
   parts: ReadonlyArray<unknown>;
   streaming: boolean;
+  onOpenReference: (reference: MessageReference) => void;
   onContentChange?: () => void;
 }) {
   const text = messageText(parts);
+  const references = messageReferences(parts);
   const visibleText = useSmoothText(text, streaming && role !== "user");
   const renderedText = streaming && role !== "user" ? visibleText : text;
 
@@ -193,10 +285,12 @@ function MessageTurn({
   }, [onContentChange, renderedText, streaming]);
 
   if (role === "user") {
-    return <ChatUserTurn>{text}</ChatUserTurn>;
+    return (
+      <ChatUserTurn references={referencesToTags(references, onOpenReference)}>{text}</ChatUserTurn>
+    );
   }
 
-  const tools = parts.map(toolFromPart).filter((tool): tool is ChatToolCall => tool !== null);
+  const tools = parts.map(chatToolFromPart).filter((tool): tool is ChatToolCall => tool !== null);
   const actions: ReadonlyArray<ChatAction> = text
     ? [
         {
@@ -230,124 +324,61 @@ function MessageTurn({
   );
 }
 
-function messageText(parts: ReadonlyArray<unknown>): string {
-  return parts
-    .map((part) => {
-      const record = asRecord(part);
-      return record.type === "text" && typeof record.text === "string" ? record.text : "";
-    })
-    .filter(Boolean)
-    .join("");
+function referencesToTags(
+  references: ReadonlyArray<MessageReference>,
+  onOpen: (reference: MessageReference) => void,
+  onRemove?: (reference: MessageReference) => void,
+): ChatReference[] {
+  return references.map((reference) => ({
+    id: referenceKey(reference),
+    label: referenceLabel(reference),
+    description: referenceDescription(reference),
+    color: referenceColor(reference),
+    onOpen: () => onOpen(reference),
+    onRemove: onRemove ? () => onRemove(reference) : undefined,
+  }));
 }
 
-function toolFromPart(part: unknown): ChatToolCall | null {
-  const record = asRecord(part);
-  if (typeof record.type !== "string" || !record.type.startsWith("tool-")) return null;
-  const toolName = record.type.slice("tool-".length);
-  return {
-    id: typeof record.toolCallId === "string" ? record.toolCallId : toolName,
-    kind: toolKind(toolName),
-    state: toolState(record.state),
-    query: toolQuery(record.input),
-    error:
-      typeof record.errorText === "string" && record.errorText.trim()
-        ? truncate(record.errorText.trim(), 96)
-        : undefined,
-    results: toolResults(record.output),
-  };
-}
-
-function toolKind(toolName: string): ChatToolKind {
-  switch (toolName) {
-    case "list_documents":
-      return "documents";
-    case "search_document":
-      return "searchBook";
-    case "search_binder":
-      return "searchLibrary";
-    case "read_section":
-      return "lookup";
-    case "get_summary":
-      return "summarize";
-    case "list_notes":
-      return "notes";
-    case "list_highlights":
-      return "highlights";
-    case "expand_query":
-      return "generic";
-    default:
-      return "generic";
+function composerReferenceTags(
+  contextReference: MessageReference | null | undefined,
+  pendingReferences: ReadonlyArray<MessageReference>,
+  onOpen: (reference: MessageReference) => void,
+  onRemovePending: (reference: MessageReference) => void,
+): ChatReference[] {
+  const tags: ChatReference[] = [];
+  const seen = new Set<string>();
+  if (contextReference) {
+    const key = referenceKey(contextReference);
+    seen.add(key);
+    tags.push({
+      id: key,
+      label: referenceLabel(contextReference),
+      description: referenceDescription(contextReference),
+      color: referenceColor(contextReference),
+      onOpen: () => onOpen(contextReference),
+    });
   }
+  for (const reference of pendingReferences) {
+    const key = referenceKey(reference);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push({
+      id: key,
+      label: referenceLabel(reference),
+      description: referenceDescription(reference),
+      color: referenceColor(reference),
+      onOpen: () => onOpen(reference),
+      onRemove: () => onRemovePending(reference),
+    });
+  }
+  return tags;
 }
 
-function toolState(state: unknown): ChatToolState {
-  if (state === "output-available") return "success";
-  if (state === "output-error") return "error";
-  if (state === "input-streaming" || state === "input-available") return "running";
-  return "pending";
-}
-
-function toolQuery(input: unknown): string | undefined {
-  const record = asRecord(input);
-  const query =
-    record.query ??
-    record.original_query ??
-    record.title ??
-    record.document_id ??
-    record.documentId ??
-    record.section_key ??
-    record.sectionKey ??
-    record.target_key ??
-    record.targetKey ??
-    record.id;
-  if (typeof query === "string" && query.trim()) return truncate(query.trim(), 72);
-  if (Object.keys(record).length > 0) return truncate(JSON.stringify(record), 72);
-  return undefined;
-}
-
-function toolResults(output: unknown): ChatToolCall["results"] {
-  const items = Array.isArray(output) ? output : outputItems(output);
-  if (items.length === 0) return undefined;
-  return items.slice(0, 3).map((item, index) => {
-    const record = asRecord(item);
-    const label =
-      record.documentTitle ??
-      record.sectionTitle ??
-      record.title ??
-      record.name ??
-      record.status ??
-      record.page ??
-      `Result ${index + 1}`;
-    const text =
-      record.snippet ??
-      record.textSnippet ??
-      record.body ??
-      record.text ??
-      record.preview ??
-      record.summary ??
-      record.message ??
-      JSON.stringify(record);
-    return {
-      label: typeof label === "string" || typeof label === "number" ? String(label) : undefined,
-      text: typeof text === "string" ? truncate(text, 160) : truncate(String(text), 160),
-    };
-  });
-}
-
-function outputItems(output: unknown): unknown[] {
-  const record = asRecord(output);
-  if (Array.isArray(record.chunks)) return record.chunks;
-  if (Array.isArray(record.items)) return record.items;
-  if (Object.keys(record).length > 0) return [record];
-  return [];
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-}
-
-function truncate(value: string, max: number): string {
-  return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
+function referenceColor(reference: MessageReference): string | undefined {
+  if (reference.kind === "highlight" && reference.color) return `var(--hl-${reference.color})`;
+  if (reference.kind === "passage") return "var(--bd-accent)";
+  if (reference.kind === "note") return "var(--bd-fg-muted)";
+  return "var(--wine-700)";
 }
 
 function sourceLabel(conversation: Conversation): string {

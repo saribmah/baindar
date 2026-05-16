@@ -12,12 +12,6 @@ import {
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Button,
-  ChatAssistantTurn,
-  ChatCitationChip,
-  ChatComposer,
-  ChatPanelHeader,
-  ChatThread,
-  ChatUserTurn,
   FloatingToolbar,
   FloatingToolbarButton,
   IconButton,
@@ -28,6 +22,7 @@ import {
   type Theme,
 } from "@baindar/ui";
 import type {
+  Conversation,
   Document,
   DocumentManifest,
   DocumentSectionSummary,
@@ -36,10 +31,21 @@ import type {
   Note,
 } from "@baindar/sdk";
 import { loadAuthedAssetUrl, useSdk } from "../../sdk";
+import {
+  ConversationChatPane,
+  makeBookReference,
+  makeChapterReference,
+  makeHighlightReference,
+  makeNoteReference,
+  makePassageReference,
+  parseSectionOrder as parseReferenceSectionOrder,
+  type MessageReference,
+} from "../conversations";
 import { HighlightLayer } from "./HighlightLayer";
 import { ReaderHighlightsProvider, useReaderHighlights } from "./highlightsRefresh";
 import { NotesSheet } from "./NotesSheet";
 import { TocSheet } from "./TocSheet";
+import { charOffsetsToRange, unwrapMarks, wrapRangeWithMarks } from "./textOffsets";
 
 // Strip `src` off `<img src="assets/...">` and park the path on
 // `data-asset-src` BEFORE the HTML is injected. Otherwise the browser
@@ -160,7 +166,7 @@ type ReaderMeta = {
   chapterTitle: string;
   chapterOrder: number;
   chapterCount: number;
-  quote: string;
+  sectionKey: string;
 };
 
 const ReaderMetaContext = createContext<{
@@ -205,8 +211,8 @@ function useReaderToc() {
 }
 
 type ReaderAskPayload = {
-  quote?: string;
   prompt?: string;
+  references?: ReadonlyArray<MessageReference>;
 };
 
 const ReaderAskContext = createContext<((payload?: ReaderAskPayload) => void) | null>(null);
@@ -250,12 +256,14 @@ function ReaderShell({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const { client } = useSdk();
   const { theme, cycleTheme } = useTheme();
   const { position } = useReaderPosition();
   const { meta } = useReaderMeta();
   const { toc } = useReaderToc();
   const refresh = useReaderHighlights();
   const [searchParams, setSearchParams] = useSearchParams();
+  const conversationPromiseRef = useRef<Promise<Conversation | null> | null>(null);
   const isLg = useMediaQuery("(min-width: 1024px)");
   const isXl = useMediaQuery("(min-width: 1280px)");
   const [tocOpen, setTocOpen] = useState<boolean>(() => {
@@ -268,35 +276,103 @@ function ReaderShell({
   });
   const [aiOpen, setAiOpen] = useState(false);
   const rightOpen = aiOpen || notesOpen;
-  const [askDraft, setAskDraft] = useState("");
-  const [lastPrompt, setLastPrompt] = useState("");
-  const [aiQuote, setAiQuote] = useState<string | null>(null);
+  const [readerConversation, setReaderConversation] = useState<Conversation | null>(null);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+  const [pendingReferences, setPendingReferences] = useState<MessageReference[]>([]);
+  const [draftSeed, setDraftSeed] = useState("");
+  const [draftSeedKey, setDraftSeedKey] = useState<string | undefined>(undefined);
   const [fontScale, setFontScale] = useState<ReaderFontScale>("standard");
 
   const currentOrder = meta?.chapterOrder ?? Math.max(0, Number(searchParams.get("chapter") ?? 0));
+  const targetNoteId = searchParams.get("note");
+  const targetHighlightId = searchParams.get("highlight");
+  const targetRequestId = searchParams.get("target");
   const authorLabel = meta?.authors.length
     ? meta.authors.join(", ")
     : doc.originalFilename.replace(/\.[^.]+$/, "");
   const progressLabel =
     meta?.chapterCount !== undefined ? `${currentOrder + 1} / ${meta.chapterCount}` : position;
 
-  const handleAskSubmit = useCallback((value: string) => {
-    const trimmed = value.trim();
-    setAiQuote(null);
-    setLastPrompt(trimmed || "What's the most important idea in this chapter?");
-    setAskDraft("");
-    setAiOpen(true);
-  }, []);
+  const ensureReaderConversation = useCallback(async (): Promise<Conversation | null> => {
+    if (readerConversation) return readerConversation;
+    if (conversationPromiseRef.current) return conversationPromiseRef.current;
 
-  const openAsk = useCallback((payload?: ReaderAskPayload) => {
-    setAiQuote(payload?.quote ?? null);
-    setLastPrompt(payload?.prompt ?? "");
-    setAiOpen(true);
-  }, []);
+    const promise = (async () => {
+      try {
+        setConversationError(null);
+        const list = await client.conversation.list();
+        const existing =
+          list.data?.items.find((conversation) => conversation.primaryDocId === doc.id) ?? null;
+        if (existing) {
+          setReaderConversation(existing);
+          return existing;
+        }
 
-  const toggleFontScale = useCallback(() => {
-    setFontScale((curr) => (curr === "standard" ? "large" : "standard"));
-  }, []);
+        const created = await client.conversation.create({
+          title: doc.title,
+          primaryDocId: doc.id,
+        });
+        if (!created.data) throw new Error("Could not start a reader conversation");
+        setReaderConversation(created.data);
+        return created.data;
+      } catch (error) {
+        setConversationError(error instanceof Error ? error.message : String(error));
+        return null;
+      } finally {
+        conversationPromiseRef.current = null;
+      }
+    })();
+
+    conversationPromiseRef.current = promise;
+    return promise;
+  }, [client, doc.id, doc.title, readerConversation]);
+
+  const startNewReaderConversation = useCallback(async (): Promise<Conversation | null> => {
+    try {
+      setConversationError(null);
+      const created = await client.conversation.create({
+        title: doc.title,
+        primaryDocId: doc.id,
+      });
+      if (!created.data) throw new Error("Could not start a reader conversation");
+      setReaderConversation(created.data);
+      setPendingReferences([]);
+      setDraftSeed("");
+      setDraftSeedKey(String(Date.now()));
+      return created.data;
+    } catch (error) {
+      setConversationError(error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  }, [client, doc.id, doc.title]);
+
+  const contextReference = useMemo<MessageReference>(() => {
+    if (meta) {
+      return makeChapterReference({
+        document: doc,
+        sectionKey: meta.sectionKey,
+        sectionOrder: meta.chapterOrder,
+        sectionTitle: meta.chapterTitle,
+      });
+    }
+    return makeBookReference(doc);
+  }, [doc, meta]);
+
+  const openAsk = useCallback(
+    (payload?: ReaderAskPayload) => {
+      const references = payload?.references?.length ? [...payload.references] : [];
+      setPendingReferences(references);
+      setDraftSeed(payload?.prompt ?? "");
+      setDraftSeedKey(String(Date.now()));
+      setAiOpen(true);
+      void ensureReaderConversation();
+    },
+    [ensureReaderConversation],
+  );
+
+  useEffect(() => {
+    if (targetNoteId && !targetHighlightId) setNotesOpen(true);
+  }, [targetHighlightId, targetNoteId, targetRequestId]);
 
   useEffect(() => {
     if (!isLg) setTocOpen(false);
@@ -308,21 +384,20 @@ function ReaderShell({
     }
   }, [isXl]);
 
+  const toggleFontScale = useCallback(() => {
+    setFontScale((curr) => (curr === "standard" ? "large" : "standard"));
+  }, []);
+
   const jumpToReaderTarget = useCallback(
-    (order: number, highlightId?: string | null) => {
-      const next = new URLSearchParams(searchParams);
+    (order: number, highlightId?: string | null, noteId?: string | null) => {
+      const next = new URLSearchParams();
       next.set("chapter", String(order));
-      next.delete("note");
-      if (highlightId) {
-        next.set("highlight", highlightId);
-        next.set("target", String(Date.now()));
-      } else {
-        next.delete("highlight");
-        next.delete("target");
-      }
+      if (highlightId) next.set("highlight", highlightId);
+      if (noteId) next.set("note", noteId);
+      next.set("target", String(Date.now()));
       setSearchParams(next);
     },
-    [searchParams, setSearchParams],
+    [setSearchParams],
   );
 
   return (
@@ -412,23 +487,20 @@ function ReaderShell({
 
           {isXl && rightOpen && (
             <aside
-              className="relative min-h-0 overflow-hidden border-l"
+              className="relative min-h-0 min-w-0 overflow-hidden border-l"
               style={{ borderColor: "var(--bd-border)" }}
             >
               {aiOpen ? (
                 <ReaderChatPanel
-                  title={doc.title}
-                  chapterLabel={
-                    meta
-                      ? `Chapter ${meta.chapterOrder + 1} · ${meta.chapterTitle}`
-                      : "Current chapter"
-                  }
-                  quote={aiQuote ?? meta?.quote}
-                  prompt={lastPrompt}
-                  draft={askDraft}
-                  onDraftChange={setAskDraft}
-                  onSubmit={handleAskSubmit}
+                  conversation={readerConversation}
+                  error={conversationError}
+                  pendingReferences={pendingReferences}
+                  contextReference={contextReference}
+                  draftSeed={draftSeed}
+                  draftSeedKey={draftSeedKey}
+                  onPendingReferencesChange={setPendingReferences}
                   onClose={() => setAiOpen(false)}
+                  onNewConversation={() => void startNewReaderConversation()}
                 />
               ) : (
                 <div className="h-full px-6 py-8">
@@ -445,6 +517,7 @@ function ReaderShell({
                     sections={toc?.sections}
                     currentOrder={currentOrder}
                     refreshToken={refresh?.refreshToken ?? 0}
+                    targetNoteId={targetNoteId}
                     onJumpToTarget={jumpToReaderTarget}
                   />
                 </div>
@@ -463,6 +536,17 @@ function ReaderShell({
                 <Icons.BookOpen size={20} />
               </FloatingToolbarButton>
             )}
+            {(!isXl || !notesOpen || aiOpen) && (
+              <FloatingToolbarButton
+                aria-label="Notes"
+                onClick={() => {
+                  setNotesOpen(true);
+                  if (isXl) setAiOpen(false);
+                }}
+              >
+                <Icons.Note size={20} />
+              </FloatingToolbarButton>
+            )}
             {(!isXl || !aiOpen) && (
               <FloatingToolbarButton aria-label="Ask Baindar" onClick={() => openAsk()}>
                 <Icons.Sparkles size={20} />
@@ -479,17 +563,6 @@ function ReaderShell({
             <FloatingToolbarButton aria-label={`Theme: ${theme}`} onClick={cycleTheme}>
               {theme === "dark" ? <Icons.Sun size={20} /> : <Icons.Moon size={20} />}
             </FloatingToolbarButton>
-            {(!isXl || !notesOpen || aiOpen) && (
-              <FloatingToolbarButton
-                aria-label="Notes"
-                onClick={() => {
-                  setNotesOpen(true);
-                  if (isXl) setAiOpen(false);
-                }}
-              >
-                <Icons.Note size={20} />
-              </FloatingToolbarButton>
-            )}
           </FloatingToolbar>
         </div>
 
@@ -512,27 +585,27 @@ function ReaderShell({
             sections={toc?.sections}
             currentOrder={currentOrder}
             refreshToken={refresh?.refreshToken ?? 0}
-            onJumpToTarget={(order, highlightId) => {
-              jumpToReaderTarget(order, highlightId);
+            targetNoteId={targetNoteId}
+            onJumpToTarget={(order, highlightId, noteId) => {
+              jumpToReaderTarget(order, highlightId, noteId);
               setNotesOpen(false);
             }}
             onClose={() => setNotesOpen(false)}
           />
         )}
 
-        {aiOpen && (
+        {!isXl && aiOpen && (
           <ReaderChatOverlay
             theme={theme}
-            title={doc.title}
-            chapterLabel={
-              meta ? `Chapter ${meta.chapterOrder + 1} · ${meta.chapterTitle}` : "Current chapter"
-            }
-            quote={aiQuote ?? meta?.quote}
-            prompt={lastPrompt}
-            draft={askDraft}
-            onDraftChange={setAskDraft}
-            onSubmit={handleAskSubmit}
+            conversation={readerConversation}
+            error={conversationError}
+            pendingReferences={pendingReferences}
+            contextReference={contextReference}
+            draftSeed={draftSeed}
+            draftSeedKey={draftSeedKey}
+            onPendingReferencesChange={setPendingReferences}
             onClose={() => setAiOpen(false)}
+            onNewConversation={() => void startNewReaderConversation()}
           />
         )}
       </main>
@@ -541,7 +614,7 @@ function ReaderShell({
 }
 
 function ReaderBody({ doc }: { doc: Document }) {
-  const { client, baseUrl } = useSdk();
+  const { client, baseUrl, authedFetch } = useSdk();
   const [searchParams, setSearchParams] = useSearchParams();
   const { setPosition } = useReaderPosition();
   const { setMeta } = useReaderMeta();
@@ -549,7 +622,6 @@ function ReaderBody({ doc }: { doc: Document }) {
   const openAsk = useReaderAsk();
   const [manifest, setManifest] = useState<DocumentManifest | null>(null);
   const [chapterHtml, setChapterHtml] = useState<string | null>(null);
-  const [chapterText, setChapterText] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const htmlRef = useRef<HTMLDivElement>(null);
 
@@ -560,7 +632,12 @@ function ReaderBody({ doc }: { doc: Document }) {
   const order = orderParam !== null ? Math.max(0, Number(orderParam)) : Math.max(0, initialOrder);
   const documentId = doc.id;
   const targetHighlightId = searchParams.get("highlight");
+  const targetNoteId = searchParams.get("note");
   const targetRequestId = searchParams.get("target");
+  const targetRangeStart = searchParams.get("rangeStart");
+  const targetRangeEnd = searchParams.get("rangeEnd");
+  const askTarget = searchParams.get("ask");
+  const handledAskRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (orderParam === null) {
@@ -610,24 +687,6 @@ function ReaderBody({ doc }: { doc: Document }) {
     };
   }, [client, documentId, order]);
 
-  // Canonical text drives the AI quote excerpt and underpins highlight
-  // offset reasoning. Best-effort: a failure here doesn't block rendering.
-  useEffect(() => {
-    let cancelled = false;
-    setChapterText("");
-    client.document
-      .getSectionText({ id: documentId, order: String(order) })
-      .then((res) => {
-        if (cancelled) return;
-        if (typeof res.data === "string") setChapterText(res.data);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [client, documentId, order]);
-
-  const { authedFetch } = useSdk();
   useEffect(() => {
     if (!htmlRef.current || chapterHtml === null) return;
     let cancelled = false;
@@ -665,6 +724,94 @@ function ReaderBody({ doc }: { doc: Document }) {
   );
 
   useEffect(() => {
+    const container = htmlRef.current;
+    if (!container || !currentSection || chapterHtml === null) return;
+    unwrapMarks(container, 'mark[data-reference-target="true"]');
+
+    const offsetStart = Number(targetRangeStart);
+    const offsetEnd = Number(targetRangeEnd);
+    if (
+      targetRangeStart === null ||
+      targetRangeEnd === null ||
+      !Number.isInteger(offsetStart) ||
+      !Number.isInteger(offsetEnd) ||
+      offsetStart < 0 ||
+      offsetEnd < offsetStart
+    ) {
+      return;
+    }
+
+    const range = charOffsetsToRange(container, offsetStart, offsetEnd);
+    if (!range) return;
+
+    const marks = wrapRangeWithMarks(range, {
+      className: "bd-highlight bd-highlight-blue bd-highlight-reference",
+      attributes: { "data-reference-target": "true" },
+    });
+    marks[0]?.scrollIntoView({ block: "center", behavior: "smooth" });
+
+    return () => {
+      unwrapMarks(container, 'mark[data-reference-target="true"]');
+    };
+  }, [chapterHtml, currentSection, targetRangeEnd, targetRangeStart, targetRequestId]);
+
+  useEffect(() => {
+    if (!currentSection || !askTarget) return;
+    const key = `${askTarget}:${documentId}:${targetNoteId ?? ""}:${targetHighlightId ?? ""}:${targetRequestId ?? ""}`;
+    if (handledAskRef.current === key) return;
+    handledAskRef.current = key;
+
+    if (askTarget === "book") {
+      openAsk({
+        references: [makeBookReference(doc)],
+        prompt: "What should I know about this book?",
+      });
+      return;
+    }
+
+    if (askTarget === "note" && targetNoteId) {
+      let cancelled = false;
+      client.note
+        .get({ id: targetNoteId })
+        .then(async (noteRes) => {
+          if (cancelled || !noteRes.data) return;
+          const note = noteRes.data;
+          let highlight: Highlight | undefined;
+          if (note.highlightId) {
+            const highlights = await client.highlight.list({ documentId });
+            highlight = highlights.data?.items.find((item) => item.id === note.highlightId);
+          }
+          if (cancelled) return;
+          openAsk({
+            references: [
+              makeNoteReference({
+                document: doc,
+                note,
+                highlight,
+                sectionOrder: parseReferenceSectionOrder(note.sectionKey ?? highlight?.sectionKey),
+              }),
+            ],
+            prompt: "What should I notice about this note?",
+          });
+        })
+        .catch(() => undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [
+    askTarget,
+    client,
+    currentSection,
+    doc,
+    documentId,
+    openAsk,
+    targetHighlightId,
+    targetNoteId,
+    targetRequestId,
+  ]);
+
+  useEffect(() => {
     if (!manifest || !currentSection) return;
     const handle = setTimeout(() => {
       const params: Parameters<typeof client.progress.upsert>[0] = {
@@ -695,10 +842,10 @@ function ReaderBody({ doc }: { doc: Document }) {
       chapterTitle: currentSection.title,
       chapterOrder: order,
       chapterCount: manifest.chapterCount,
-      quote: excerptText(chapterText, 220),
+      sectionKey: currentSection.sectionKey,
     });
     return () => setMeta(null);
-  }, [manifest, currentSection, order, chapterText, setMeta]);
+  }, [manifest, currentSection, order, setMeta]);
 
   useEffect(() => {
     if (!manifest || manifest.kind !== "epub" || manifest.toc.length === 0) {
@@ -740,7 +887,24 @@ function ReaderBody({ doc }: { doc: Document }) {
         contentKey={currentSection.sectionKey}
         targetHighlightId={targetHighlightId}
         targetRequestId={targetRequestId}
-        onAskSelection={(quote) => openAsk({ quote, prompt: "What does this passage mean?" })}
+        onAskSelection={(payload) => {
+          const reference =
+            payload.kind === "highlight"
+              ? makeHighlightReference({
+                  document: doc,
+                  highlight: payload.highlight,
+                  sectionOrder: order,
+                })
+              : makePassageReference({
+                  document: doc,
+                  sectionKey: currentSection.sectionKey,
+                  sectionOrder: order,
+                  sectionTitle: currentSection.title,
+                  position: payload.position,
+                  previewText: payload.text,
+                });
+          openAsk({ references: [reference], prompt: "What does this passage mean?" });
+        }}
       />
 
       <ChapterNav
@@ -865,64 +1029,79 @@ function RailSkeleton({ label }: { label: string }) {
 }
 
 function ReaderChatPanel({
-  title,
-  chapterLabel,
-  quote,
-  prompt,
-  draft,
-  onDraftChange,
-  onSubmit,
+  conversation,
+  error,
+  pendingReferences,
+  contextReference,
+  draftSeed,
+  draftSeedKey,
+  onPendingReferencesChange,
   onClose,
+  onNewConversation,
 }: {
-  title: string;
-  chapterLabel: string;
-  quote?: string;
-  prompt: string;
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onSubmit: (value: string) => void;
+  conversation: Conversation | null;
+  error: string | null;
+  pendingReferences: ReadonlyArray<MessageReference>;
+  contextReference: MessageReference | null;
+  draftSeed: string;
+  draftSeedKey?: string;
+  onPendingReferencesChange: (references: MessageReference[]) => void;
   onClose: () => void;
+  onNewConversation?: () => void;
 }) {
+  if (error) {
+    return (
+      <div className="flex h-full min-h-0 flex-col bg-bd-bg px-5 py-5">
+        <p className="t-body-s rounded-md bg-bd-surface-hover px-3 py-2 text-error">{error}</p>
+      </div>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <div className="h-full bg-bd-bg px-5 py-5">
+        <RailSkeleton label="Baindar" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-col bg-bd-bg">
-      <ChatPanelHeader sub={`${chapterLabel} · ${title}`} onClose={onClose} />
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-        <ReaderChatThread quote={quote} prompt={prompt} />
-      </div>
-      <div className="border-t border-bd-border px-4 py-4">
-        <ChatComposer
-          value={draft}
-          onValueChange={onDraftChange}
-          onSubmit={onSubmit}
-          context={quote ? { label: chapterLabel, text: quote } : null}
-          placeholder="Ask a follow-up..."
-          suggestions={["Why does this matter?", "Summarize this chapter", "Save as note"]}
-        />
-      </div>
-    </div>
+    <ConversationChatPane
+      key={conversation.id}
+      conversation={conversation}
+      pendingReferences={pendingReferences}
+      contextReference={contextReference}
+      draftSeed={draftSeed}
+      draftSeedKey={draftSeedKey}
+      onPendingReferencesChange={onPendingReferencesChange}
+      onClose={onClose}
+      onNewConversation={onNewConversation}
+    />
   );
 }
 
 function ReaderChatOverlay({
   theme,
-  title,
-  chapterLabel,
-  quote,
-  prompt,
-  draft,
-  onDraftChange,
-  onSubmit,
+  conversation,
+  error,
+  pendingReferences,
+  contextReference,
+  draftSeed,
+  draftSeedKey,
+  onPendingReferencesChange,
   onClose,
+  onNewConversation,
 }: {
   theme: Theme;
-  title: string;
-  chapterLabel: string;
-  quote?: string;
-  prompt: string;
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onSubmit: (value: string) => void;
+  conversation: Conversation | null;
+  error: string | null;
+  pendingReferences: ReadonlyArray<MessageReference>;
+  contextReference: MessageReference | null;
+  draftSeed: string;
+  draftSeedKey?: string;
+  onPendingReferencesChange: (references: MessageReference[]) => void;
   onClose: () => void;
+  onNewConversation?: () => void;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -957,52 +1136,19 @@ function ReaderChatOverlay({
             style={{ background: "var(--bd-border-strong)" }}
           />
         </div>
-        <ChatPanelHeader sub={`${chapterLabel} · ${title}`} onClose={onClose} />
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          <ReaderChatThread quote={quote} prompt={prompt} />
-        </div>
-        <div className="border-t border-bd-border px-4 py-4">
-          <ChatComposer
-            value={draft}
-            onValueChange={onDraftChange}
-            onSubmit={onSubmit}
-            context={quote ? { label: chapterLabel, text: quote } : null}
-            placeholder="Ask a follow-up..."
-          />
-        </div>
+        <ReaderChatPanel
+          conversation={conversation}
+          error={error}
+          pendingReferences={pendingReferences}
+          contextReference={contextReference}
+          draftSeed={draftSeed}
+          draftSeedKey={draftSeedKey}
+          onPendingReferencesChange={onPendingReferencesChange}
+          onClose={onClose}
+          onNewConversation={onNewConversation}
+        />
       </section>
     </div>
-  );
-}
-
-function ReaderChatThread({ quote, prompt }: { quote?: string; prompt: string }) {
-  const question = prompt || "What's the most important idea in this chapter?";
-  const answer =
-    quote && prompt
-      ? "Norman is drawing a careful line. An affordance is the relationship between an object and a person: what is possible. A signifier is the visible cue that tells you that possibility exists."
-      : "This chapter is about the cues that make actions legible. Affordances describe what can be done; signifiers help people discover it.";
-
-  return (
-    <ChatThread>
-      <ChatUserTurn attachment={quote ? { label: "Passage", text: quote } : null}>
-        {question}
-      </ChatUserTurn>
-      <ChatAssistantTurn
-        sub="just now"
-        tools={[
-          { id: "reader-search", kind: "searchBook", state: "success", query: question },
-          { id: "reader-lookup", kind: "lookup", state: "success", query: "current chapter" },
-        ]}
-        footerCitations={["Current chapter"]}
-        actions={[
-          { label: "Save as note", icon: <Icons.Note size={12} /> },
-          { label: "Copy", icon: <Icons.Copy size={12} /> },
-          { label: "Quote", icon: <Icons.Reply size={12} /> },
-        ]}
-      >
-        {answer} <ChatCitationChip citation={{ page: 1, chapter: "current" }} />
-      </ChatAssistantTurn>
-    </ChatThread>
   );
 }
 
@@ -1011,18 +1157,21 @@ function NotesRail({
   sections,
   currentOrder,
   refreshToken,
+  targetNoteId,
   onJumpToTarget,
 }: {
   documentId: string;
   sections?: ReadonlyArray<DocumentSectionSummary>;
   currentOrder?: number;
   refreshToken: number;
-  onJumpToTarget: (order: number, highlightId?: string | null) => void;
+  targetNoteId?: string | null;
+  onJumpToTarget: (order: number, highlightId?: string | null, noteId?: string | null) => void;
 }) {
   const { client } = useSdk();
   const [items, setItems] = useState<ReadonlyArray<Note> | null>(null);
   const [highlightsById, setHighlightsById] = useState<Map<string, Highlight>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const targetNoteRef = useRef<HTMLButtonElement | null>(null);
 
   const sectionInfoByKey = useMemo(() => {
     const map = new Map<string, { order: number; title: string }>();
@@ -1054,6 +1203,10 @@ function NotesRail({
     };
   }, [client, documentId, refreshToken]);
 
+  useEffect(() => {
+    targetNoteRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [items, targetNoteId]);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="t-label-s mb-3" style={{ color: "var(--bd-fg-muted)" }}>
@@ -1076,19 +1229,22 @@ function NotesRail({
           const sectionKey = n.sectionKey ?? highlight?.sectionKey ?? null;
           const info = sectionKey ? sectionInfoByKey.get(sectionKey) : undefined;
           const isCurrent = info?.order === currentOrder;
+          const isTarget = n.id === targetNoteId;
           const label = labelFor(info);
           const targetHighlightId = highlight?.id ?? null;
           return (
             <button
               key={n.id}
+              ref={isTarget ? targetNoteRef : undefined}
               type="button"
               className="mb-3 block w-full rounded-xl p-3 text-left"
               style={{
                 background: "var(--bd-surface-raised)",
-                boxShadow: isCurrent ? "inset 0 0 0 1px var(--bd-border-strong)" : undefined,
+                boxShadow:
+                  isCurrent || isTarget ? "inset 0 0 0 1px var(--bd-border-strong)" : undefined,
               }}
               onClick={() => {
-                if (info) onJumpToTarget(info.order, targetHighlightId);
+                if (info) onJumpToTarget(info.order, targetHighlightId, n.id);
               }}
             >
               <div className="flex items-center gap-2">
@@ -1201,12 +1357,6 @@ const formatRelativeTime = (iso: string): string => {
 const labelFor = (info: { order: number; title: string } | undefined): string => {
   if (!info) return "Section";
   return `Ch. ${info.order + 1} · ${info.title}`;
-};
-
-const excerptText = (text: string, max: number): string => {
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (clean.length <= max) return clean;
-  return `${clean.slice(0, max).trim()}...`;
 };
 
 // Section keys mint as `${kind}:section:${order}`. Reading the order back
