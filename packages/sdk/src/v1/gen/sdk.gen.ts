@@ -18,6 +18,8 @@ import {
   type AiSummarizeErrors,
   type AiSummarizeInput,
   type AiSummarizeResponses,
+  type BillingMeErrors,
+  type BillingMeResponses,
   type ConversationCreateErrors,
   type ConversationCreateResponses,
   type ConversationDeleteErrors,
@@ -238,6 +240,20 @@ export class Ai extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    });
+  }
+}
+
+export class Billing extends HeyApiClient {
+  /**
+   * Get the caller's billing status
+   *
+   * Returns the caller's plan, subscription status, current-period usage, and quota limits. The Free plan is implicit — users without an explicit subscription row get `plan: "free", status: "active"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1).
+   */
+  public me<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<BillingMeResponses, BillingMeErrors, ThrowOnError>({
+      url: "/billing/me",
+      ...options,
     });
   }
 }
@@ -1503,6 +1519,11 @@ export class ApiClient extends HeyApiClient {
   private _ai?: Ai;
   get ai(): Ai {
     return (this._ai ??= new Ai({ client: this.client }));
+  }
+
+  private _billing?: Billing;
+  get billing(): Billing {
+    return (this._billing ??= new Billing({ client: this.client }));
   }
 
   private _conversation?: Conversation;

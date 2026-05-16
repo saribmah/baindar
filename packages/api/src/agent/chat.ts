@@ -8,6 +8,7 @@ import {
   type ToolSet,
 } from "ai";
 import type { AuthContext, RuntimeEnv } from "../app/context";
+import { Billing } from "../billing/billing";
 import { Conversation } from "../conversation/conversation";
 import { createDb } from "../db/db";
 import { Instance } from "../instance";
@@ -82,6 +83,26 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
         baseURL: this.env.ANTHROPIC_BASE_URL || undefined,
       });
       const tools: ToolSet = buildAgentTools({ userId });
+      // Wrap the framework-supplied onFinish so we can meter token usage
+      // before delegating. Recording is best-effort: a billing write failure
+      // must never break the user-facing stream, so errors are caught and
+      // logged. The append-only UsageEvent ledger lets us reconcile lost
+      // rollups later if needed.
+      const meteredOnFinish: StreamTextOnFinishCallback<ToolSet> = async (event) => {
+        try {
+          const totalUsage = event.totalUsage ?? event.usage;
+          await Billing.recordUsage({
+            userId,
+            kind: "chat",
+            inputTokens: totalUsage?.inputTokens ?? 0,
+            outputTokens: totalUsage?.outputTokens ?? 0,
+            sourceId: conversationId,
+          });
+        } catch (err) {
+          console.error("[billing] chat usage record failed", err);
+        }
+        await onFinish(event);
+      };
       const result = streamText({
         model: anthropic(this.env.ANTHROPIC_MODEL),
         system: SYSTEM_PROMPT,
@@ -94,7 +115,7 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
         // 1–3 rounds for most queries; 12 leaves headroom for chained
         // search→read→search-followup flows without runaway loops.
         stopWhen: stepCountIs(12),
-        onFinish,
+        onFinish: meteredOnFinish,
       });
       return result.toUIMessageStreamResponse();
     });

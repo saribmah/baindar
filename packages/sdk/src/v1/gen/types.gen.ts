@@ -66,6 +66,47 @@ export type AiSummarizeInput = {
   force?: boolean;
 };
 
+export enum BillingPlan {
+  Free = "free",
+  Personal = "personal",
+  Pro = "pro",
+  Byok = "byok",
+}
+
+export enum BillingSubscriptionStatus {
+  Active = "active",
+  Trialing = "trialing",
+  PastDue = "past_due",
+  Canceled = "canceled",
+  Incomplete = "incomplete",
+}
+
+export type BillingQuota = {
+  chatTurnsLimit: number;
+  summariesLimit: number;
+  documentsLimit: number;
+};
+
+export type BillingUsagePeriod = {
+  userId: string;
+  periodStart: string;
+  periodEnd: string;
+  chatTurns: number;
+  summaries: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsdMicros: number;
+};
+
+export type BillingStatus = {
+  plan: BillingPlan;
+  status: BillingSubscriptionStatus;
+  quota: BillingQuota;
+  currentPeriod: BillingUsagePeriod;
+  periodResetAt: string;
+  cancelAtPeriodEnd: boolean;
+};
+
 export type Conversation = {
   id: string;
   agentName: string;
@@ -393,6 +434,29 @@ export type AiSummarizeResponses = {
 };
 
 export type AiSummarizeResponse2 = AiSummarizeResponses[keyof AiSummarizeResponses];
+
+export type BillingMeData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/billing/me";
+};
+
+export type BillingMeErrors = {
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+};
+
+export type BillingMeResponses = {
+  /**
+   * Billing status
+   */
+  200: BillingStatus;
+};
+
+export type BillingMeResponse = BillingMeResponses[keyof BillingMeResponses];
 
 export type ConversationListData = {
   body?: never;

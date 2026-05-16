@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Billing } from "../billing/billing";
 import { Binder } from "../binder/binder";
 import { DocumentAssetStore } from "../document/asset-store";
 import { DocumentBinding } from "../document/document-binding";
@@ -291,11 +292,24 @@ export namespace Ai {
         : null;
 
     const generator = deps.generator ?? SummaryGenerator.generate;
-    const { summary, model } = await generator({
+    const { summary, model, usage } = await generator({
       targetType: input.targetType,
       documentTitle: doc.title,
       sectionTitle,
       chunks,
+    });
+
+    // Best-effort metering. A billing write failure must not fail the
+    // user-facing summarize request — the summary itself was produced and
+    // the user expects it. The append-only ledger lets us reconcile later.
+    Billing.recordUsage({
+      userId,
+      kind: "summary",
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      sourceId: doc.id,
+    }).catch((err) => {
+      console.error("[billing] summary usage record failed", err);
     });
 
     const r2Name = summaryR2Name(input.targetType, input.targetKey, doc.sha256);
