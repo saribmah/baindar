@@ -11,6 +11,6 @@
     "noEmit": true,
     "types": ["bun"]
   },
-  "include": ["src/main", "src/electrobun-shims.d.ts", "scripts", "electrobun.config.ts"],
+  "include": ["src/main", "src/shared", "src/electrobun-shims.d.ts", "scripts", "electrobun.config.ts"],
   "exclude": ["node_modules", "dist-view", "dist", "build"]
 }

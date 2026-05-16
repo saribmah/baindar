@@ -20,6 +20,11 @@ import { Reader } from "./features/reader";
 export function App() {
   return (
     <HashRouter>
+      {/* Drag region for the hiddenInset titlebar. The class name is the
+         literal sentinel that Electrobun's preload script looks for —
+         renaming it breaks window dragging. To opt an interactive child out
+         of drag, give it `electrobun-webkit-app-region-no-drag`. */}
+      <div aria-hidden className="app-drag-region electrobun-webkit-app-region-drag" />
       <Routes>
         <Route index element={<Landing />} />
         <Route path="/signin" element={<SignIn />} />

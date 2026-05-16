@@ -90,3 +90,20 @@
   --radius-2xl: 28px;
   --radius-pill: 999px;
 }
+
+/* Window drag region. `titleBarStyle: "hiddenInset"` (src/main/index.ts)
+   removes the native title bar, so the view has to designate the area the
+   user can grab. A 32px strip across the top covers the traffic-light
+   inset; macOS continues to handle clicks on the buttons themselves.
+   Sizing/positioning only — Electrobun's preload (dragRegions.ts) detects
+   drag targets by the `electrobun-webkit-app-region-drag` class or an
+   inline `style="app-region: drag"`, NOT by computed CSS. WKWebView
+   doesn't honor `-webkit-app-region` the way Chromium does. */
+.app-drag-region {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  z-index: 9999;
+}

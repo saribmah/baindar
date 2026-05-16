@@ -15,17 +15,23 @@ export default {
     bun: {
       entrypoint: "src/main/index.ts",
     },
-  },
-  // Files/dirs copied into the bundle. The destination becomes a views:// path.
-  // Vite's output goes here verbatim; electrobun-config schemas accept dir→dir
-  // mappings. Verify the first build lands index.html + hashed assets under
-  // views://mainview/ — if Electrobun rejects directory copies, switch to
-  // explicit per-file mappings or a post-build step.
-  copy: {
-    "dist-view": "views/mainview",
-  },
-  mac: {
-    codesign: false,
-    notarize: false,
+    // Files/dirs copied into the bundle under Contents/Resources/app. The
+    // destination "views/mainview" becomes the views://mainview/ path the
+    // main process loads in production (see src/main/index.ts). Electrobun
+    // reads this from `build.copy` — putting it at the top level is silently
+    // ignored and ships an .app with no view assets.
+    copy: {
+      "dist-view": "views/mainview",
+    },
+    mac: {
+      codesign: false,
+      notarize: false,
+      // Path (relative to packages/desktop/) to the macOS .iconset folder.
+      // Electrobun runs `iconutil -c icns` on it during build and emits
+      // Contents/Resources/AppIcon.icns, which Info.plist's CFBundleIconFile
+      // points at. Without this, macOS falls back to the generic white box
+      // in Dock / Finder.
+      icons: "assets/AppIcon.iconset",
+    },
   },
 };

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun run scripts/dev.ts",
-    "build:view": "bun --no-env-file run vite build",
-    "build": "bunx --bun tsgo --noEmit && bun run build:view && bunx electrobun build --targets macos-arm64,macos-x64",
+    "build:view": "NODE_ENV=production bun --no-env-file run vite build",
+    "build": "NODE_ENV=production bunx --bun tsgo --noEmit && bun run build:view && NODE_ENV=production bunx electrobun build --targets macos-arm64,macos-x64",
     "lint": "oxlint --quiet src vite.config.ts electrobun.config.ts scripts",
     "lint:fix": "oxlint --fix --quiet src vite.config.ts electrobun.config.ts scripts",
     "format": "oxfmt --check --no-error-on-unmatched-pattern \"./src/**/*.{js,jsx,ts,tsx,mjs,cjs}\" \"./scripts/**/*.{js,ts}\" \"./vite.config.ts\" \"./electrobun.config.ts\"",

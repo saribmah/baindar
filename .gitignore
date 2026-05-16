@@ -12,6 +12,10 @@ coverage/
 # Source helpers in @baindar/testing — `lib/` above is meant for compiled
 # output (e.g. packages/sdk/lib/), not this directory.
 !packages/testing/src/lib/
+# Desktop (Electrobun): Vite's intermediate view bundle and the release
+# artifact folder. `build/` above already covers the .app bundle.
+dist-view/
+packages/desktop/artifacts/
 
 # Environment files
 .env

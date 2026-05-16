@@ -32,7 +32,12 @@ export const createAuth = (env: RuntimeEnv) => {
   // Mobile app deep-link scheme + Expo dev URLs. Without these the Expo client
   // sign-out/social-callback requests are rejected as untrusted origins.
   const mobileOrigins = ["baindar://", "baindar://*", "exp://", "exp://**"];
-  const trustedOrigins = [...configuredOrigins, ...mobileOrigins];
+  // Electrobun loads the desktop view from views://mainview/index.html in
+  // production builds, so the Origin header on auth requests is
+  // `views://mainview`. The desktop deep-link scheme is also added so the
+  // OAuth callback (baindar-desktop://auth/callback) is accepted.
+  const desktopOrigins = ["views://mainview", "baindar-desktop://", "baindar-desktop://*"];
+  const trustedOrigins = [...configuredOrigins, ...mobileOrigins, ...desktopOrigins];
 
   return betterAuth({
     database: drizzleAdapter(db, { provider: "sqlite", schema }),

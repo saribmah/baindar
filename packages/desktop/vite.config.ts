@@ -12,6 +12,11 @@ import tsconfigPaths from "vite-tsconfig-paths";
 // electrobun.config.ts).
 export default defineConfig({
   root: resolve(__dirname, "src/views/mainview"),
+  // `envDir` defaults to `root`, which would make Vite look for env files
+  // under src/views/mainview/. `.env.development` and `.env.production`
+  // live at the package root — point Vite there so VITE_API_URL /
+  // VITE_AUTH_URL get inlined into the bundle.
+  envDir: __dirname,
   plugins: [tsconfigPaths(), react(), tailwindcss() as unknown as PluginOption],
   base: "./",
   build: {

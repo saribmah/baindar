@@ -13,6 +13,6 @@
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "include": ["src/views", "src/electrobun-shims.d.ts", "vite.config.ts"],
+  "include": ["src/views", "src/shared", "src/electrobun-shims.d.ts", "vite.config.ts"],
   "exclude": ["node_modules", "dist-view", "dist", "build"]
 }
