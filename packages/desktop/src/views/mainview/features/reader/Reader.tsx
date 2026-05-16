@@ -35,11 +35,19 @@ import type {
   Highlight,
   Note,
 } from "@baindar/sdk";
-import { useSdk } from "../../sdk";
+import { loadAuthedAssetUrl, useSdk } from "../../sdk";
 import { HighlightLayer } from "./HighlightLayer";
 import { ReaderHighlightsProvider, useReaderHighlights } from "./highlightsRefresh";
 import { NotesSheet } from "./NotesSheet";
 import { TocSheet } from "./TocSheet";
+
+// Strip `src` off `<img src="assets/...">` and park the path on
+// `data-asset-src` BEFORE the HTML is injected. Otherwise the browser
+// eagerly resolves the relative URL against the document origin
+// (views://mainview) and fires a doomed `views://mainview/assets/X`
+// request before our `useEffect` can rewrite the src to an authed blob.
+const rewriteAssetImgSrc = (html: string): string =>
+  html.replace(/<img\b([^>]*?)\ssrc=(["'])(assets\/[^"']+)\2/gi, "<img$1 data-asset-src=$2$3$2");
 
 export function Reader() {
   const { id } = useParams<{ id: string }>();
@@ -591,7 +599,7 @@ function ReaderBody({ doc }: { doc: Document }) {
       .getSectionHtml({ id: documentId, order: String(order) })
       .then((res) => {
         if (cancelled) return;
-        if (typeof res.data === "string") setChapterHtml(res.data);
+        if (typeof res.data === "string") setChapterHtml(rewriteAssetImgSrc(res.data));
         else setError("Failed to load chapter");
       })
       .catch((err: unknown) => {
@@ -619,15 +627,32 @@ function ReaderBody({ doc }: { doc: Document }) {
     };
   }, [client, documentId, order]);
 
+  const { authedFetch } = useSdk();
   useEffect(() => {
     if (!htmlRef.current || chapterHtml === null) return;
-    htmlRef.current.querySelectorAll('img[src^="assets/"]').forEach((img) => {
-      const src = img.getAttribute("src");
-      if (src) {
-        img.setAttribute("src", `${baseUrl}/documents/${documentId}/${src}`);
-      }
-    });
-  }, [chapterHtml, baseUrl, documentId]);
+    let cancelled = false;
+    // `rewriteAssetImgSrc` stripped the eager `src` and parked the asset
+    // path on `data-asset-src` so the browser couldn't fire a
+    // `views://mainview/assets/...` request before this effect runs.
+    // Resolve through the shared auth cache (sdk/useAuthedAssetUrl.ts) and
+    // set src once. Object URLs intentionally live for the session.
+    const images = htmlRef.current.querySelectorAll<HTMLImageElement>("img[data-asset-src]");
+    for (const img of Array.from(images)) {
+      const relative = img.dataset.assetSrc;
+      if (!relative) continue;
+      const absolute = `${baseUrl}/documents/${documentId}/${relative}`;
+      loadAuthedAssetUrl(absolute, authedFetch)
+        .then((objectUrl) => {
+          if (!cancelled) img.setAttribute("src", objectUrl);
+        })
+        .catch((error: unknown) => {
+          console.error("[reader] failed to load asset", absolute, error);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [authedFetch, chapterHtml, baseUrl, documentId]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });

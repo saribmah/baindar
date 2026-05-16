@@ -1,6 +1,6 @@
 import { BookCover } from "@baindar/ui";
 import type { Document } from "@baindar/sdk";
-import { useSdk } from "../../../sdk";
+import { useAuthedAssetUrl, useSdk } from "../../../sdk";
 import { COVER_PALETTES } from "../constants";
 import { sourceLabel } from "../utils/document";
 
@@ -19,10 +19,11 @@ export function LibraryCover({
   priority?: boolean;
 }) {
   const { baseUrl } = useSdk();
-  const coverSrc =
+  const remoteCover =
     doc.kind === "epub" && doc.status === "processed" && doc.coverImage
       ? `${baseUrl}/documents/${doc.id}/${doc.coverImage}`
       : null;
+  const coverSrc = useAuthedAssetUrl(remoteCover);
 
   if (coverSrc) {
     return (

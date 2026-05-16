@@ -1,6 +1,6 @@
 import { BookCover } from "@baindar/ui";
 import type { Document } from "@baindar/sdk";
-import { useSdk } from "../../../sdk";
+import { useAuthedAssetUrl, useSdk } from "../../../sdk";
 import { KIND_GRADIENT } from "../constants";
 
 export function DocumentCover({
@@ -18,10 +18,11 @@ export function DocumentCover({
   // `coverImage` is set on the document row by the processing pipeline once
   // the manifest has been written, so the dashboard never needs to fetch
   // the manifest just to render a cover.
-  const coverSrc =
+  const remoteCover =
     doc.kind === "epub" && doc.status === "processed" && doc.coverImage
       ? `${baseUrl}/documents/${doc.id}/${doc.coverImage}`
       : null;
+  const coverSrc = useAuthedAssetUrl(remoteCover);
 
   if (fill) {
     return (
