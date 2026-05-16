@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "@baindar/ui";
 import { AuthGate } from "../src/features/auth";
+import { BillingProvider } from "../src/features/billing";
 import {
   profileThemeToUi,
   ProfileProvider,
@@ -38,7 +39,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SDKProvider>
         <ProfileProvider>
-          <ThemedAppShell />
+          <BillingProvider>
+            <ThemedAppShell />
+          </BillingProvider>
         </ProfileProvider>
       </SDKProvider>
     </SafeAreaProvider>

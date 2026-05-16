@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Chip, ChipButton, Icons, Wordmark, useThemeColors, useThemedStyles } from "@baindar/ui";
+import { ChipButton, Icons, Wordmark, useThemeColors, useThemedStyles } from "@baindar/ui";
 import { ProfileHighlightColor, ProfileTheme } from "@baindar/sdk";
+import { BillingGroup, UsageMeter, useBillingStatus } from "../../billing";
 import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
 import { buildLibraryStyles } from "../../library/library.styles";
 import { signOutProfile } from "../actions";
@@ -31,6 +32,7 @@ export function SettingsScreen() {
   const { counts } = useLibraryDocuments();
   const { user } = useUserProfile();
   const { profile, update } = useProfile();
+  const { billing } = useBillingStatus();
   const styles = useThemedStyles(buildProfileStyles);
   const libraryStyles = useThemedStyles(buildLibraryStyles);
   const palette = useThemeColors();
@@ -66,6 +68,8 @@ export function SettingsScreen() {
             <Text style={styles.settingSub}>{email || "Reader profile"}</Text>
           </View>
         </View>
+
+        {billing && <UsageMeter billing={billing} />}
 
         <Group label="Reading">
           <Row label="Theme" sub="Light · Sepia · Night">
@@ -158,13 +162,13 @@ export function SettingsScreen() {
 
         <Group label="Account">
           <Row label="Email" sub={email || "Not available"} />
-          <Row label="Plan" sub={`${counts.all} imports / unlimited reading`}>
-            <Chip variant="outline">Free</Chip>
-          </Row>
+          <Row label="Imports" sub={`${counts.all} documents in your binder`} />
           <Row label="Sign out" onPress={signOutProfile} last>
             <Icons.Chevron size={14} color={palette.fgMuted} />
           </Row>
         </Group>
+
+        {billing && <BillingGroup billing={billing} />}
       </ScrollView>
     </View>
   );

@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@baindar/ui";
 import { RequireAuth, SignIn, SignUp } from "./features/auth";
+import { BillingProvider } from "./features/billing";
 import { ConversationsPage } from "./features/conversations";
 import { Dashboard } from "./features/dashboard";
 import { Landing } from "./features/landing";
@@ -51,9 +52,11 @@ export function App() {
 function SignedInShell() {
   return (
     <ProfileProvider>
-      <ThemedAppShell>
-        <Outlet />
-      </ThemedAppShell>
+      <BillingProvider>
+        <ThemedAppShell>
+          <Outlet />
+        </ThemedAppShell>
+      </BillingProvider>
     </ProfileProvider>
   );
 }

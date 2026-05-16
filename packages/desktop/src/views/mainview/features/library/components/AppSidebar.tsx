@@ -2,6 +2,7 @@ import { useEffect, useState, type ComponentType } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Button, Icons, Wordmark } from "@baindar/ui";
 import type { Shelf } from "@baindar/sdk";
+import { UsageMeter, useBillingStatus } from "../../billing";
 import { ProfileMenuButton } from "../../profile";
 import { UploadDropTarget } from "./UploadDropTarget";
 import { shelfPath } from "../utils/shelf";
@@ -32,6 +33,7 @@ export function AppSidebar({
   const [shelvesOpen, setShelvesOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { billing } = useBillingStatus();
 
   useEffect(() => {
     setMobileOpen(false);
@@ -177,7 +179,10 @@ export function AppSidebar({
           )}
         </div>
 
-        <ProfileMenuButton reader={reader} />
+        <div className="mt-auto">
+          {billing && <UsageMeter billing={billing} />}
+          <ProfileMenuButton reader={reader} />
+        </div>
       </aside>
     </>
   );

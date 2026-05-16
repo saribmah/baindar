@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Button, Chip, ChipButton, Icons } from "@baindar/ui";
 import { ProfileHighlightColor, ProfileTheme } from "@baindar/sdk";
+import { BillingSection, useBillingStatus } from "../../billing";
 import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
 import { AppSidebar } from "../../library/components/AppSidebar";
 import { useLibraryShelves } from "../../library/hooks/useLibraryShelves";
@@ -29,6 +30,7 @@ export function SettingsPage() {
   const { shelves } = useLibraryShelves(documents);
   const { user } = useUserProfile();
   const { profile, update } = useProfile();
+  const { billing } = useBillingStatus();
 
   const displayName = user?.name?.trim() || reader;
   const email = user?.email ?? "";
@@ -139,15 +141,15 @@ export function SettingsPage() {
 
             <Section label="Account">
               <Row label="Email" sub={email || "Not available"} />
-              <Row label="Plan" sub={`${counts.all} imports / unlimited reading`}>
-                <Chip variant="outline">Free</Chip>
-              </Row>
+              <Row label="Imports" sub={`${counts.all} documents in your binder`} />
               <Row label="Session" sub="Sign out of this device">
                 <Button variant="wine" size="sm" onClick={signOutProfile}>
                   Sign out
                 </Button>
               </Row>
             </Section>
+
+            {billing && <BillingSection billing={billing} />}
 
             <Section label="Notifications">
               <Row label="Daily reading nudge" sub="A quiet evening reminder">
