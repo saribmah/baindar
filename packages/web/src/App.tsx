@@ -6,6 +6,7 @@ import { BillingProvider, PlansPage, PlanUsagePage } from "./features/billing";
 import { ConversationsPage } from "./features/conversations";
 import { Dashboard } from "./features/dashboard";
 import { Landing } from "./features/landing";
+import { PrivacyPolicyPage, TermsAndConditionsPage } from "./features/legal";
 import { Highlights, Library, LibraryDetail, Notes, ShelfDetail } from "./features/library";
 import {
   profileThemeToUi,
@@ -22,6 +23,8 @@ export function App() {
       <Routes>
         <Route index element={<Landing />} />
         <Route path="/plans" element={<PlansPage />} />
+        <Route path="/terms" element={<TermsAndConditionsPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
         <Route element={<RequireAuth />}>

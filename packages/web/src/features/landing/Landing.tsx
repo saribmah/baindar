@@ -1,4 +1,4 @@
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { BillingPlan } from "@baindar/sdk";
 import { Button, Icons, Wordmark } from "@baindar/ui";
 import { authClient } from "../auth";
@@ -539,6 +539,14 @@ function FooterSection({
                   >
                     {link}
                   </a>
+                ) : link === "Terms and conditions" || link === "Privacy policy" ? (
+                  <Link
+                    key={link}
+                    to={link === "Terms and conditions" ? "/terms" : "/privacy"}
+                    className="t-body-m w-fit text-left text-[14px] text-bd-fg-subtle no-underline hover:text-bd-fg"
+                  >
+                    {link}
+                  </Link>
                 ) : (
                   <button
                     key={link}

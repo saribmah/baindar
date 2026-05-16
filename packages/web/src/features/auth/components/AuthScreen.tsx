@@ -141,8 +141,14 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
 
         <p className="t-body-s m-0 text-bd-fg-muted">
           By continuing, you agree to our{" "}
-          <span className="underline underline-offset-4">Terms</span> and{" "}
-          <span className="underline underline-offset-4">Privacy Policy</span>.
+          <Link to="/terms" className="text-bd-fg underline underline-offset-4">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link to="/privacy" className="text-bd-fg underline underline-offset-4">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </section>
 
