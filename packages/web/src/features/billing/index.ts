@@ -5,5 +5,8 @@ export { PlanBadge } from "./components/PlanBadge";
 export { BillingSection } from "./components/BillingSection";
 export { BillingLimitDialog } from "./components/BillingLimitDialog";
 export type { BillingLimitKind } from "./components/BillingLimitDialog";
+export { PlanCard } from "./components/PlanCard";
+export type { PlanCardAction } from "./components/PlanCard";
+export { BILLING_PLANS } from "./planData";
 export { PlanUsagePage } from "./pages/PlanUsagePage";
 export { PlansPage } from "./pages/PlansPage";
