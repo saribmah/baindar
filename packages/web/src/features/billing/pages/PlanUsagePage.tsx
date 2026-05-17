@@ -8,6 +8,7 @@ import { AppSidebar } from "../../library/components/AppSidebar";
 import { useLibraryShelves } from "../../library/hooks/useLibraryShelves";
 import { useProfileName } from "../../profile";
 import { getPlanDetails } from "../planData";
+import { useBilling } from "../BillingProvider";
 import { useBillingStatus } from "../hooks/useBillingStatus";
 import {
   formatCostUsd,
@@ -26,11 +27,12 @@ export function PlanUsagePage() {
   const { documents, counts, uploading, uploadDocument } = useLibraryDocuments();
   const { shelves } = useLibraryShelves(documents);
   const { billing, loading } = useBillingStatus();
+  const { manageSubscriptionUrl } = useBilling();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ?checkout=<id|success> means the user just landed back from Polar.
-  // We pop the welcome dialog once and strip the param so a refresh
-  // doesn't re-pop. The dialog stays open until the user dismisses;
+  // ?checkout=<id|success> means the user just completed a RevenueCat
+  // checkout. We pop the welcome dialog once and strip the param so a
+  // refresh doesn't re-pop. The dialog stays open until the user dismisses;
   // BYOK users get a CTA into the provider sheet from inside it.
   const checkoutSignal = searchParams.get("checkout");
   const [welcomeOpen, setWelcomeOpen] = useState<boolean>(checkoutSignal !== null);
@@ -74,6 +76,7 @@ export function PlanUsagePage() {
             <PlanUsage
               billing={billing}
               documentsUsed={counts.all}
+              manageSubscriptionUrl={manageSubscriptionUrl}
               providerSheetRequested={providerSheetRequested}
               onProviderSheetHandled={() => setProviderSheetRequested(false)}
             />
@@ -101,11 +104,13 @@ export function PlanUsagePage() {
 function PlanUsage({
   billing,
   documentsUsed,
+  manageSubscriptionUrl,
   providerSheetRequested,
   onProviderSheetHandled,
 }: {
   billing: BillingStatus;
   documentsUsed: number;
+  manageSubscriptionUrl: string | null;
   providerSheetRequested: boolean;
   onProviderSheetHandled: () => void;
 }) {
@@ -143,8 +148,8 @@ function PlanUsage({
           <p className="t-body-m m-0 mt-2 max-w-[560px] text-bd-fg-subtle">{plan.description}</p>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            {billing.portalUrl ? (
-              <a href={billing.portalUrl} target="_blank" rel="noreferrer">
+            {manageSubscriptionUrl ? (
+              <a href={manageSubscriptionUrl} target="_blank" rel="noreferrer">
                 <Button variant="primary" size="md" iconEnd={<ExternalArrow />}>
                   Manage plan
                 </Button>

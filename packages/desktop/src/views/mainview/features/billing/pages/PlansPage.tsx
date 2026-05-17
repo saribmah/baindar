@@ -1,46 +1,43 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { BillingStatus } from "@baindar/sdk";
 import { BillingPlan } from "@baindar/sdk";
 import { Button, Icons, Wordmark } from "@baindar/ui";
 import { authClient } from "../../auth";
-import { useSdk } from "../../../sdk";
+import { useBilling } from "../BillingProvider";
 import { BILLING_PLANS } from "../planData";
 import { PlanCard, type PlanCardAction } from "../components/PlanCard";
 
 export function PlansPage() {
   const navigate = useNavigate();
-  const { client } = useSdk();
   const session = authClient.useSession();
-  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const { billing, purchasePlan, manageSubscriptionUrl, rcReady, rcUnavailable } = useBilling();
   const signedIn = !!session.data?.user;
-
-  useEffect(() => {
-    if (!signedIn) {
-      setBilling(null);
-      return;
-    }
-    let cancelled = false;
-    client.billing
-      .me()
-      .then((res) => {
-        if (!cancelled && res.data) setBilling(res.data);
-      })
-      .catch(() => {
-        if (!cancelled) setBilling(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [client, signedIn]);
-
-  const actions = useMemo(
-    () => new Map(billing?.upgradeOptions.map((option) => [option.plan, option.checkoutUrl])),
-    [billing],
-  );
+  const [pendingPlan, setPendingPlan] = useState<BillingPlan | null>(null);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   const currentPlan = billing?.plan ?? null;
   const email = session.data?.user.email ?? "";
+
+  const handlePurchase = async (plan: BillingPlan) => {
+    setPurchaseError(null);
+    setPendingPlan(plan);
+    try {
+      const outcome = await purchasePlan(plan);
+      if (outcome.status === "success") {
+        navigate("/settings/plan?checkout=success");
+      } else if (outcome.status === "unavailable") {
+        setPurchaseError(
+          outcome.reason === "not_configured"
+            ? "Billing isn't configured yet. Please contact support."
+            : "This plan isn't available right now.",
+        );
+      } else if (outcome.status === "error") {
+        setPurchaseError(outcome.message);
+      }
+    } finally {
+      setPendingPlan(null);
+    }
+  };
 
   return (
     <main className="flex min-h-screen flex-col bg-bd-bg text-bd-fg">
@@ -88,6 +85,12 @@ export function PlansPage() {
           </div>
         </div>
 
+        {purchaseError && (
+          <div className="rounded-lg border border-warning bg-warning/10 px-4 py-3 text-warning">
+            <span className="t-body-m">{purchaseError}</span>
+          </div>
+        )}
+
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {BILLING_PLANS.map((plan) => (
             <PlanCard
@@ -96,15 +99,24 @@ export function PlansPage() {
               currentPlan={currentPlan}
               action={
                 signedIn && !billing
-                  ? { kind: "disabled", label: "Loading..." }
-                  : planAction(plan.id, signedIn, currentPlan, actions, billing?.portalUrl)
+                  ? { kind: "disabled", label: "Loading…" }
+                  : planAction({
+                      plan: plan.id,
+                      signedIn,
+                      currentPlan,
+                      manageSubscriptionUrl,
+                      rcReady,
+                      rcUnavailable,
+                      onPurchase: handlePurchase,
+                      pendingPlan,
+                    })
               }
             />
           ))}
         </div>
 
         <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 text-bd-fg-muted">
-          <FooterCheck>Cancel any time from the Polar dashboard.</FooterCheck>
+          <FooterCheck>Cancel any time from your subscription management page.</FooterCheck>
           <FooterCheck>Pro-rated when you change plans.</FooterCheck>
           <FooterCheck>Your documents stay yours when you downgrade.</FooterCheck>
         </div>
@@ -122,16 +134,28 @@ function FooterCheck({ children }: { children: string }) {
   );
 }
 
-function planAction(
-  plan: BillingPlan,
-  signedIn: boolean,
-  currentPlan: BillingPlan | null,
-  checkoutUrls: Map<BillingPlan, string>,
-  portalUrl?: string | null,
-): PlanCardAction {
+function planAction({
+  plan,
+  signedIn,
+  currentPlan,
+  manageSubscriptionUrl,
+  rcReady,
+  rcUnavailable,
+  onPurchase,
+  pendingPlan,
+}: {
+  plan: BillingPlan;
+  signedIn: boolean;
+  currentPlan: BillingPlan | null;
+  manageSubscriptionUrl: string | null;
+  rcReady: boolean;
+  rcUnavailable: boolean;
+  onPurchase: (plan: BillingPlan) => void | Promise<void>;
+  pendingPlan: BillingPlan | null;
+}): PlanCardAction {
   if (currentPlan === plan) {
-    return portalUrl
-      ? { kind: "external", label: "Manage Plan", href: portalUrl }
+    return manageSubscriptionUrl
+      ? { kind: "external", label: "Manage Plan", href: manageSubscriptionUrl }
       : { kind: "disabled", label: "Manage Plan" };
   }
   if (!signedIn) {
@@ -144,11 +168,18 @@ function planAction(
   if (plan === BillingPlan.Free) {
     return { kind: "disabled", label: "Included" };
   }
-  const checkoutUrl = checkoutUrls.get(plan);
-  if (checkoutUrl) {
-    return { kind: "external", label: buttonLabelForPlan(plan), href: checkoutUrl };
+  if (rcUnavailable) {
+    return { kind: "disabled", label: "Unavailable" };
   }
-  return { kind: "disabled", label: "Unavailable" };
+  if (!rcReady) {
+    return { kind: "disabled", label: "Loading…" };
+  }
+  return {
+    kind: "purchase",
+    label: buttonLabelForPlan(plan),
+    onPurchase: () => onPurchase(plan),
+    pending: pendingPlan === plan,
+  };
 }
 
 const labelForPlan = (plan: BillingPlan): string => {

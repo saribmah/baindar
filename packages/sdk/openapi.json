@@ -373,21 +373,6 @@
           "costUsdMicros"
         ]
       },
-      "BillingUpgradeOption": {
-        "type": "object",
-        "properties": {
-          "plan": {
-            "$ref": "#/components/schemas/BillingPlan"
-          },
-          "checkoutUrl": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "plan",
-          "checkoutUrl"
-        ]
-      },
       "BillingStatus": {
         "type": "object",
         "properties": {
@@ -409,21 +394,11 @@
           "cancelAtPeriodEnd": {
             "type": "boolean"
           },
-          "upgradeOptions": {
+          "availablePlans": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BillingUpgradeOption"
+              "$ref": "#/components/schemas/BillingPlan"
             }
-          },
-          "portalUrl": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "providerConfigured": {
             "type": "boolean"
@@ -436,8 +411,7 @@
           "currentPeriod",
           "periodResetAt",
           "cancelAtPeriodEnd",
-          "upgradeOptions",
-          "portalUrl",
+          "availablePlans",
           "providerConfigured"
         ]
       },
@@ -1643,7 +1617,7 @@
       "get": {
         "operationId": "billing.me",
         "summary": "Get the caller's billing status",
-        "description": "Returns the caller's plan, subscription status, current-period usage, and quota limits. The Free plan is implicit — users without an explicit subscription row get `plan: \"free\", status: \"active\"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1).",
+        "description": "Returns the caller's plan, subscription status, current-period usage, quota limits, and the list of plans they can switch to. The Free plan is implicit — users without an explicit subscription row get `plan: \"free\", status: \"active\"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1). Clients drive purchase and subscription management through their own RevenueCat SDKs; this endpoint surfaces only the server-side view of plan + quota.",
         "responses": {
           "200": {
             "description": "Billing status",
@@ -1661,54 +1635,45 @@
         }
       }
     },
-    "/billing/checkout/{plan}": {
-      "get": {
-        "operationId": "billing.checkout",
-        "summary": "Start a Polar checkout session for a plan",
-        "description": "Creates a Polar checkout session for the named plan and 302-redirects the browser to the hosted checkout. The signed-in user is passed to Polar as `externalCustomerId` so the eventual webhook can resolve back to our user row.",
+    "/billing/sync": {
+      "post": {
+        "operationId": "billing.sync",
+        "summary": "Refresh billing status from RevenueCat",
+        "description": "Re-fetches the caller's active entitlements from RevenueCat and upserts the local subscription row. Returns the freshly recomputed billing status. Idempotent; safe to call after every purchase or restore.",
         "responses": {
-          "302": {
-            "description": "Redirect to Polar checkout"
-          },
-          "400": {
-            "description": "Unknown plan or plan not configured"
+          "200": {
+            "description": "Refreshed billing status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingStatus"
+                }
+              }
+            }
           },
           "401": {
             "description": "Not authenticated"
           },
           "500": {
-            "description": "Polar not configured"
+            "description": "RevenueCat not configured"
           }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "plan",
-            "required": true
-          }
-        ]
+        }
       }
     },
-    "/billing/portal": {
-      "get": {
-        "operationId": "billing.portal",
-        "summary": "Open the Polar customer portal",
-        "description": "Creates a Polar customer-session and 302-redirects the browser to the portal URL. The session is scoped to the signed-in user via `externalCustomerId`.",
+    "/billing/revenuecat/webhook": {
+      "post": {
+        "operationId": "billing.revenuecatWebhook",
+        "summary": "RevenueCat webhook receiver",
+        "description": "Handles RevenueCat subscription lifecycle webhooks. Requires the configured shared secret in the Authorization header; re-fetches the canonical subscriber state and upserts the local subscription row.",
         "responses": {
-          "302": {
-            "description": "Redirect to Polar customer portal"
+          "200": {
+            "description": "Event accepted"
           },
           "401": {
-            "description": "Not authenticated"
-          },
-          "404": {
-            "description": "User has no Polar customer yet (free plan)"
+            "description": "Invalid or missing authorization header"
           },
           "500": {
-            "description": "Polar not configured"
+            "description": "RevenueCat not configured"
           }
         }
       }

@@ -22,7 +22,14 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route index element={<Landing />} />
-        <Route path="/plans" element={<PlansPage />} />
+        <Route
+          path="/plans"
+          element={
+            <BillingProvider>
+              <PlansPage />
+            </BillingProvider>
+          }
+        />
         <Route path="/terms" element={<TermsAndConditionsPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/signin" element={<SignIn />} />

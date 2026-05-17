@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { BillingStatus, BillingUpgradeOption } from "@baindar/sdk";
+import type { BillingPlan, BillingStatus } from "@baindar/sdk";
 import { Button, Icons } from "@baindar/ui";
 import { getPlanDetails } from "../planData";
 import { formatPeriodReset, formatPlanLabel } from "../utils/format";
@@ -66,7 +66,7 @@ export function BillingLimitDialog({
   const resolvedUsed = used ?? usedForKind(kind, billing, resolvedLimit);
   const meta = copyForKind(kind, billing, resolvedLimit);
   const Icon = meta.Icon;
-  const upgradeOptions = billing.upgradeOptions.slice(0, 2);
+  const upgradePlans = billing.availablePlans.slice(0, 2);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-paper-900/45 px-4 py-6 backdrop-blur-md">
@@ -106,10 +106,10 @@ export function BillingLimitDialog({
           <UsageBar label={meta.metricLabel} used={resolvedUsed} limit={resolvedLimit} />
         </div>
 
-        {upgradeOptions.length > 0 && (
+        {upgradePlans.length > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">
-            {upgradeOptions.map((option) => (
-              <UpgradeTile key={option.plan} option={option} kind={kind} />
+            {upgradePlans.map((plan) => (
+              <UpgradeTile key={plan} plan={plan} kind={kind} />
             ))}
           </div>
         )}
@@ -127,35 +127,33 @@ export function BillingLimitDialog({
   );
 }
 
-function UpgradeTile({ option, kind }: { option: BillingUpgradeOption; kind: BillingLimitKind }) {
-  const plan = getPlanDetails(option.plan);
+function UpgradeTile({ plan, kind }: { plan: BillingPlan; kind: BillingLimitKind }) {
+  const details = getPlanDetails(plan);
   const key =
     kind === "chat"
       ? "Chat conversations / month"
       : kind === "summary"
         ? "AI summaries / month"
         : "Documents in your binder";
-  const feature = plan.features.find((item) => item.label === key) ?? plan.features[0];
+  const feature = details.features.find((item) => item.label === key) ?? details.features[0];
 
   return (
-    <a
-      href={option.checkoutUrl}
-      target="_blank"
-      rel="noreferrer"
+    <Link
+      to="/plans"
       className="flex flex-col gap-1.5 rounded-lg border border-bd-border bg-bd-bg p-3.5 text-left text-bd-fg no-underline transition-colors hover:bg-bd-surface-hover"
     >
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-display text-[18px] font-medium leading-none">{plan.name}</span>
+        <span className="font-display text-[18px] font-medium leading-none">{details.name}</span>
         <span className="font-mono text-[12px] text-bd-fg-muted">
-          ${plan.price}
-          {plan.cadence}
+          ${details.price}
+          {details.cadence}
         </span>
       </div>
       <div className="flex items-baseline gap-1.5">
         <span className="font-display text-[22px] font-medium leading-none">{feature.value}</span>
         <span className="t-body-s text-[11px] text-bd-fg-muted">{feature.label.toLowerCase()}</span>
       </div>
-    </a>
+    </Link>
   );
 }
 

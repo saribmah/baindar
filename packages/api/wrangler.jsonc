@@ -24,16 +24,17 @@
 				// to point at a proxy or alternative provider.
 				"ANTHROPIC_BASE_URL": "https://opencode.ai/zen/go/v1",
 				"ANTHROPIC_MODEL": "minimax-m2.7",
-				// Polar (billing) — set per-environment. Product IDs are not
-				// secrets (they identify SKUs in Polar's dashboard) so they
-				// live in vars; credentials live in `secrets.required` below.
-				// `POLAR_SERVER` is either `sandbox` (default) or `production`.
-				"POLAR_SERVER": "sandbox",
-				"POLAR_ORGANIZATION_ID": "5ad00a27-5ff0-4458-89dc-030ad429b5c2",
-				"POLAR_PRODUCT_PERSONAL": "8f309b6c-de59-484c-9a09-1f5efbec8ae2",
-				"POLAR_PRODUCT_PRO": "216812ca-6a01-4928-b761-d1885405f5e3",
-				"POLAR_PRODUCT_BYOK": "de231956-3284-4611-804a-11d260832979",
-				"POLAR_SUCCESS_URL": "/settings"
+				// RevenueCat (billing). Project + entitlement IDs are not secrets
+				// (they're stable handles in the RC dashboard) so they live in
+				// vars; the V2 REST API key + webhook shared secret live in
+				// `secrets.required`. Entitlement lookup_keys ("personal",
+				// "pro", "byok") double as our internal plan names, so a
+				// missing/unknown entitlement is logged and ignored rather
+				// than corrupting the user's plan.
+				"REVENUECAT_PROJECT_ID": "projf22386f8",
+				"REVENUECAT_ENTITLEMENT_PERSONAL": "entla0a92a1fbb",
+				"REVENUECAT_ENTITLEMENT_PRO": "entl4f223478d6",
+				"REVENUECAT_ENTITLEMENT_BYOK": "entl9bd3704a98"
 			},
 			"d1_databases": [
 				{
@@ -113,8 +114,8 @@
 					"APPLE_CLIENT_ID",
 					"APPLE_CLIENT_SECRET",
 					"ANTHROPIC_API_KEY",
-					"POLAR_ACCESS_TOKEN",
-					"POLAR_WEBHOOK_SECRET",
+					"REVENUECAT_SECRET_API_KEY",
+					"REVENUECAT_WEBHOOK_AUTH",
 						"PROVIDER_ENCRYPTION_KEY"
 				]
 			}
@@ -150,16 +151,11 @@
 				// default (the official Anthropic API).
 				"ANTHROPIC_BASE_URL": "https://opencode.ai/zen/go/v1",
 				"ANTHROPIC_MODEL": "minimax-m2.7",
-				// Polar (billing) — set per-environment. Product IDs are not
-				// secrets (they identify SKUs in Polar's dashboard) so they
-				// live in vars; credentials live in `secrets.required` below.
-				// `POLAR_SERVER` is either `sandbox` (default) or `production`.
-				"POLAR_SERVER": "production",
-				"POLAR_ORGANIZATION_ID": "82e66247-f975-4954-965c-73f5e6111016",
-				"POLAR_PRODUCT_PERSONAL": "3ac26a55-76db-4d4a-89e3-0429b4ec5d91",
-				"POLAR_PRODUCT_PRO": "978f57d1-71ce-4dd3-8f66-d7a3a0a70cf7",
-				"POLAR_PRODUCT_BYOK": "dbf8e67b-46cd-41c3-b886-0ef2cbb69163",
-				"POLAR_SUCCESS_URL": "/settings"
+				// RevenueCat (billing). See dev block above for the rationale.
+				"REVENUECAT_PROJECT_ID": "projf22386f8",
+				"REVENUECAT_ENTITLEMENT_PERSONAL": "entla0a92a1fbb",
+				"REVENUECAT_ENTITLEMENT_PRO": "entl4f223478d6",
+				"REVENUECAT_ENTITLEMENT_BYOK": "entl9bd3704a98"
 			},
 			"d1_databases": [
 				{
@@ -238,8 +234,8 @@
 					"APPLE_CLIENT_ID",
 					"APPLE_CLIENT_SECRET",
 					"ANTHROPIC_API_KEY",
-					"POLAR_ACCESS_TOKEN",
-					"POLAR_WEBHOOK_SECRET",
+					"REVENUECAT_SECRET_API_KEY",
+					"REVENUECAT_WEBHOOK_AUTH",
 						"PROVIDER_ENCRYPTION_KEY"
 				]
 			}

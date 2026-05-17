@@ -3,12 +3,12 @@ import { Config } from "../config/config";
 import { Provider } from "../provider/provider";
 import { NamedError } from "../utils/error";
 import { BillingStore } from "./billing-store";
+import { RevenueCat } from "./revenuecat";
 
-// Billing namespace: subscription state + AI usage metering. Phase 1 is
-// "metering only" — recordUsage writes ledger rows and rolls up monthly
-// counters, but no caller enforces the quota yet. The quota math lives
-// here so that when enforcement lands (Phase 3) the only new code is a
-// middleware that calls `Billing.getRemainingQuota` and maps the result.
+// Billing namespace: subscription state + AI usage metering. The provider
+// (RevenueCat) is the source of truth for "what plan is this user on";
+// `subscription` mirrors RC's view via the webhook + sync path. Quota math,
+// usage metering, and period boundaries are provider-agnostic.
 export namespace Billing {
   export const Plan = z.enum(["free", "personal", "pro", "byok"]).meta({ ref: "BillingPlan" });
   export type Plan = z.infer<typeof Plan>;
@@ -85,14 +85,6 @@ export namespace Billing {
   };
   export type UsagePeriod = z.infer<typeof UsagePeriod.Entity>;
 
-  export const UpgradeOption = z
-    .object({
-      plan: Plan,
-      checkoutUrl: z.string(),
-    })
-    .meta({ ref: "BillingUpgradeOption" });
-  export type UpgradeOption = z.infer<typeof UpgradeOption>;
-
   export const StatusResponse = z
     .object({
       plan: Plan,
@@ -101,14 +93,16 @@ export namespace Billing {
       currentPeriod: UsagePeriod.Entity,
       periodResetAt: z.string(),
       cancelAtPeriodEnd: z.boolean(),
-      // Frontend-ready checkout + portal URLs derived from configured Polar
-      // products. `upgradeOptions` lists plans the user can switch to (i.e.
-      // not their current plan). `portalUrl` is null until Polar is fully
-      // configured AND the user has a subscription record at Polar.
-      upgradeOptions: z.array(UpgradeOption),
-      portalUrl: z.string().nullable(),
+      // Plans the user can switch to (everything other than their current
+      // plan). The client uses these to look up the matching RC offering
+      // package via the RC SDK; the server no longer builds checkout URLs
+      // since RC drives purchase entirely from the client SDK.
+      availablePlans: z.array(Plan),
       // True when the user has configured a BYOK provider. Drives the
       // "AI Provider" row visibility / state on the billing page.
+      // Clients obtain the manage-subscription URL directly from the RC
+      // SDK's CustomerInfo (web: management_url; mobile: native UI),
+      // so the server doesn't surface it.
       providerConfigured: z.boolean(),
     })
     .meta({ ref: "BillingStatus" });
@@ -138,7 +132,7 @@ export namespace Billing {
   // Monthly windows in UTC. A user's billing period rolls over at the start
   // of each calendar month — simple, predictable, matches how non-tech users
   // think about "this month's usage." Later we can shift this to anchor on
-  // the subscription start date if Polar's subscription cycle differs.
+  // the subscription start date if RC's subscription cycle differs.
   export const getCurrentPeriodWindow = (now: Date = new Date()): { start: Date; end: Date } => {
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
     const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0, 0));
@@ -162,7 +156,9 @@ export namespace Billing {
       Provider.hasConfigured(userId).catch(() => false),
     ]);
     const quota = getQuotaForPlan(subscription.plan);
-    const urls = buildUpgradeUrls(subscription.plan, subscription.providerSubscriptionId);
+    const availablePlans = (["personal", "pro", "byok"] as Plan[]).filter(
+      (p) => p !== subscription.plan,
+    );
     return {
       plan: subscription.plan,
       status: subscription.status,
@@ -170,43 +166,9 @@ export namespace Billing {
       currentPeriod: period,
       periodResetAt: period.periodEnd,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-      upgradeOptions: urls.upgradeOptions,
-      portalUrl: urls.portalUrl,
+      availablePlans,
       providerConfigured,
     };
-  };
-
-  // Build the public-facing checkout + portal URLs from the configured
-  // Polar products. Returns an empty list / null when Polar isn't wired
-  // (local dev without credentials, OpenAPI codegen) so callers don't have
-  // to special-case "is Polar configured" — they just render zero options.
-  //
-  // We compute these on the server so the frontend doesn't need to know
-  // the API origin or the Polar plugin's URL conventions. If we move off
-  // Polar later, the URL shape changes in exactly one place.
-  const buildUpgradeUrls = (
-    currentPlan: Plan,
-    providerSubscriptionId: string | null,
-  ): { upgradeOptions: UpgradeOption[]; portalUrl: string | null } => {
-    const apiHost = Config.getApiPublicHost();
-    const polar = Config.getPolar();
-    if (!apiHost || !polar) {
-      return { upgradeOptions: [], portalUrl: null };
-    }
-    const baseUrl = apiHost.replace(/\/$/, "");
-    const products = Config.getPolarProducts();
-    // Our own GET wrappers (`/api/billing/checkout/:plan`, `/api/billing/portal`)
-    // do the POST to Polar internally and 302 the browser onward. We expose
-    // GETs so web/desktop anchors + mobile `Linking.openURL` all work
-    // identically without per-platform JS to wrangle a POST.
-    const upgradeOptions = products
-      .filter((p) => p.plan !== currentPlan)
-      .map((p) => ({ plan: p.plan as Plan, checkoutUrl: `${baseUrl}/billing/checkout/${p.plan}` }));
-    // Portal route only makes sense once the user has a real Polar
-    // subscription on file. Free-plan users (no providerSubscriptionId)
-    // have nothing to manage yet.
-    const portalUrl = providerSubscriptionId ? `${baseUrl}/billing/portal` : null;
-    return { upgradeOptions, portalUrl };
   };
 
   // Remaining quota for the active period. A value of -1 means "unlimited"
@@ -232,61 +194,92 @@ export namespace Billing {
     };
   };
 
-  // ---- Polar webhook integration ---------------------------------------
+  // ---- RevenueCat integration ------------------------------------------
 
-  // Minimal projection of a Polar subscription webhook payload. We only
-  // touch fields needed to maintain our subscription row — the rest of
-  // Polar's rich payload (line items, prices, addresses, …) is ignored.
-  export type PolarSubscriptionEvent = {
-    kind: "created" | "updated" | "canceled" | "uncanceled" | "active" | "revoked";
-    subscriptionId: string;
-    productId: string;
-    externalUserId: string | null;
+  // A normalised projection of an RC V2 Customer "active entitlements"
+  // response. The webhook handler treats RC events as a "ping" — it
+  // re-fetches this snapshot and writes it, which keeps the upsert path
+  // the single source of truth and immune to event-ordering bugs.
+  export type RevenueCatSubscriberSnapshot = {
+    appUserId: string;
     customerId: string;
-    status: SubscriptionStatus;
-    currentPeriodStart: Date | null;
-    currentPeriodEnd: Date | null;
-    cancelAtPeriodEnd: boolean;
+    activeEntitlements: ReadonlyArray<{
+      entitlementId: string;
+      productId: string;
+      expiresAt: Date | null;
+      willRenew: boolean;
+      store: string;
+    }>;
+    managementUrl: string | null;
   };
 
-  // Upserts the subscription row from a Polar event. The product → plan
-  // mapping is resolved via Config; an unknown product is logged + ignored
-  // so a bad webhook can't corrupt the user's plan. `revoked` and `canceled`
-  // both downgrade to free at period end (cancelAtPeriodEnd handles the
-  // grace period; `revoked` arrives at the actual end-of-access moment).
-  export const applyPolarEvent = async (event: PolarSubscriptionEvent): Promise<void> => {
-    if (!event.externalUserId) {
-      console.warn("[billing] polar event missing externalUserId", event.subscriptionId);
-      return;
-    }
+  // Plan priority for the (rare) case where a user has multiple active
+  // entitlements at once — pick the highest-value plan so we never
+  // accidentally downgrade them. BYOK is intentionally last: it provides
+  // unlimited quota but only when a provider key is configured, so a
+  // user holding both a metered paid plan AND BYOK is better served by
+  // the metered plan's billing surface.
+  const PLAN_PRIORITY: Record<Plan, number> = {
+    pro: 3,
+    personal: 2,
+    byok: 1,
+    free: 0,
+  };
 
-    const isRevocation = event.kind === "canceled" || event.kind === "revoked";
-    let plan: Plan;
-    if (isRevocation && !event.cancelAtPeriodEnd) {
-      // Hard cancellation already happened — downgrade now.
-      plan = "free";
-    } else {
-      const mapped = Config.getPolarPlanForProduct(event.productId);
-      if (!mapped) {
+  // Upserts the subscription row from an RC subscriber snapshot. Resolves
+  // the highest-priority active entitlement → plan; absence of any active
+  // entitlement downgrades the user to free at the moment the snapshot is
+  // applied (RC keeps entitlements active through any configured grace
+  // period, so this firing means access has truly lapsed).
+  export const applyRevenueCatSnapshot = async (
+    snapshot: RevenueCatSubscriberSnapshot,
+  ): Promise<void> => {
+    let bestPlan: Plan = "free";
+    let bestPriority = -1;
+    let bestProductId: string | null = null;
+    let bestWillRenew = true;
+    let bestExpiresAt: Date | null = null;
+
+    for (const entitlement of snapshot.activeEntitlements) {
+      const plan = Config.getRevenueCatPlanForEntitlement(entitlement.entitlementId);
+      if (!plan) {
         console.warn(
-          "[billing] polar event references unknown productId, ignoring",
-          event.productId,
+          "[billing] revenuecat snapshot references unknown entitlement, ignoring",
+          entitlement.entitlementId,
         );
-        return;
+        continue;
       }
-      plan = mapped;
+      const priority = PLAN_PRIORITY[plan];
+      if (priority > bestPriority) {
+        bestPlan = plan;
+        bestPriority = priority;
+        bestProductId = entitlement.productId || null;
+        bestWillRenew = entitlement.willRenew;
+        bestExpiresAt = entitlement.expiresAt;
+      }
     }
 
-    await BillingStore.upsertSubscriptionFromPolar({
-      userId: event.externalUserId,
-      plan,
-      status: event.status,
-      providerCustomerId: event.customerId,
-      providerSubscriptionId: event.subscriptionId,
-      currentPeriodStart: event.currentPeriodStart,
-      currentPeriodEnd: event.currentPeriodEnd,
-      cancelAtPeriodEnd: event.cancelAtPeriodEnd,
+    const hasActive = bestPriority >= 0;
+    await BillingStore.upsertSubscriptionFromRevenueCat({
+      userId: snapshot.appUserId,
+      plan: hasActive ? bestPlan : "free",
+      status: "active",
+      providerCustomerId: hasActive ? snapshot.customerId : null,
+      providerSubscriptionId: hasActive ? bestProductId : null,
+      currentPeriodStart: null,
+      currentPeriodEnd: hasActive ? bestExpiresAt : null,
+      cancelAtPeriodEnd: hasActive ? !bestWillRenew : false,
     });
+  };
+
+  // Network-touching helper: fetches the current snapshot from RC and
+  // applies it. Used by the webhook handler (where the payload tells us
+  // who to fetch) and by the `POST /billing/sync` route (which clients
+  // call right after a successful purchase to refresh status without
+  // waiting for the webhook to arrive).
+  export const syncFromRevenueCat = async (userId: string): Promise<void> => {
+    const snapshot = await RevenueCat.fetchSubscriber(userId);
+    await applyRevenueCatSnapshot(snapshot);
   };
 
   export type RecordUsageInput = {

@@ -1,4 +1,5 @@
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BillingPlan, type BillingStatus } from "@baindar/sdk";
@@ -14,7 +15,7 @@ import {
 } from "@baindar/ui";
 import { authClient } from "../../auth";
 import { BILLING_PLANS, type BillingPlanDetails } from "../planData";
-import { useBillingStatus } from "../hooks/useBillingStatus";
+import { useBilling } from "../BillingProvider";
 
 export function PlansScreen() {
   const router = useRouter();
@@ -22,8 +23,30 @@ export function PlansScreen() {
   const styles = useThemedStyles(buildStyles);
   const palette = useThemeColors();
   const session = authClient.useSession();
-  const { billing } = useBillingStatus();
+  const { billing, purchasePlan, manageSubscriptionUrl, rcReady, rcUnavailable } = useBilling();
   const signedIn = !!session.data?.user;
+  const [pendingPlan, setPendingPlan] = useState<BillingPlan | null>(null);
+
+  const handlePurchase = async (plan: BillingPlan) => {
+    setPendingPlan(plan);
+    try {
+      const outcome = await purchasePlan(plan);
+      if (outcome.status === "success") {
+        router.replace({ pathname: "/plan", params: { checkout: "success" } });
+      } else if (outcome.status === "unavailable") {
+        Alert.alert(
+          "Plan unavailable",
+          outcome.reason === "not_configured"
+            ? "Billing isn't configured yet. Please contact support."
+            : "This plan isn't available on this device.",
+        );
+      } else if (outcome.status === "error") {
+        Alert.alert("Purchase failed", outcome.message);
+      }
+    } finally {
+      setPendingPlan(null);
+    }
+  };
 
   return (
     <ScrollView
@@ -58,7 +81,17 @@ export function PlansScreen() {
 
       <View style={styles.planList}>
         {BILLING_PLANS.map((plan) => (
-          <MobilePlanCard key={plan.id} plan={plan} billing={billing} signedIn={signedIn} />
+          <MobilePlanCard
+            key={plan.id}
+            plan={plan}
+            billing={billing}
+            signedIn={signedIn}
+            rcReady={rcReady}
+            rcUnavailable={rcUnavailable}
+            manageSubscriptionUrl={manageSubscriptionUrl}
+            onPurchase={handlePurchase}
+            pendingPlan={pendingPlan}
+          />
         ))}
       </View>
 
@@ -80,37 +113,48 @@ function MobilePlanCard({
   plan,
   billing,
   signedIn,
+  rcReady,
+  rcUnavailable,
+  manageSubscriptionUrl,
+  onPurchase,
+  pendingPlan,
 }: {
   plan: BillingPlanDetails;
   billing: BillingStatus | null;
   signedIn: boolean;
+  rcReady: boolean;
+  rcUnavailable: boolean;
+  manageSubscriptionUrl: string | null;
+  onPurchase: (plan: BillingPlan) => void | Promise<void>;
+  pendingPlan: BillingPlan | null;
 }) {
   const router = useRouter();
   const styles = useThemedStyles(buildStyles);
   const palette = useThemeColors();
   const current = billing?.plan === plan.id;
   const featured = plan.featured === true;
-  const checkoutUrl = billing?.upgradeOptions.find(
-    (option) => option.plan === plan.id,
-  )?.checkoutUrl;
+  const isFreePlan = plan.id === BillingPlan.Free;
+  const pending = pendingPlan === plan.id;
+
   const onPress = () => {
     if (current) {
-      if (billing?.portalUrl) void Linking.openURL(billing.portalUrl);
+      if (manageSubscriptionUrl) void Linking.openURL(manageSubscriptionUrl);
       return;
     }
     if (!signedIn) {
       router.push("/signup");
       return;
     }
-    if (checkoutUrl) {
-      void Linking.openURL(checkoutUrl);
-    }
+    if (isFreePlan) return;
+    void onPurchase(plan.id);
   };
+
   const disabled =
-    (current && !billing?.portalUrl) ||
+    pending ||
+    (current && !manageSubscriptionUrl) ||
     (signedIn && !billing) ||
-    (signedIn && plan.id === BillingPlan.Free && !current) ||
-    (signedIn && !checkoutUrl && plan.id !== BillingPlan.Free);
+    (signedIn && isFreePlan && !current) ||
+    (signedIn && !current && !isFreePlan && (!rcReady || rcUnavailable));
 
   return (
     <View
@@ -162,22 +206,26 @@ function MobilePlanCard({
 
       <Button
         size="sm"
-        variant={featured ? "secondary" : plan.id === BillingPlan.Free ? "secondary" : "primary"}
+        variant={featured ? "secondary" : isFreePlan ? "secondary" : "primary"}
         fullWidth
         disabled={disabled}
         onPress={onPress}
       >
-        {current
-          ? "Manage Plan"
-          : !signedIn
-            ? plan.id === BillingPlan.Free
-              ? "Start free"
-              : `Choose ${plan.name}`
-            : plan.id === BillingPlan.Byok
-              ? "Bring your key"
-              : plan.id === BillingPlan.Free
-                ? "Included"
-                : `Upgrade to ${plan.name}`}
+        {pending
+          ? "Opening checkout…"
+          : current
+            ? "Manage Plan"
+            : !signedIn
+              ? isFreePlan
+                ? "Start free"
+                : `Choose ${plan.name}`
+              : plan.id === BillingPlan.Byok
+                ? "Bring your key"
+                : isFreePlan
+                  ? "Included"
+                  : !rcReady || rcUnavailable
+                    ? "Unavailable"
+                    : `Upgrade to ${plan.name}`}
       </Button>
     </View>
   );

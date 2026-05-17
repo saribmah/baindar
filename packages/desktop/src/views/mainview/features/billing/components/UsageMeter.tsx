@@ -1,10 +1,11 @@
+import { Link } from "react-router-dom";
 import type { BillingStatus } from "@baindar/sdk";
 import { Progress } from "@baindar/ui";
 import { formatPeriodReset, formatPlanLabel, isUnlimited } from "../utils/format";
 
 // Compact meter for the sidebar profile area. Shows the dominant cost driver
-// (chat turns); summaries and tokens live on the full settings page. Hides
-// the bar entirely for unlimited plans (BYOK) where progress is meaningless.
+// (chat turns) since one bar is all that fits next to the avatar. Hides
+// entirely for unlimited plans (BYOK) where a progress bar is meaningless.
 export function UsageMeter({ billing }: { billing: BillingStatus }) {
   const used = billing.currentPeriod.chatTurns;
   const limit = billing.quota.chatTurnsLimit;
@@ -19,7 +20,6 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
   }
   const remaining = Math.max(0, limit - used);
   const exhausted = used >= limit;
-  const upgradeUrl = exhausted ? billing.upgradeOptions?.[0]?.checkoutUrl : undefined;
   return (
     <div className="mb-2 px-3 py-2">
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -29,15 +29,13 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
         </span>
       </div>
       <Progress value={used} max={limit} size="thin" tone={exhausted ? "wine" : "ink"} />
-      {upgradeUrl ? (
-        <a
-          href={upgradeUrl}
-          target="_blank"
-          rel="noreferrer"
+      {exhausted ? (
+        <Link
+          to="/plans"
           className="t-body-s mt-1 inline-block text-bd-fg-subtle underline-offset-2 hover:underline"
         >
           Upgrade to keep chatting
-        </a>
+        </Link>
       ) : (
         <div className="t-body-s mt-1 text-bd-fg-muted">
           {formatPeriodReset(billing.periodResetAt)}

@@ -22,14 +22,17 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-button {
+/* :where() drops specificity to (0,0,0) so utility classes like
+   `text-bd-bg` win on <button>. Without it, the element-selector reset
+   sits in the unlayered cascade and beats Tailwind's layered utilities
+   regardless of specificity — silently turning text the same color as
+   the inherited parent text, which can match the button's own bg. */
+:where(button) {
   font: inherit;
   color: inherit;
 }
 
-input,
-textarea,
-select {
+:where(input, textarea, select) {
   font: inherit;
   color: inherit;
 }
