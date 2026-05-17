@@ -93,22 +93,36 @@ function PlanActionButton({
   current: boolean;
 }) {
   const disabledCurrent = current && action.kind === "disabled";
-  const className = [
-    "bd-btn bd-btn-pill bd-btn-md mt-1 w-full",
-    disabledCurrent
-      ? featured
-        ? "border border-white/20 bg-transparent text-bd-bg/65"
-        : "border border-bd-border bg-transparent text-bd-fg-muted"
-      : featured
-        ? "bg-bd-bg text-bd-fg"
-        : plan.id === BillingPlan.Free
-          ? "border border-bd-border-strong bg-transparent text-bd-fg-subtle"
-          : "bg-bd-fg text-bd-bg",
-  ].join(" ");
+  const className = "bd-btn bd-btn-pill bd-btn-md mt-1 w-full";
+  // Inline style sidesteps a UI-package reset (`button { color: inherit }`)
+  // that wins over Tailwind utility classes in the unlayered cascade and
+  // silently paints button text the parent card's color — invisible when
+  // it matches the button's own bg.
+  const style = disabledCurrent
+    ? featured
+      ? {
+          border: "1px solid rgba(255,255,255,0.2)",
+          background: "transparent",
+          color: "color-mix(in srgb, var(--bd-bg) 65%, transparent)",
+        }
+      : {
+          border: "1px solid var(--bd-border)",
+          background: "transparent",
+          color: "var(--bd-fg-muted)",
+        }
+    : featured
+      ? { background: "var(--bd-bg)", color: "var(--bd-fg)" }
+      : plan.id === BillingPlan.Free
+        ? {
+            border: "1px solid var(--bd-border-strong)",
+            background: "transparent",
+            color: "var(--bd-fg-subtle)",
+          }
+        : { background: "var(--bd-fg)", color: "var(--bd-bg)" };
 
   if (action.kind === "external") {
     return (
-      <a href={action.href} target="_blank" rel="noreferrer" className={className}>
+      <a href={action.href} target="_blank" rel="noreferrer" className={className} style={style}>
         {action.label}
       </a>
     );
@@ -116,7 +130,7 @@ function PlanActionButton({
 
   if (action.kind === "internal") {
     return (
-      <Link to={action.to} className={className}>
+      <Link to={action.to} className={className} style={style}>
         {action.label}
       </Link>
     );
@@ -127,6 +141,7 @@ function PlanActionButton({
       <button
         type="button"
         className={className}
+        style={style}
         disabled={action.pending === true}
         onClick={() => {
           void action.onPurchase();
@@ -138,7 +153,7 @@ function PlanActionButton({
   }
 
   return (
-    <button type="button" disabled className={className}>
+    <button type="button" disabled className={className} style={style}>
       {action.label}
     </button>
   );
