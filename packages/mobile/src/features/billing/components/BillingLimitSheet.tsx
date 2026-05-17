@@ -1,6 +1,6 @@
-import { Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import type { BillingStatus, BillingUpgradeOption } from "@baindar/sdk";
+import type { BillingPlan, BillingStatus } from "@baindar/sdk";
 import { Icons, font, radius, useThemeColors, type ThemeColors } from "@baindar/ui";
 import { getPlanDetails } from "../planData";
 import { formatPeriodReset, formatPlanLabel } from "../utils/format";
@@ -52,10 +52,18 @@ export function BillingLimitSheet({
             <UsageBar label={meta.metricLabel} used={resolvedUsed} limit={resolvedLimit} />
           </View>
 
-          {billing.upgradeOptions.length > 0 && (
+          {billing.availablePlans.length > 0 && (
             <View style={styles.tiles}>
-              {billing.upgradeOptions.slice(0, 2).map((option) => (
-                <UpgradeTile key={option.plan} option={option} kind={kind} />
+              {billing.availablePlans.slice(0, 2).map((plan) => (
+                <UpgradeTile
+                  key={plan}
+                  plan={plan}
+                  kind={kind}
+                  onPress={() => {
+                    onClose();
+                    router.push("/plans");
+                  }}
+                />
               ))}
             </View>
           )}
@@ -79,29 +87,33 @@ export function BillingLimitSheet({
   );
 }
 
-function UpgradeTile({ option, kind }: { option: BillingUpgradeOption; kind: BillingLimitKind }) {
+function UpgradeTile({
+  plan,
+  kind,
+  onPress,
+}: {
+  plan: BillingPlan;
+  kind: BillingLimitKind;
+  onPress: () => void;
+}) {
   const palette = useThemeColors();
   const styles = buildStyles(palette);
-  const plan = getPlanDetails(option.plan);
+  const details = getPlanDetails(plan);
   const key =
     kind === "chat"
       ? "Chat conversations / month"
       : kind === "summary"
         ? "AI summaries / month"
         : "Documents in your binder";
-  const feature = plan.features.find((item) => item.label === key) ?? plan.features[0];
+  const feature = details.features.find((item) => item.label === key) ?? details.features[0];
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => void Linking.openURL(option.checkoutUrl)}
-      style={styles.tile}
-    >
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.tile}>
       <View style={styles.tileHeader}>
-        <Text style={styles.tileName}>{plan.name}</Text>
+        <Text style={styles.tileName}>{details.name}</Text>
         <Text style={styles.tilePrice}>
-          ${plan.price}
-          {plan.cadence}
+          ${details.price}
+          {details.cadence}
         </Text>
       </View>
       <Text style={styles.tileValue}>{feature.value}</Text>

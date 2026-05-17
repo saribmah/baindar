@@ -17,6 +17,7 @@
     "@ai-sdk/react": "^3.0.177",
     "@baindar/sdk": "*",
     "@baindar/ui": "workspace:*",
+    "@revenuecat/purchases-js": "^1.41.0",
     "agents": "^0.12.3",
     "ai": "^6.0.175",
     "better-auth": "^1.6.9",

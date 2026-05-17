@@ -72,7 +72,7 @@ describe("quota middleware", () => {
     it("returns 428 when BYOK plan has no provider configured (prevents free use of platform key)", async () => {
       const app = buildApp("chat");
       await runtime.runAs("user-a", async () => {
-        await BillingStore.upsertSubscriptionFromPolar({
+        await BillingStore.upsertSubscriptionFromRevenueCat({
           userId: "user-a",
           plan: "byok",
           status: "active",
@@ -93,7 +93,7 @@ describe("quota middleware", () => {
     it("allows BYOK users with a configured provider through, ignoring usage counters", async () => {
       const app = buildApp("chat");
       await runtime.runAs("user-a", async () => {
-        await BillingStore.upsertSubscriptionFromPolar({
+        await BillingStore.upsertSubscriptionFromRevenueCat({
           userId: "user-a",
           plan: "byok",
           status: "active",

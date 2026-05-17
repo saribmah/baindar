@@ -3,8 +3,8 @@ import { BillingPlan, type BillingStatus } from "@baindar/sdk";
 import { Icons, font, radius, useThemeColors, type ThemeColors } from "@baindar/ui";
 
 // Welcome sheet that pops on PlanUsageScreen when the user lands back from
-// a successful Polar checkout. Per-plan copy + a primary CTA that matches
-// what the user is most likely to do next:
+// a successful RevenueCat checkout. Per-plan copy + a primary CTA that
+// matches what the user is most likely to do next:
 //
 //   Personal / Pro → "Got it" (closes the sheet)
 //   BYOK           → "Connect provider" (closes + opens ProviderSheet via
@@ -136,7 +136,7 @@ const copyFor = (billing: BillingStatus): WelcomeCopy => {
     default:
       return {
         heading: "Subscription update received.",
-        body: "Polar is syncing your subscription. This screen refreshes billing in the background.",
+        body: "We're syncing your subscription. This screen refreshes billing in the background.",
         bullets: [],
         primary: { kind: "close", label: "Got it" },
       };

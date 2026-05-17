@@ -1,4 +1,5 @@
-import { Linking, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import type { BillingStatus } from "@baindar/sdk";
 import { Progress, useThemedStyles } from "@baindar/ui";
 import { buildBillingStyles } from "../billing.styles";
@@ -9,6 +10,7 @@ import { formatPeriodReset, formatPlanLabel, isUnlimited } from "../utils/format
 // where a progress bar is meaningless — just shows the plan label.
 export function UsageMeter({ billing }: { billing: BillingStatus }) {
   const styles = useThemedStyles(buildBillingStyles);
+  const router = useRouter();
   const used = billing.currentPeriod.chatTurns;
   const limit = billing.quota.chatTurnsLimit;
 
@@ -22,7 +24,6 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
 
   const remaining = Math.max(0, limit - used);
   const exhausted = used >= limit;
-  const upgradeUrl = exhausted ? billing.upgradeOptions?.[0]?.checkoutUrl : undefined;
   return (
     <View style={styles.meterCard}>
       <View style={styles.meterHeader}>
@@ -32,8 +33,8 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
         </Text>
       </View>
       <Progress value={used} max={limit} size="thin" tone={exhausted ? "wine" : "ink"} />
-      {upgradeUrl ? (
-        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(upgradeUrl)}>
+      {exhausted ? (
+        <Pressable accessibilityRole="link" onPress={() => router.push("/plans")}>
           <Text style={[styles.meterReset, { textDecorationLine: "underline" }]}>
             Upgrade to keep chatting
           </Text>

@@ -5,7 +5,8 @@ import type { BillingPlanDetails } from "../planData";
 export type PlanCardAction =
   | { kind: "disabled"; label: string }
   | { kind: "external"; label: string; href: string }
-  | { kind: "internal"; label: string; to: string };
+  | { kind: "internal"; label: string; to: string }
+  | { kind: "purchase"; label: string; onPurchase: () => void | Promise<void>; pending?: boolean };
 
 export function PlanCard({
   plan,
@@ -118,6 +119,21 @@ function PlanActionButton({
       <Link to={action.to} className={className}>
         {action.label}
       </Link>
+    );
+  }
+
+  if (action.kind === "purchase") {
+    return (
+      <button
+        type="button"
+        className={className}
+        disabled={action.pending === true}
+        onClick={() => {
+          void action.onPurchase();
+        }}
+      >
+        {action.pending === true ? "Opening checkout…" : action.label}
+      </button>
     );
   }
 

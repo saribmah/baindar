@@ -1,8 +1,8 @@
-import { Polar } from "@polar-sh/sdk";
 import { Hono } from "hono";
 import { describeRoute, resolver } from "hono-openapi";
 import type { AppEnv } from "../../app/context";
 import { Billing } from "../../billing/billing";
+import { RevenueCat } from "../../billing/revenuecat";
 import { Config } from "../../config/config";
 import { Instance } from "../../instance";
 import { requireAuth } from "../../middleware/auth";
@@ -14,7 +14,7 @@ billingRouter.get(
   describeRoute({
     summary: "Get the caller's billing status",
     description:
-      'Returns the caller\'s plan, subscription status, current-period usage, and quota limits. The Free plan is implicit — users without an explicit subscription row get `plan: "free", status: "active"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1).',
+      'Returns the caller\'s plan, subscription status, current-period usage, quota limits, and the list of plans they can switch to. The Free plan is implicit — users without an explicit subscription row get `plan: "free", status: "active"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1). Clients drive purchase and subscription management through their own RevenueCat SDKs; this endpoint surfaces only the server-side view of plan + quota.',
     operationId: "billing.me",
     responses: {
       200: {
@@ -31,91 +31,89 @@ billingRouter.get(
   },
 );
 
-// GET wrapper around Polar's checkout.create. The Polar Better Auth plugin
-// only exposes `POST /auth/checkout` with `{slug}` in the body, which our
-// upgrade buttons (anchors on web/desktop, Linking.openURL on mobile)
-// cannot invoke uniformly. This route lets all three clients open a single
-// URL and end up on Polar's hosted checkout.
-billingRouter.get(
-  "/checkout/:plan",
+// Force a refresh of the caller's billing status from RevenueCat. Clients
+// call this after a successful in-SDK purchase so the UI reflects the new
+// plan immediately instead of waiting for the webhook to land (which can
+// be seconds to minutes depending on provider load).
+billingRouter.post(
+  "/sync",
   describeRoute({
-    summary: "Start a Polar checkout session for a plan",
+    summary: "Refresh billing status from RevenueCat",
     description:
-      "Creates a Polar checkout session for the named plan and 302-redirects the browser to the hosted checkout. The signed-in user is passed to Polar as `externalCustomerId` so the eventual webhook can resolve back to our user row.",
-    operationId: "billing.checkout",
+      "Re-fetches the caller's active entitlements from RevenueCat and upserts the local subscription row. Returns the freshly recomputed billing status. Idempotent; safe to call after every purchase or restore.",
+    operationId: "billing.sync",
     responses: {
-      302: { description: "Redirect to Polar checkout" },
-      400: { description: "Unknown plan or plan not configured" },
+      200: {
+        description: "Refreshed billing status",
+        content: { "application/json": { schema: resolver(Billing.StatusResponse) } },
+      },
       401: { description: "Not authenticated" },
-      500: { description: "Polar not configured" },
+      500: { description: "RevenueCat not configured" },
     },
   }),
   requireAuth,
   async (c) => {
-    const planParam = c.req.param("plan");
-    if (planParam !== "personal" && planParam !== "pro" && planParam !== "byok") {
-      return c.json({ error: "unknown_plan" }, 400);
+    if (!Config.getRevenueCat()) {
+      return c.json({ error: "revenuecat_not_configured" }, 500);
     }
-    const productId = Config.getPolarProductForPlan(planParam);
-    if (!productId) {
-      return c.json({ error: "plan_not_configured" }, 400);
-    }
-    const polarConfig = Config.getPolar();
-    if (!polarConfig) {
-      return c.json({ error: "polar_not_configured" }, 500);
-    }
-    const polar = new Polar({
-      accessToken: polarConfig.accessToken,
-      server: polarConfig.server,
-    });
-    const checkout = await polar.checkouts.create({
-      products: [productId],
-      externalCustomerId: Instance.userId,
-      successUrl: polarConfig.successUrl,
-    });
-    return c.redirect(checkout.url, 302);
+    await Billing.syncFromRevenueCat(Instance.userId);
+    const status = await Billing.getStatus(Instance.userId);
+    return c.json(status);
   },
 );
 
-// GET wrapper around Polar's customer-portal session creation. Same
-// rationale as `/checkout/:plan` — exposes a uniform URL the clients can
-// open directly. Returns 404 if the user has no Polar customer yet (free
-// plan), so the frontend can hide the button accordingly.
-billingRouter.get(
-  "/portal",
+// RevenueCat webhook receiver. RC fires every subscription lifecycle event
+// (INITIAL_PURCHASE, RENEWAL, CANCELLATION, EXPIRATION, …) at this URL
+// with an `Authorization` header whose value matches the shared secret
+// configured in RC. We treat the event as a "ping": ignore the payload
+// specifics, re-fetch the canonical subscriber state, and upsert. That
+// keeps a single code path authoritative regardless of event type or
+// ordering.
+billingRouter.post(
+  "/revenuecat/webhook",
   describeRoute({
-    summary: "Open the Polar customer portal",
+    summary: "RevenueCat webhook receiver",
     description:
-      "Creates a Polar customer-session and 302-redirects the browser to the portal URL. The session is scoped to the signed-in user via `externalCustomerId`.",
-    operationId: "billing.portal",
+      "Handles RevenueCat subscription lifecycle webhooks. Requires the configured shared secret in the Authorization header; re-fetches the canonical subscriber state and upserts the local subscription row.",
+    operationId: "billing.revenuecatWebhook",
     responses: {
-      302: { description: "Redirect to Polar customer portal" },
-      401: { description: "Not authenticated" },
-      404: { description: "User has no Polar customer yet (free plan)" },
-      500: { description: "Polar not configured" },
+      200: { description: "Event accepted" },
+      401: { description: "Invalid or missing authorization header" },
+      500: { description: "RevenueCat not configured" },
     },
   }),
-  requireAuth,
   async (c) => {
-    const polarConfig = Config.getPolar();
-    if (!polarConfig) {
-      return c.json({ error: "polar_not_configured" }, 500);
+    const config = Config.getRevenueCat();
+    if (!config) {
+      return c.json({ error: "revenuecat_not_configured" }, 500);
     }
-    const polar = new Polar({
-      accessToken: polarConfig.accessToken,
-      server: polarConfig.server,
-    });
-    try {
-      const session = await polar.customerSessions.create({
-        externalCustomerId: Instance.userId,
-      });
-      return c.redirect(session.customerPortalUrl, 302);
-    } catch {
-      // Polar returns 404 when no customer record exists for the
-      // external id — the user is on free and has never checked out.
-      return c.json({ error: "no_polar_customer" }, 404);
+    const header = c.req.header("authorization") ?? c.req.header("Authorization") ?? "";
+    if (!constantTimeEquals(header, config.webhookAuth)) {
+      return c.json({ error: "unauthorized" }, 401);
     }
+    const payload = await c.req.json().catch(() => null);
+    const appUserId = RevenueCat.extractAppUserId(payload);
+    if (!appUserId) {
+      // Malformed payload — ack with 200 so RC doesn't retry forever, but
+      // log loudly so we notice if this becomes common.
+      console.warn("[billing] revenuecat webhook missing app_user_id");
+      return c.json({ ok: true });
+    }
+    await Billing.syncFromRevenueCat(appUserId);
+    return c.json({ ok: true });
   },
 );
+
+// Constant-time string comparison. Webhook auth is a shared secret; using
+// a length-first short-circuit + char-by-char xor avoids leaking timing
+// info to an attacker who can issue webhook calls.
+const constantTimeEquals = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+};
 
 export default billingRouter;

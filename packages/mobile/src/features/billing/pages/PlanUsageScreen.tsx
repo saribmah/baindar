@@ -15,6 +15,7 @@ import {
 } from "@baindar/ui";
 import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
 import { getPlanDetails } from "../planData";
+import { useBilling } from "../BillingProvider";
 import { useBillingStatus } from "../hooks/useBillingStatus";
 import {
   formatCostUsd,
@@ -35,11 +36,12 @@ export function PlanUsageScreen() {
   const palette = useThemeColors();
   const { counts } = useLibraryDocuments();
   const { billing, loading } = useBillingStatus();
+  const { manageSubscriptionUrl } = useBilling();
   const params = useLocalSearchParams<{ checkout?: string }>();
 
-  // ?checkout=<id|success> means the user just landed back from Polar
-  // (e.g. via a deep link). Pop the welcome sheet once. BYOK users get a
-  // CTA into the provider sheet from inside it.
+  // ?checkout=<id|success> means the user just completed a RevenueCat
+  // checkout (deep link return or in-app success). Pop the welcome sheet
+  // once. BYOK users get a CTA into the provider sheet from inside it.
   const [welcomeOpen, setWelcomeOpen] = useState<boolean>(params.checkout != null);
   const [providerSheetRequested, setProviderSheetRequested] = useState(false);
 
@@ -86,6 +88,7 @@ export function PlanUsageScreen() {
           <PlanUsage
             billing={billing}
             documentsUsed={counts.all}
+            manageSubscriptionUrl={manageSubscriptionUrl}
             providerSheetRequested={providerSheetRequested}
             onProviderSheetHandled={() => setProviderSheetRequested(false)}
           />
@@ -111,11 +114,13 @@ export function PlanUsageScreen() {
 function PlanUsage({
   billing,
   documentsUsed,
+  manageSubscriptionUrl,
   providerSheetRequested,
   onProviderSheetHandled,
 }: {
   billing: BillingStatus;
   documentsUsed: number;
+  manageSubscriptionUrl: string | null;
   providerSheetRequested: boolean;
   onProviderSheetHandled: () => void;
 }) {
@@ -165,14 +170,14 @@ function PlanUsage({
           {plan.description}
         </Text>
         <View style={styles.actions}>
-          {billing.portalUrl ? (
+          {manageSubscriptionUrl ? (
             <Button
               variant="secondary"
               size="sm"
               fullWidth
-              onPress={() => void Linking.openURL(billing.portalUrl ?? "")}
+              onPress={() => void Linking.openURL(manageSubscriptionUrl)}
             >
-              Manage in Polar
+              Manage subscription
             </Button>
           ) : (
             <Button variant="wine" size="sm" fullWidth onPress={() => router.push("/plans")}>

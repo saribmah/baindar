@@ -63,103 +63,60 @@ export namespace Config {
     return ai;
   };
 
-  // ---- Polar (billing provider) -----------------------------------------
+  // ---- RevenueCat (billing provider) -----------------------------------
 
-  export const PolarNotConfiguredError = NamedError.create(
-    "PolarNotConfiguredError",
+  export const RevenueCatNotConfiguredError = NamedError.create(
+    "RevenueCatNotConfiguredError",
     z.object({ message: z.string().optional() }),
   );
-  export type PolarNotConfiguredError = InstanceType<typeof PolarNotConfiguredError>;
+  export type RevenueCatNotConfiguredError = InstanceType<typeof RevenueCatNotConfiguredError>;
 
-  export type PolarConfig = {
-    accessToken: string;
-    webhookSecret: string;
-    organizationId: string;
-    server: "sandbox" | "production";
-    successUrl: string;
+  export type RevenueCatConfig = {
+    projectId: string;
+    secretApiKey: string;
+    webhookAuth: string;
+    apiBaseUrl: string;
   };
 
-  // Returns null if any required Polar var is missing. Lets Better Auth
+  // Returns null if any required RevenueCat var is missing. Lets the API
   // initialise cleanly in environments without billing credentials (local
-  // dev without a Polar account, OpenAPI codegen runs) — the plugin is
-  // simply omitted in that case.
+  // dev without RC keys, OpenAPI codegen runs) — purchase + webhook paths
+  // throw a typed RevenueCatNotConfiguredError that maps to 500, while
+  // read-only routes still surface plan=free.
   //
   // Casts via `as string` mirror `isTestMode` — wrangler.jsonc's literal
   // defaults narrow these to the empty-string literal type, but at runtime
   // they're plain strings once secrets are bound.
-  export const getPolar = (): PolarConfig | null => {
+  export const getRevenueCat = (): RevenueCatConfig | null => {
     const env = Instance.env;
-    const accessToken = env.POLAR_ACCESS_TOKEN as string;
-    const webhookSecret = env.POLAR_WEBHOOK_SECRET as string;
-    const organizationId = env.POLAR_ORGANIZATION_ID as string;
-    if (!accessToken || !webhookSecret || !organizationId) return null;
-    const server: "sandbox" | "production" =
-      (env.POLAR_SERVER as string) === "production" ? "production" : "sandbox";
-    // Polar requires absolute URLs for success_url. We resolve a configured
-    // path against WEB_PUBLIC_HOST so devs can keep `/settings` in config
-    // and have the right host slot in per environment.
-    const successUrl = resolvePolarSuccessUrl(
-      (env.POLAR_SUCCESS_URL as string) || "/settings?checkout=success",
-      (env.WEB_PUBLIC_HOST as string) || "",
-    );
-    return { accessToken, webhookSecret, organizationId, server, successUrl };
+    const projectId = env.REVENUECAT_PROJECT_ID as string;
+    const secretApiKey = env.REVENUECAT_SECRET_API_KEY as string;
+    const webhookAuth = env.REVENUECAT_WEBHOOK_AUTH as string;
+    if (!projectId || !secretApiKey || !webhookAuth) return null;
+    return { projectId, secretApiKey, webhookAuth, apiBaseUrl: "https://api.revenuecat.com" };
   };
 
-  const resolvePolarSuccessUrl = (configured: string, webHost: string): string => {
-    if (/^https?:\/\//i.test(configured)) return configured;
-    const host = webHost.replace(/\/$/, "");
-    const path = configured.startsWith("/") ? configured : `/${configured}`;
-    return host ? `${host}${path}` : configured;
-  };
-
-  export const requirePolar = (): PolarConfig => {
-    const config = getPolar();
-    if (!config) throw new PolarNotConfiguredError({});
+  export const requireRevenueCat = (): RevenueCatConfig => {
+    const config = getRevenueCat();
+    if (!config) throw new RevenueCatNotConfiguredError({});
     return config;
   };
 
-  // Reverse mapping: plan slug → Polar product ID. Used by the GET
-  // checkout wrapper so a user clicking "Upgrade to Pro" knows which
-  // product to send to Polar's checkout.create. Returns null when the
-  // plan isn't configured (e.g. BYOK not yet rolled out).
-  export const getPolarProductForPlan = (plan: "personal" | "pro" | "byok"): string | null => {
+  // Maps a RevenueCat entitlement id to our internal Plan enum. Returns
+  // null for unknown IDs so the webhook can log + ignore instead of
+  // throwing. Entitlement IDs come from the RC dashboard and are set as
+  // env vars alongside the RC project ID.
+  export const getRevenueCatPlanForEntitlement = (
+    entitlementId: string,
+  ): "personal" | "pro" | "byok" | null => {
     const env = Instance.env;
-    if (plan === "personal") return (env.POLAR_PRODUCT_PERSONAL as string) || null;
-    if (plan === "pro") return (env.POLAR_PRODUCT_PRO as string) || null;
-    if (plan === "byok") return (env.POLAR_PRODUCT_BYOK as string) || null;
+    const personal = env.REVENUECAT_ENTITLEMENT_PERSONAL as string;
+    const pro = env.REVENUECAT_ENTITLEMENT_PRO as string;
+    const byok = env.REVENUECAT_ENTITLEMENT_BYOK as string;
+    if (personal && entitlementId === personal) return "personal";
+    if (pro && entitlementId === pro) return "pro";
+    if (byok && entitlementId === byok) return "byok";
     return null;
-  };
-
-  // Maps a Polar product ID to our internal Plan enum. Returns null for
-  // unknown IDs so the webhook can log + ignore instead of throwing.
-  // Product IDs come from Polar's dashboard; set as env vars (non-secret)
-  // alongside the Polar credentials.
-  export const getPolarPlanForProduct = (productId: string): "personal" | "pro" | "byok" | null => {
-    const env = Instance.env;
-    const personal = env.POLAR_PRODUCT_PERSONAL as string;
-    const pro = env.POLAR_PRODUCT_PRO as string;
-    const byok = env.POLAR_PRODUCT_BYOK as string;
-    if (personal && productId === personal) return "personal";
-    if (pro && productId === pro) return "pro";
-    if (byok && productId === byok) return "byok";
-    return null;
-  };
-
-  // Surfaced as a list for the frontend so the upgrade flow can render
-  // available products as checkout buttons. Empty array if not configured.
-  export const getPolarProducts = (): Array<{
-    plan: "personal" | "pro" | "byok";
-    productId: string;
-  }> => {
-    const env = Instance.env;
-    const out: Array<{ plan: "personal" | "pro" | "byok"; productId: string }> = [];
-    const personal = env.POLAR_PRODUCT_PERSONAL as string;
-    const pro = env.POLAR_PRODUCT_PRO as string;
-    const byok = env.POLAR_PRODUCT_BYOK as string;
-    if (personal) out.push({ plan: "personal", productId: personal });
-    if (pro) out.push({ plan: "pro", productId: pro });
-    if (byok) out.push({ plan: "byok", productId: byok });
-    return out;
   };
 
   // ---- Provider (BYOK key encryption) ----------------------------------

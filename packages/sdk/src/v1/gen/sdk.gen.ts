@@ -18,10 +18,12 @@ import {
   type AiSummarizeErrors,
   type AiSummarizeInput,
   type AiSummarizeResponses,
-  type BillingCheckoutErrors,
   type BillingMeErrors,
   type BillingMeResponses,
-  type BillingPortalErrors,
+  type BillingRevenuecatWebhookErrors,
+  type BillingRevenuecatWebhookResponses,
+  type BillingSyncErrors,
+  type BillingSyncResponses,
   type ConversationCreateErrors,
   type ConversationCreateResponses,
   type ConversationDeleteErrors,
@@ -257,7 +259,7 @@ export class Billing extends HeyApiClient {
   /**
    * Get the caller's billing status
    *
-   * Returns the caller's plan, subscription status, current-period usage, and quota limits. The Free plan is implicit — users without an explicit subscription row get `plan: "free", status: "active"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1).
+   * Returns the caller's plan, subscription status, current-period usage, quota limits, and the list of plans they can switch to. The Free plan is implicit — users without an explicit subscription row get `plan: "free", status: "active"`. `periodResetAt` is the ISO timestamp at which the current usage counters roll over (start of the next UTC calendar month in Phase 1). Clients drive purchase and subscription management through their own RevenueCat SDKs; this endpoint surfaces only the server-side view of plan + quota.
    */
   public me<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<BillingMeResponses, BillingMeErrors, ThrowOnError>({
@@ -267,34 +269,31 @@ export class Billing extends HeyApiClient {
   }
 
   /**
-   * Start a Polar checkout session for a plan
+   * Refresh billing status from RevenueCat
    *
-   * Creates a Polar checkout session for the named plan and 302-redirects the browser to the hosted checkout. The signed-in user is passed to Polar as `externalCustomerId` so the eventual webhook can resolve back to our user row.
+   * Re-fetches the caller's active entitlements from RevenueCat and upserts the local subscription row. Returns the freshly recomputed billing status. Idempotent; safe to call after every purchase or restore.
    */
-  public checkout<ThrowOnError extends boolean = false>(
-    parameters: {
-      plan: string;
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "plan" }] }]);
-    return (options?.client ?? this.client).get<unknown, BillingCheckoutErrors, ThrowOnError>({
-      url: "/billing/checkout/{plan}",
-      ...options,
-      ...params,
-    });
+  public sync<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).post<
+      BillingSyncResponses,
+      BillingSyncErrors,
+      ThrowOnError
+    >({ url: "/billing/sync", ...options });
   }
 
   /**
-   * Open the Polar customer portal
+   * RevenueCat webhook receiver
    *
-   * Creates a Polar customer-session and 302-redirects the browser to the portal URL. The session is scoped to the signed-in user via `externalCustomerId`.
+   * Handles RevenueCat subscription lifecycle webhooks. Requires the configured shared secret in the Authorization header; re-fetches the canonical subscriber state and upserts the local subscription row.
    */
-  public portal<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
-    return (options?.client ?? this.client).get<unknown, BillingPortalErrors, ThrowOnError>({
-      url: "/billing/portal",
-      ...options,
-    });
+  public revenuecatWebhook<ThrowOnError extends boolean = false>(
+    options?: Options<never, ThrowOnError>,
+  ) {
+    return (options?.client ?? this.client).post<
+      BillingRevenuecatWebhookResponses,
+      BillingRevenuecatWebhookErrors,
+      ThrowOnError
+    >({ url: "/billing/revenuecat/webhook", ...options });
   }
 }
 

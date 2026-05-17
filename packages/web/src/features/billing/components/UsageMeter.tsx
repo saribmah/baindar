@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { BillingStatus } from "@baindar/sdk";
 import { Progress } from "@baindar/ui";
 import { formatPeriodReset, formatPlanLabel, isUnlimited } from "../utils/format";
@@ -19,7 +20,6 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
   }
   const remaining = Math.max(0, limit - used);
   const exhausted = used >= limit;
-  const upgradeUrl = exhausted ? billing.upgradeOptions?.[0]?.checkoutUrl : undefined;
   return (
     <div className="mb-2 px-3 py-2">
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -29,15 +29,13 @@ export function UsageMeter({ billing }: { billing: BillingStatus }) {
         </span>
       </div>
       <Progress value={used} max={limit} size="thin" tone={exhausted ? "wine" : "ink"} />
-      {upgradeUrl ? (
-        <a
-          href={upgradeUrl}
-          target="_blank"
-          rel="noreferrer"
+      {exhausted ? (
+        <Link
+          to="/plans"
           className="t-body-s mt-1 inline-block text-bd-fg-subtle underline-offset-2 hover:underline"
         >
           Upgrade to keep chatting
-        </a>
+        </Link>
       ) : (
         <div className="t-body-s mt-1 text-bd-fg-muted">
           {formatPeriodReset(billing.periodResetAt)}

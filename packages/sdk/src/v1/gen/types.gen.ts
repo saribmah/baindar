@@ -98,11 +98,6 @@ export type BillingUsagePeriod = {
   costUsdMicros: number;
 };
 
-export type BillingUpgradeOption = {
-  plan: BillingPlan;
-  checkoutUrl: string;
-};
-
 export type BillingStatus = {
   plan: BillingPlan;
   status: BillingSubscriptionStatus;
@@ -110,8 +105,7 @@ export type BillingStatus = {
   currentPeriod: BillingUsagePeriod;
   periodResetAt: string;
   cancelAtPeriodEnd: boolean;
-  upgradeOptions: Array<BillingUpgradeOption>;
-  portalUrl: string | null;
+  availablePlans: Array<BillingPlan>;
   providerConfigured: boolean;
 };
 
@@ -498,50 +492,56 @@ export type BillingMeResponses = {
 
 export type BillingMeResponse = BillingMeResponses[keyof BillingMeResponses];
 
-export type BillingCheckoutData = {
-  body?: never;
-  path: {
-    plan: string;
-  };
-  query?: never;
-  url: "/billing/checkout/{plan}";
-};
-
-export type BillingCheckoutErrors = {
-  /**
-   * Unknown plan or plan not configured
-   */
-  400: unknown;
-  /**
-   * Not authenticated
-   */
-  401: unknown;
-  /**
-   * Polar not configured
-   */
-  500: unknown;
-};
-
-export type BillingPortalData = {
+export type BillingSyncData = {
   body?: never;
   path?: never;
   query?: never;
-  url: "/billing/portal";
+  url: "/billing/sync";
 };
 
-export type BillingPortalErrors = {
+export type BillingSyncErrors = {
   /**
    * Not authenticated
    */
   401: unknown;
   /**
-   * User has no Polar customer yet (free plan)
-   */
-  404: unknown;
-  /**
-   * Polar not configured
+   * RevenueCat not configured
    */
   500: unknown;
+};
+
+export type BillingSyncResponses = {
+  /**
+   * Refreshed billing status
+   */
+  200: BillingStatus;
+};
+
+export type BillingSyncResponse = BillingSyncResponses[keyof BillingSyncResponses];
+
+export type BillingRevenuecatWebhookData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/billing/revenuecat/webhook";
+};
+
+export type BillingRevenuecatWebhookErrors = {
+  /**
+   * Invalid or missing authorization header
+   */
+  401: unknown;
+  /**
+   * RevenueCat not configured
+   */
+  500: unknown;
+};
+
+export type BillingRevenuecatWebhookResponses = {
+  /**
+   * Event accepted
+   */
+  200: unknown;
 };
 
 export type ConversationListData = {
