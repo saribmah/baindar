@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Redirect, useRouter } from "expo-router";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Input, Monogram, useThemeColors, useThemedStyles } from "@baindar/ui";
+import { PRIVACY_URL, TERMS_URL } from "../../config.ts";
 import { buildAuthStyles } from "./auth.styles";
 import { authClient } from "./auth.client";
 import { BackButton } from "./components/BackButton";
@@ -171,7 +172,17 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
               {copy.switchAction}
             </Text>
           </Text>
-          <Text style={styles.legal}>By continuing, you agree to our Terms and Privacy.</Text>
+          <Text style={styles.legal}>
+            By continuing, you agree to our{" "}
+            <Text style={styles.legalLink} onPress={() => void Linking.openURL(TERMS_URL)}>
+              Terms
+            </Text>{" "}
+            and{" "}
+            <Text style={styles.legalLink} onPress={() => void Linking.openURL(PRIVACY_URL)}>
+              Privacy Policy
+            </Text>
+            .
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

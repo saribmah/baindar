@@ -14,6 +14,7 @@ import {
   type ThemeColors,
 } from "@baindar/ui";
 import { authClient } from "../../auth";
+import { PRIVACY_URL, TERMS_URL } from "../../../config.ts";
 import { BILLING_PLANS, type BillingPlanDetails } from "../planData";
 import { useBilling } from "../BillingProvider";
 
@@ -94,6 +95,18 @@ export function PlansScreen() {
           />
         ))}
       </View>
+
+      <Text style={styles.legalText}>
+        Subscriptions renew automatically until canceled. By subscribing, you agree to our{" "}
+        <Text style={styles.legalLink} onPress={() => void Linking.openURL(TERMS_URL)}>
+          Terms
+        </Text>{" "}
+        and{" "}
+        <Text style={styles.legalLink} onPress={() => void Linking.openURL(PRIVACY_URL)}>
+          Privacy Policy
+        </Text>
+        .
+      </Text>
 
       {!signedIn && (
         <View style={styles.footerActions}>
@@ -354,5 +367,17 @@ const buildStyles = (palette: ThemeColors) =>
     },
     footerActions: {
       gap: 8,
+    },
+    legalText: {
+      textAlign: "center",
+      fontFamily: font.nativeFamily.ui,
+      fontSize: 11,
+      lineHeight: 16,
+      color: palette.fgMuted,
+    },
+    legalLink: {
+      color: palette.fg,
+      fontWeight: "600",
+      textDecorationLine: "underline",
     },
   });

@@ -136,6 +136,11 @@ export const buildAuthStyles = (palette: ThemeColors) =>
       lineHeight: 18,
       color: palette.fgMuted,
     },
+    legalLink: {
+      color: palette.fg,
+      fontWeight: "500",
+      textDecorationLine: "underline",
+    },
     error: {
       fontFamily: font.nativeFamily.ui,
       fontSize: 13,

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipButton, Icons, Wordmark, useThemeColors, useThemedStyles } from "@baindar/ui";
 import { ProfileHighlightColor, ProfileTheme } from "@baindar/sdk";
+import { PRIVACY_URL, TERMS_URL } from "../../../config.ts";
 import { BillingGroup, useBillingStatus } from "../../billing";
 import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
 import { buildLibraryStyles } from "../../library/library.styles";
@@ -157,6 +158,15 @@ export function SettingsScreen() {
                 void update({ notifyWeeklyDigest: !(profile?.notifyWeeklyDigest ?? false) })
               }
             />
+          </Row>
+        </Group>
+
+        <Group label="Legal">
+          <Row label="Terms" onPress={() => void Linking.openURL(TERMS_URL)}>
+            <Icons.Chevron size={14} color={palette.fgMuted} />
+          </Row>
+          <Row label="Privacy Policy" onPress={() => void Linking.openURL(PRIVACY_URL)} last>
+            <Icons.Chevron size={14} color={palette.fgMuted} />
           </Row>
         </Group>
 
