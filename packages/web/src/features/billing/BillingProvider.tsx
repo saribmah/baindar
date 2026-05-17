@@ -58,6 +58,7 @@ export function BillingProvider({ children }: { children: ReactNode }) {
   const { client } = useSdk();
   const session = authClient.useSession();
   const userId = session.data?.user.id ?? null;
+  const isAuthed = !!session.data?.user;
 
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +87,15 @@ export function BillingProvider({ children }: { children: ReactNode }) {
     }
   }, [client]);
 
+  // Polling is gated on a signed-in session — `/plans` is a public marketing
+  // route mounted inside this provider too, and we don't want to hit
+  // /billing/me with 401s while an anonymous user compares pricing.
   useEffect(() => {
+    if (!isAuthed) {
+      setBilling(null);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     void fetchOnce();
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -122,7 +131,7 @@ export function BillingProvider({ children }: { children: ReactNode }) {
       stopTimer();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [fetchOnce]);
+  }, [fetchOnce, isAuthed]);
 
   // RC SDK lifecycle. We only configure when there's a signed-in user
   // (RC's appUserId must match Better Auth's user.id end-to-end so the
