@@ -60,6 +60,7 @@ import {
   type DocumentListShelvesResponses,
   type DocumentUpdateErrors,
   type DocumentUpdateResponses,
+  type DownloadMacosErrors,
   type GetTestStatusErrors,
   type GetTestStatusResponses,
   type HealthGetResponses,
@@ -814,6 +815,20 @@ export class Progress extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    });
+  }
+}
+
+export class Download extends HeyApiClient {
+  /**
+   * Redirect to the latest macOS desktop release
+   *
+   * 302 to the latest published Baindar desktop DMG on GitHub Releases. Arch is picked from ?arch=arm64|intel, then from Sec-CH-UA-Arch, defaulting to arm64. Used by the landing page download button.
+   */
+  public macos<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<unknown, DownloadMacosErrors, ThrowOnError>({
+      url: "/download/macos",
+      ...options,
     });
   }
 }
@@ -1659,6 +1674,11 @@ export class ApiClient extends HeyApiClient {
   private _progress?: Progress;
   get progress(): Progress {
     return (this._progress ??= new Progress({ client: this.client }));
+  }
+
+  private _download?: Download;
+  get download(): Download {
+    return (this._download ??= new Download({ client: this.client }));
   }
 
   private _highlight?: Highlight;
