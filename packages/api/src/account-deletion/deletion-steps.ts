@@ -14,13 +14,19 @@ import { Instance } from "../instance";
 // Order matters in the workflow but each step is independently idempotent
 // and safe to retry. Workflow steps run sequentially:
 //
-//   1. destroyAllDocuments — for each catalog doc: destroy DocumentDO + R2
-//   2. destroyAllConversations — for each catalog conv: destroy ChatAgent
-//   3. destroyBinder — wipe per-user BinderDO storage
-//   4. sweepUserR2 — safety-net sweep under `users/{userId}/` for any
+//   1. deleteAuthUser — drop the user row from D1 first; FK cascades
+//      remove sessions, accounts, profile, billing, usage, and provider
+//      settings. Doing this first closes off every sign-in path before
+//      we start tearing down user-owned storage, so a user who taps
+//      "delete" and then immediately tries to sign in again cannot land
+//      back in a half-deleted account. BinderDO is keyed by
+//      `idFromName(userId)` and lives independently of the D1 row, so
+//      the remaining steps can still enumerate documents/conversations.
+//   2. destroyAllDocuments — for each catalog doc: destroy DocumentDO + R2
+//   3. destroyAllConversations — for each catalog conv: destroy ChatAgent
+//   4. destroyBinder — wipe per-user BinderDO storage
+//   5. sweepUserR2 — safety-net sweep under `users/{userId}/` for any
 //      keys the per-doc step missed
-//   5. deleteAuthUser — drop the user row from D1; FK cascades remove
-//      sessions, accounts, profile, billing, usage, provider settings
 
 export type AccountDeletionParams = { userId: string };
 
@@ -79,9 +85,9 @@ export const deleteAuthUser = async (input: AccountDeletionParams): Promise<void
 // terminal state as the workflow run (each step is idempotent and replay-
 // safe, so re-running mid-sequence after a partial failure is fine).
 export const runDeletionInline = async (input: AccountDeletionParams): Promise<void> => {
+  await deleteAuthUser(input);
   await destroyAllDocuments(input);
   await destroyAllConversations(input);
   await destroyBinder(input);
   await sweepUserR2(input);
-  await deleteAuthUser(input);
 };
