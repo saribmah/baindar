@@ -119,6 +119,48 @@ export namespace Config {
     return null;
   };
 
+  // ---- Platform LLM ----------------------------------------------------
+
+  // Mirror of `ProviderSetInput` for the platform-supplied default model.
+  // Same shape on both sides means BYOK and platform credentials feed the
+  // same model builder in `Provider`.
+  export type PlatformLlmConfig = {
+    spec: "anthropic" | "openai";
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  };
+
+  export const PlatformLlmNotConfiguredError = NamedError.create(
+    "PlatformLlmNotConfiguredError",
+    z.object({ field: z.string().optional(), message: z.string().optional() }),
+  );
+  export type PlatformLlmNotConfiguredError = InstanceType<typeof PlatformLlmNotConfiguredError>;
+
+  // Returns null if any required field is missing. Callers that genuinely
+  // need a model (chat, summary) should use `requirePlatformLlm()`.
+  export const getPlatformLlm = (): PlatformLlmConfig | null => {
+    const env = Instance.env;
+    const spec = env.PLATFORM_LLM_SPEC as string | undefined;
+    const baseUrl = env.PLATFORM_LLM_BASE_URL as string | undefined;
+    const model = env.PLATFORM_LLM_MODEL as string | undefined;
+    const apiKey = env.PLATFORM_LLM_API_KEY as string | undefined;
+    if (!spec || !baseUrl || !model || !apiKey) return null;
+    if (spec !== "anthropic" && spec !== "openai") return null;
+    return { spec, baseUrl, model, apiKey };
+  };
+
+  export const requirePlatformLlm = (): PlatformLlmConfig => {
+    const config = getPlatformLlm();
+    if (!config) {
+      throw new PlatformLlmNotConfiguredError({
+        message:
+          "PLATFORM_LLM_SPEC, PLATFORM_LLM_BASE_URL, PLATFORM_LLM_MODEL, and PLATFORM_LLM_API_KEY must all be set",
+      });
+    }
+    return config;
+  };
+
   // ---- Provider (BYOK key encryption) ----------------------------------
 
   export const ProviderEncryptionKeyNotConfiguredError = NamedError.create(

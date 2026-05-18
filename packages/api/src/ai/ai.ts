@@ -292,7 +292,8 @@ export namespace Ai {
         : null;
 
     const generator = deps.generator ?? SummaryGenerator.generate;
-    const { summary, model, usage } = await generator({
+    const { summary, model, byok, usage } = await generator({
+      userId,
       targetType: input.targetType,
       documentTitle: doc.title,
       sectionTitle,
@@ -308,6 +309,7 @@ export namespace Ai {
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
       sourceId: doc.id,
+      byok,
     }).catch((err) => {
       console.error("[billing] summary usage record failed", err);
     });

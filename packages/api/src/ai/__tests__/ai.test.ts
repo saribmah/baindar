@@ -207,6 +207,7 @@ describe("Ai feature", () => {
   describe("Ai.summarize", () => {
     const fakeGenerator = (callLog: Array<{ targetType: string; targetKey: string }>) => {
       return async (input: {
+        userId: string;
         targetType: "section" | "document";
         documentTitle: string;
         sectionTitle: string | null;
@@ -216,6 +217,7 @@ describe("Ai feature", () => {
         return {
           summary: `summary of ${input.documentTitle} (${input.targetType})`,
           model: "test-model",
+          byok: false,
           usage: { inputTokens: 100, outputTokens: 25 },
         };
       };
