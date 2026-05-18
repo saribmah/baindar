@@ -2477,6 +2477,24 @@
         ]
       }
     },
+    "/download/macos": {
+      "get": {
+        "operationId": "download.macos",
+        "summary": "Redirect to the latest macOS desktop release",
+        "description": "302 to the latest published Baindar desktop DMG on GitHub Releases. Arch is picked from ?arch=arm64|intel, then from Sec-CH-UA-Arch, defaulting to arm64. Used by the landing page download button.",
+        "responses": {
+          "302": {
+            "description": "Redirect to the DMG download URL"
+          },
+          "404": {
+            "description": "No matching asset for the requested arch"
+          },
+          "502": {
+            "description": "Upstream GitHub releases lookup failed"
+          }
+        }
+      }
+    },
     "/highlights": {
       "post": {
         "operationId": "highlight.create",

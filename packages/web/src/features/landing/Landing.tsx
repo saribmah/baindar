@@ -1,6 +1,8 @@
+import type { ReactElement } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { BillingPlan } from "@baindar/sdk";
 import { Button, Icons, Wordmark } from "@baindar/ui";
+import { useSdk } from "../../sdk";
 import { authClient } from "../auth";
 import { BILLING_PLANS, PlanCard, type PlanCardAction } from "../billing";
 
@@ -62,7 +64,18 @@ const footerColumns = [
   { title: "Legal", links: ["Terms and conditions", "Privacy policy", "Open source"] },
 ] as const;
 
-const appPlatforms = [
+type AppPlatform = {
+  name: string;
+  status: string;
+  description: string;
+  Icon: () => ReactElement;
+  available: boolean;
+  // Path appended to the SDK base URL when the card is clickable. Undefined
+  // means the card renders as a non-interactive tile (e.g. unreleased apps).
+  downloadPath?: string;
+};
+
+const appPlatforms: readonly AppPlatform[] = [
   {
     name: "Web app",
     status: "Available now",
@@ -79,12 +92,13 @@ const appPlatforms = [
   },
   {
     name: "macOS desktop app",
-    status: "Coming soon",
+    status: "Available now",
     description: "A focused desktop reader for deeper sessions and larger document work.",
     Icon: MacDesktopIcon,
-    available: false,
+    available: true,
+    downloadPath: "/download/macos",
   },
-] as const;
+];
 
 export function Landing() {
   const session = authClient.useSession();
@@ -381,6 +395,7 @@ function StepIllustration({ kind }: { kind: (typeof steps)[number]["illustration
 }
 
 function AppsSection({ onSignUp }: { onSignUp: () => void }) {
+  const { baseUrl } = useSdk();
   return (
     <section id="apps" className="scroll-mt-6 border-t border-bd-border bg-bd-bg">
       <div className="mx-auto grid w-full max-w-[1440px] gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-14 lg:py-16">
@@ -390,61 +405,74 @@ function AppsSection({ onSignUp }: { onSignUp: () => void }) {
             Your binder, synced across every device.
           </h2>
           <p className="t-body-l m-0 mt-5 max-w-[520px] text-bd-fg-subtle">
-            Read on the web today. iOS and macOS apps are coming next, with the same documents,
+            Read on the web or download the macOS app today. iOS is next, with the same documents,
             highlights, notes, and AI conversations following you everywhere.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button size="lg" onClick={onSignUp}>
               Start on web
             </Button>
-            <span className="t-body-s text-bd-fg-muted">
-              Native download links will appear after App Store review.
-            </span>
+            <a
+              href={`${baseUrl}/download/macos`}
+              className="t-label-m inline-flex items-center justify-center rounded-md border border-bd-border px-4 py-2 text-bd-fg hover:bg-bd-surface-raised"
+            >
+              Download for Mac
+            </a>
           </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3 lg:gap-4">
-          {appPlatforms.map(({ name, status, description, Icon, available }) => (
-            <article
-              key={name}
-              className={[
-                "flex min-h-[220px] flex-col rounded-2xl border p-5",
-                available
-                  ? "border-bd-fg bg-bd-fg text-bd-bg shadow-[var(--sh-lg)]"
-                  : "border-bd-border bg-bd-surface-raised text-bd-fg",
-              ].join(" ")}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span
+          {appPlatforms.map(({ name, status, description, Icon, available, downloadPath }) => {
+            const cardClasses = [
+              "flex min-h-[220px] flex-col rounded-2xl border p-5",
+              available
+                ? "border-bd-fg bg-bd-fg text-bd-bg shadow-[var(--sh-lg)]"
+                : "border-bd-border bg-bd-surface-raised text-bd-fg",
+              downloadPath ? "transition hover:opacity-90" : "",
+            ].join(" ");
+            const inner = (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className={[
+                      "flex h-10 w-10 items-center justify-center rounded-full",
+                      available ? "bg-bd-bg/10 text-bd-bg" : "bg-bd-bg text-bd-fg",
+                    ].join(" ")}
+                  >
+                    <Icon />
+                  </span>
+                  <span
+                    className={[
+                      "rounded-full px-2.5 py-1 font-ui text-[11px] font-medium",
+                      available ? "bg-bd-bg text-bd-fg" : "bg-bd-bg text-bd-fg-muted",
+                    ].join(" ")}
+                  >
+                    {status}
+                  </span>
+                </div>
+                <h3 className="m-0 mt-6 font-display text-[24px] font-medium leading-tight tracking-normal">
+                  {name}
+                </h3>
+                <p
                   className={[
-                    "flex h-10 w-10 items-center justify-center rounded-full",
-                    available ? "bg-bd-bg/10 text-bd-bg" : "bg-bd-bg text-bd-fg",
+                    "t-body-m m-0 mt-3 leading-[1.5]",
+                    available ? "text-bd-bg/70" : "text-bd-fg-subtle",
                   ].join(" ")}
                 >
-                  <Icon />
-                </span>
-                <span
-                  className={[
-                    "rounded-full px-2.5 py-1 font-ui text-[11px] font-medium",
-                    available ? "bg-bd-bg text-bd-fg" : "bg-bd-bg text-bd-fg-muted",
-                  ].join(" ")}
-                >
-                  {status}
-                </span>
-              </div>
-              <h3 className="m-0 mt-6 font-display text-[24px] font-medium leading-tight tracking-normal">
-                {name}
-              </h3>
-              <p
-                className={[
-                  "t-body-m m-0 mt-3 leading-[1.5]",
-                  available ? "text-bd-bg/70" : "text-bd-fg-subtle",
-                ].join(" ")}
-              >
-                {description}
-              </p>
-            </article>
-          ))}
+                  {description}
+                </p>
+              </>
+            );
+            return downloadPath ? (
+              <a key={name} href={`${baseUrl}${downloadPath}`} className={cardClasses}>
+                {inner}
+              </a>
+            ) : (
+              <article key={name} className={cardClasses}>
+                {inner}
+              </article>
+            );
+          })}
         </div>
       </div>
     </section>

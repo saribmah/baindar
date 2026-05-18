@@ -1155,6 +1155,24 @@ export type DocumentGetSectionTextResponses = {
 export type DocumentGetSectionTextResponse =
   DocumentGetSectionTextResponses[keyof DocumentGetSectionTextResponses];
 
+export type DownloadMacosData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/download/macos";
+};
+
+export type DownloadMacosErrors = {
+  /**
+   * No matching asset for the requested arch
+   */
+  404: unknown;
+  /**
+   * Upstream GitHub releases lookup failed
+   */
+  502: unknown;
+};
+
 export type HighlightListData = {
   body?: never;
   path?: never;

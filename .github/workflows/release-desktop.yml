@@ -1,0 +1,142 @@
+name: Release desktop
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+            asset_arch: arm64
+          - runner: macos-13
+            arch: x64
+            asset_arch: intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Set up signing keychain
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+
+          # The Developer ID G2 intermediate is sometimes missing on hosted runners.
+          # Without it, codesign reports CSSMERR_TP_NOT_TRUSTED even with a valid leaf.
+          curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" \
+            https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          rm -f "$CERT_PATH"
+
+          # Pin signing to the hash of the imported identity so the workflow
+          # is immune to Common Name collisions if the cert is ever rotated.
+          DEVELOPER_ID_HASH=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | awk '/Developer ID Application/ {print $2; exit}')
+          if [ -z "$DEVELOPER_ID_HASH" ]; then
+            echo "Failed to locate Developer ID Application identity in keychain"
+            security find-identity -v "$KEYCHAIN_PATH" || true
+            exit 1
+          fi
+          echo "ELECTROBUN_DEVELOPER_ID=$DEVELOPER_ID_HASH" >> "$GITHUB_ENV"
+
+      - name: Write notarization API key
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          echo "ELECTROBUN_APPLEAPIKEYPATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Build, sign, notarize, staple
+        env:
+          ELECTROBUN_APPLEAPIISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
+          ELECTROBUN_APPLEAPIKEY: ${{ secrets.APPLE_API_KEY_ID }}
+        run: bun run --filter @baindar/desktop build:release
+
+      - name: Rename DMG for release
+        run: |
+          set -euo pipefail
+          # Strip "desktop-v" prefix from tag (e.g. desktop-v0.1.0 -> 0.1.0).
+          SEMVER="${VERSION#desktop-v}"
+          SRC="packages/desktop/artifacts/stable-macos-${{ matrix.arch }}-Baindar.dmg"
+          DEST="packages/desktop/artifacts/Baindar-${SEMVER}-${{ matrix.asset_arch }}.dmg"
+          mv "$SRC" "$DEST"
+          echo "RELEASE_DMG=$DEST" >> "$GITHUB_ENV"
+
+      - name: Verify Gatekeeper acceptance
+        run: |
+          set -euo pipefail
+          spctl --assess --type open --context context:primary-signature -v "$RELEASE_DMG"
+          xcrun stapler validate "$RELEASE_DMG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.asset_arch }}
+          path: ${{ env.RELEASE_DMG }}
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dmg-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          SEMVER="${TAG#desktop-v}"
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Desktop $SEMVER" \
+            --notes "Baindar desktop $SEMVER for macOS. Apple Silicon and Intel builds attached." \
+            dist/*.dmg

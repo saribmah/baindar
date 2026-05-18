@@ -12,7 +12,6 @@
 			"vars": {
 				"API_PUBLIC_HOST": "http://localhost:8787",
 				"WEB_PUBLIC_HOST": "http://localhost:5173",
-				"WORKER_URL": "http://localhost:8787",
 				"BETTER_AUTH_URL": "http://localhost:8787",
 				"TRUSTED_ORIGINS": "http://localhost:3002,http://localhost:3003",
 				"EMAIL_FROM": "",
@@ -127,7 +126,7 @@
 					"PLATFORM_LLM_API_KEY",
 					"REVENUECAT_SECRET_API_KEY",
 					"REVENUECAT_WEBHOOK_AUTH",
-						"PROVIDER_ENCRYPTION_KEY"
+					"PROVIDER_ENCRYPTION_KEY"
 				]
 			}
 		},
@@ -151,7 +150,6 @@
 			"vars": {
 				"API_PUBLIC_HOST": "https://api.baindar.com",
 				"WEB_PUBLIC_HOST": "https://baindar.com",
-				"WORKER_URL": "https://api.baindar.com",
 				"BETTER_AUTH_URL": "https://api.baindar.com",
 				"TRUSTED_ORIGINS": "https://baindar.com,baindar-desktop://",
 				"EMAIL_FROM": "no-reply@baindar.com",
@@ -255,7 +253,7 @@
 					"PLATFORM_LLM_API_KEY",
 					"REVENUECAT_SECRET_API_KEY",
 					"REVENUECAT_WEBHOOK_AUTH",
-						"PROVIDER_ENCRYPTION_KEY"
+					"PROVIDER_ENCRYPTION_KEY"
 				]
 			}
 		}
