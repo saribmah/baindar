@@ -1,13 +1,15 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { z } from "zod";
-import { Instance } from "../instance";
+import { Config } from "../config/config";
+import { Provider } from "../provider/provider";
 import { NamedError } from "../utils/error";
 
-// Anthropic-backed summary generator. Lives in the worker (not DocumentDO)
-// so the DO stays free of the AI SDK and remains unit-testable. The
+// LLM-backed summary generator. Lives in the worker (not DocumentDO) so
+// the DO stays free of the AI SDK and remains unit-testable. The
 // orchestrator (`Ai.summarize`) calls this with already-fetched chunk text;
-// this module has no knowledge of cache, ownership, or persistence.
+// this module has no knowledge of cache, ownership, or persistence. Model
+// resolution goes through `Provider.getLanguageModel(userId)` so BYOK
+// users transparently bill against their own key.
 
 export namespace SummaryGenerator {
   // Anthropic call failed (network, auth, model unavailable, content too
@@ -33,6 +35,7 @@ export namespace SummaryGenerator {
   };
 
   export type GenerateInput = {
+    userId: string;
     targetType: "section" | "document";
     documentTitle: string;
     sectionTitle: string | null;
@@ -42,6 +45,9 @@ export namespace SummaryGenerator {
   export type GenerateResult = {
     summary: string;
     model: string;
+    // True when the call ran against the user's BYOK provider — propagated
+    // up to `Billing.recordUsage` so the ledger row is tagged correctly.
+    byok: boolean;
     // Token usage from the underlying LLM call. Surfaced so the billing
     // layer can meter cost without re-tokenizing the prompt. Defaults to
     // zero when the SDK returns no usage (test stubs, model errors that
@@ -59,21 +65,24 @@ export namespace SummaryGenerator {
   // outputs from bloating SQLite.
   const SUMMARY_CHAR_CAP = 4000;
 
-  // Anthropic-backed generator. Reads ANTHROPIC_* from the per-request env
-  // (Instance.env), so the test runtime can swap creds without touching the
-  // generator itself.
+  // BYOK-first generator. Delegates model resolution to
+  // `Provider.getLanguageModel`, so platform/BYOK selection is identical
+  // to the chat path. Missing platform credentials surface as the
+  // existing `missing_api_key` LLM error so the route mapping doesn't
+  // change.
   export const generate: Generator = async (input) => {
-    const env = Instance.env;
-    const apiKey = env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new LlmCallFailedError({
-        kind: "missing_api_key",
-        message: "ANTHROPIC_API_KEY is not configured",
-      });
+    let resolved: Awaited<ReturnType<typeof Provider.getLanguageModel>>;
+    try {
+      resolved = await Provider.getLanguageModel(input.userId);
+    } catch (e) {
+      if (Config.PlatformLlmNotConfiguredError.isInstance(e)) {
+        throw new LlmCallFailedError({
+          kind: "missing_api_key",
+          message: "Platform LLM credentials are not configured",
+        });
+      }
+      throw e;
     }
-    const modelId = env.ANTHROPIC_MODEL;
-    const baseURL = env.ANTHROPIC_BASE_URL || undefined;
-    const anthropic = createAnthropic({ apiKey, baseURL });
     const prompt = buildPrompt(input);
 
     let text: string;
@@ -81,7 +90,7 @@ export namespace SummaryGenerator {
     let outputTokens = 0;
     try {
       const result = await generateText({
-        model: anthropic(modelId),
+        model: resolved.model,
         system: SYSTEM_PROMPT,
         prompt,
       });
@@ -102,7 +111,12 @@ export namespace SummaryGenerator {
         message: "LLM returned an empty summary",
       });
     }
-    return { summary, model: modelId, usage: { inputTokens, outputTokens } };
+    return {
+      summary,
+      model: resolved.modelId,
+      byok: resolved.byok,
+      usage: { inputTokens, outputTokens },
+    };
   };
 
   const SYSTEM_PROMPT = [

@@ -1,12 +1,8 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
   convertToModelMessages,
   stepCountIs,
   streamText,
-  type LanguageModel,
-  type ModelMessage,
   type StreamTextOnFinishCallback,
   type ToolSet,
 } from "ai";
@@ -83,17 +79,10 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
       // row vanished mid-turn.
       await Conversation.touch(userId, conversationId).catch(() => {});
 
-      // Resolve the model adapter. When the user has a BYOK provider on
-      // file, we use it directly — their key, their base URL, their
-      // model. Otherwise we fall through to the platform Anthropic key.
-      const provider = await Provider.resolveForChat(userId).catch(() => null);
-      const model: LanguageModel = provider
-        ? buildModelFromProvider(provider)
-        : createAnthropic({
-            apiKey: this.env.ANTHROPIC_API_KEY,
-            baseURL: this.env.ANTHROPIC_BASE_URL || undefined,
-          })(this.env.ANTHROPIC_MODEL);
-      const usingByok = provider !== null;
+      // Resolve the model adapter. BYOK-first, platform fallback — neither
+      // branch is visible here; `Provider.getLanguageModel` returns the
+      // ready-to-use adapter and a `byok` flag for billing tagging.
+      const { model, byok } = await Provider.getLanguageModel(userId);
       const tools: ToolSet = buildAgentTools({ userId });
       // Wrap the framework-supplied onFinish so we can meter token usage
       // before delegating. Recording is best-effort: a billing write failure
@@ -113,7 +102,7 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
             inputTokens: totalUsage?.inputTokens ?? 0,
             outputTokens: totalUsage?.outputTokens ?? 0,
             sourceId: conversationId,
-            byok: usingByok,
+            byok,
           });
         } catch (err) {
           console.error("[billing] chat usage record failed", err);
@@ -185,15 +174,3 @@ const agentAuth = (userId: string): AuthContext => ({
   user: null,
   authMethod: "session",
 });
-
-// Resolve a BYOK provider config to an AI SDK model adapter. The `spec`
-// determines which wire protocol to speak — Anthropic users hit the
-// Anthropic adapter; everyone else (OpenAI, OpenRouter, LiteLLM,
-// self-hosted, …) hits the OpenAI-compatible adapter with the supplied
-// base URL.
-const buildModelFromProvider = (config: Provider.ResolvedConfig): LanguageModel => {
-  if (config.spec === "anthropic") {
-    return createAnthropic({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
-  }
-  return createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
-};

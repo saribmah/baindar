@@ -17,8 +17,9 @@ declare namespace Cloudflare {
     TRUSTED_ORIGINS: "http://localhost:3002,http://localhost:3003";
     EMAIL_FROM: "";
     TEST_MODE: "false";
-    ANTHROPIC_BASE_URL: "https://opencode.ai/zen/go/v1";
-    ANTHROPIC_MODEL: "minimax-m2.7";
+    PLATFORM_LLM_SPEC: "anthropic";
+    PLATFORM_LLM_BASE_URL: "https://opencode.ai/zen/go/v1";
+    PLATFORM_LLM_MODEL: "minimax-m2.7";
     REVENUECAT_PROJECT_ID: "projf22386f8";
     REVENUECAT_ENTITLEMENT_PERSONAL: "entla0a92a1fbb";
     REVENUECAT_ENTITLEMENT_PRO: "entl4f223478d6";
@@ -28,7 +29,7 @@ declare namespace Cloudflare {
     GOOGLE_CLIENT_SECRET: string;
     APPLE_CLIENT_ID: string;
     APPLE_CLIENT_SECRET: string;
-    ANTHROPIC_API_KEY: string;
+    PLATFORM_LLM_API_KEY: string;
     REVENUECAT_SECRET_API_KEY: string;
     REVENUECAT_WEBHOOK_AUTH: string;
     PROVIDER_ENCRYPTION_KEY: string;
@@ -53,8 +54,9 @@ declare namespace Cloudflare {
     TRUSTED_ORIGINS: "https://baindar.com,baindar-desktop://";
     EMAIL_FROM: "no-reply@baindar.com";
     TEST_MODE: "false";
-    ANTHROPIC_BASE_URL: "https://opencode.ai/zen/go/v1";
-    ANTHROPIC_MODEL: "minimax-m2.7";
+    PLATFORM_LLM_SPEC: "anthropic";
+    PLATFORM_LLM_BASE_URL: "https://opencode.ai/zen/go/v1";
+    PLATFORM_LLM_MODEL: "minimax-m2.7";
     REVENUECAT_PROJECT_ID: "projf22386f8";
     REVENUECAT_ENTITLEMENT_PERSONAL: "entla0a92a1fbb";
     REVENUECAT_ENTITLEMENT_PRO: "entl4f223478d6";
@@ -64,7 +66,7 @@ declare namespace Cloudflare {
     GOOGLE_CLIENT_SECRET: string;
     APPLE_CLIENT_ID: string;
     APPLE_CLIENT_SECRET: string;
-    ANTHROPIC_API_KEY: string;
+    PLATFORM_LLM_API_KEY: string;
     REVENUECAT_SECRET_API_KEY: string;
     REVENUECAT_WEBHOOK_AUTH: string;
     PROVIDER_ENCRYPTION_KEY: string;
@@ -90,8 +92,9 @@ declare namespace Cloudflare {
       | "https://baindar.com,baindar-desktop://";
     EMAIL_FROM?: "" | "no-reply@baindar.com";
     TEST_MODE?: "false";
-    ANTHROPIC_BASE_URL?: "https://opencode.ai/zen/go/v1";
-    ANTHROPIC_MODEL?: "minimax-m2.7";
+    PLATFORM_LLM_SPEC?: "anthropic";
+    PLATFORM_LLM_BASE_URL?: "https://opencode.ai/zen/go/v1";
+    PLATFORM_LLM_MODEL?: "minimax-m2.7";
     REVENUECAT_PROJECT_ID?: "projf22386f8";
     REVENUECAT_ENTITLEMENT_PERSONAL?: "entla0a92a1fbb";
     REVENUECAT_ENTITLEMENT_PRO?: "entl4f223478d6";
@@ -101,7 +104,7 @@ declare namespace Cloudflare {
     GOOGLE_CLIENT_SECRET?: string;
     APPLE_CLIENT_ID?: string;
     APPLE_CLIENT_SECRET?: string;
-    ANTHROPIC_API_KEY?: string;
+    PLATFORM_LLM_API_KEY?: string;
     REVENUECAT_SECRET_API_KEY?: string;
     REVENUECAT_WEBHOOK_AUTH?: string;
     PROVIDER_ENCRYPTION_KEY?: string;
@@ -130,8 +133,9 @@ declare namespace NodeJS {
       | "TRUSTED_ORIGINS"
       | "EMAIL_FROM"
       | "TEST_MODE"
-      | "ANTHROPIC_BASE_URL"
-      | "ANTHROPIC_MODEL"
+      | "PLATFORM_LLM_SPEC"
+      | "PLATFORM_LLM_BASE_URL"
+      | "PLATFORM_LLM_MODEL"
       | "REVENUECAT_PROJECT_ID"
       | "REVENUECAT_ENTITLEMENT_PERSONAL"
       | "REVENUECAT_ENTITLEMENT_PRO"
@@ -141,7 +145,7 @@ declare namespace NodeJS {
       | "GOOGLE_CLIENT_SECRET"
       | "APPLE_CLIENT_ID"
       | "APPLE_CLIENT_SECRET"
-      | "ANTHROPIC_API_KEY"
+      | "PLATFORM_LLM_API_KEY"
       | "REVENUECAT_SECRET_API_KEY"
       | "REVENUECAT_WEBHOOK_AUTH"
       | "PROVIDER_ENCRYPTION_KEY"

@@ -1,7 +1,8 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import { generateText, type LanguageModel } from "ai";
 import { z } from "zod";
+import { Config } from "../config/config";
 import { NamedError } from "../utils/error";
 import { decryptApiKey, encryptApiKey, lastFourOf } from "./crypto";
 import { ProviderStore } from "./provider-store";
@@ -128,20 +129,55 @@ export namespace Provider {
     return ProviderStore.hasSettings(userId);
   };
 
-  // ---- Internal helpers -------------------------------------------------
-  const validateKey = async (input: SetInput): Promise<void> => {
-    if (input.spec === "anthropic") {
-      const anthropic = createAnthropic({ apiKey: input.apiKey, baseURL: input.baseUrl });
-      await generateText({
-        model: anthropic(input.model),
-        prompt: "ok",
-        maxOutputTokens: 1,
-      });
-      return;
+  // Resolves the model adapter for a runtime call. BYOK first (the user's
+  // key, their base URL, their model); platform fallback otherwise. The
+  // returned `byok` flag exists so the caller can tag billing ledger rows
+  // — every other concern is hidden behind this one call so chat / summary
+  // / future LLM consumers don't reimplement the same branch.
+  export type LanguageModelResult = {
+    model: LanguageModel;
+    // The underlying model id (e.g. "claude-sonnet-4-5"). Returned so
+    // callers that record provenance — usage ledger rows, summary
+    // artifacts — don't have to re-resolve the config separately.
+    modelId: string;
+    byok: boolean;
+  };
+
+  export const getLanguageModel = async (userId: string): Promise<LanguageModelResult> => {
+    const byokConfig = await resolveForChat(userId).catch(() => null);
+    if (byokConfig) {
+      return {
+        model: buildModelFromConfig(byokConfig),
+        modelId: byokConfig.model,
+        byok: true,
+      };
     }
-    const openai = createOpenAI({ apiKey: input.apiKey, baseURL: input.baseUrl });
+    const platform = Config.requirePlatformLlm();
+    return {
+      model: buildModelFromConfig(platform),
+      modelId: platform.model,
+      byok: false,
+    };
+  };
+
+  // ---- Internal helpers -------------------------------------------------
+  type ModelInput = {
+    spec: Spec;
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  };
+
+  const buildModelFromConfig = (config: ModelInput): LanguageModel => {
+    if (config.spec === "anthropic") {
+      return createAnthropic({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
+    }
+    return createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
+  };
+
+  const validateKey = async (input: SetInput): Promise<void> => {
     await generateText({
-      model: openai(input.model),
+      model: buildModelFromConfig(input),
       prompt: "ok",
       maxOutputTokens: 1,
     });
