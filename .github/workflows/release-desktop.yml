@@ -26,6 +26,7 @@ jobs:
             asset_arch: intel
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    environment: production
     env:
       VERSION: ${{ github.ref_name }}
     steps:
