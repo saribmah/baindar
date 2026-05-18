@@ -4,6 +4,11 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AccountDeletionResponse = {
+  status: "pending";
+  userId: string;
+};
+
 export type AiSearchHit = {
   documentId: string;
   documentTitle: string;
@@ -361,6 +366,33 @@ export type TestModeSignInInput = {
   email: string;
   name?: string;
 };
+
+export type AccountDeleteData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/account";
+};
+
+export type AccountDeleteErrors = {
+  /**
+   * Not authenticated
+   */
+  401: unknown;
+  /**
+   * Workflow binding not configured
+   */
+  500: unknown;
+};
+
+export type AccountDeleteResponses = {
+  /**
+   * Account deletion accepted
+   */
+  202: AccountDeletionResponse;
+};
+
+export type AccountDeleteResponse = AccountDeleteResponses[keyof AccountDeleteResponses];
 
 export type AiSearchData = {
   body: AiSearchInput;

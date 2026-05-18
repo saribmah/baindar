@@ -273,4 +273,11 @@ export class BinderDO extends DurableObject<RuntimeEnv> {
   async removeConversation(conversationId: string): Promise<boolean> {
     return this.#store.removeConversation(conversationId);
   }
+
+  // Wipes every table this DO owns. Used by AccountDeletionWorkflow after
+  // per-document and per-conversation child DOs have been destroyed.
+  // Idempotent — calling on an already-empty DO is a no-op.
+  async destroy(): Promise<void> {
+    await this.ctx.storage.deleteAll();
+  }
 }

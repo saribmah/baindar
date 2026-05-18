@@ -67,6 +67,11 @@
 					"binding": "DELETE_DOCUMENT",
 					"name": "baindar-delete-document-dev",
 					"class_name": "DocumentDeletionWorkflow"
+				},
+				{
+					"binding": "DELETE_USER",
+					"name": "baindar-delete-user-dev",
+					"class_name": "AccountDeletionWorkflow"
 				}
 			],
 			"durable_objects": {
@@ -188,6 +193,11 @@
 					"binding": "DELETE_DOCUMENT",
 					"name": "baindar-delete-document",
 					"class_name": "DocumentDeletionWorkflow"
+				},
+				{
+					"binding": "DELETE_USER",
+					"name": "baindar-delete-user",
+					"class_name": "AccountDeletionWorkflow"
 				}
 			],
 			"durable_objects": {

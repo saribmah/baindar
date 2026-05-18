@@ -8,6 +8,7 @@ export { openApiDocumentation } from "./app/app";
 // dispatches uploads to the matching binding.
 export { EpubWorkflow } from "./document/formats/epub/workflow";
 export { DocumentDeletionWorkflow } from "./document/processing/deletion-workflow";
+export { AccountDeletionWorkflow } from "./account-deletion/workflow";
 
 // Agent (Durable Object) class exports so wrangler can locate them via
 // `class_name` in wrangler.jsonc → durable_objects.bindings.

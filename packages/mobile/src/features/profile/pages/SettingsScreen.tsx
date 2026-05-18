@@ -9,6 +9,7 @@ import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
 import { buildLibraryStyles } from "../../library/library.styles";
 import { signOutProfile } from "../actions";
 import { useProfile } from "../ProfileProvider";
+import { useDeleteAccount } from "../hooks/useDeleteAccount";
 import { useProfileName } from "../hooks/useProfileName";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { buildProfileStyles } from "../profile.styles";
@@ -37,6 +38,7 @@ export function SettingsScreen() {
   const styles = useThemedStyles(buildProfileStyles);
   const libraryStyles = useThemedStyles(buildLibraryStyles);
   const palette = useThemeColors();
+  const deleteAccount = useDeleteAccount();
 
   const displayName = user?.name?.trim() || reader;
   const email = user?.email ?? "";
@@ -177,10 +179,24 @@ export function SettingsScreen() {
             <Icons.Chevron size={14} color={palette.fgMuted} />
           </Row>
         </Group>
+
+        <Group label="Danger zone">
+          <Row
+            label={deleteAccount.pending ? "Deleting account…" : "Delete account"}
+            sub="Permanently delete your account and binder. Cannot be undone."
+            labelColor={DESTRUCTIVE_COLOR}
+            onPress={deleteAccount.pending ? undefined : deleteAccount.confirm}
+            last
+          >
+            <Icons.Chevron size={14} color={palette.fgMuted} />
+          </Row>
+        </Group>
       </ScrollView>
     </View>
   );
 }
+
+const DESTRUCTIVE_COLOR = "#c2362f";
 
 function highlightColorToHex(value: ProfileHighlightColor): string {
   switch (value) {
@@ -213,18 +229,22 @@ function Row({
   children,
   last,
   onPress,
+  labelColor,
 }: {
   label: string;
   sub?: string;
   children?: ReactNode;
   last?: boolean;
   onPress?: () => void;
+  labelColor?: string;
 }) {
   const styles = useThemedStyles(buildProfileStyles);
   const body = (
     <>
       <View style={{ flex: 1 }}>
-        <Text style={styles.settingLabel}>{label}</Text>
+        <Text style={[styles.settingLabel, labelColor ? { color: labelColor } : null]}>
+          {label}
+        </Text>
         {sub && <Text style={styles.settingSub}>{sub}</Text>}
       </View>
       {children}

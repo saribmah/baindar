@@ -18,6 +18,22 @@
       }
     },
     "schemas": {
+      "AccountDeletionResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "pending"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "userId"
+        ]
+      },
       "AiSearchHit": {
         "type": "object",
         "properties": {
@@ -1479,6 +1495,31 @@
     }
   },
   "paths": {
+    "/account": {
+      "delete": {
+        "operationId": "account.delete",
+        "summary": "Delete the authenticated account",
+        "description": "Permanently deletes the caller's account. Returns 202 once the DELETE_USER workflow has been durably enqueued and the caller's active sessions have been revoked. Background cleanup tears down per-document and per-conversation Durable Objects, sweeps R2 storage, and drops the auth row (D1 cascades sessions, accounts, profile, billing, usage, and provider settings). The operation cannot be undone.",
+        "responses": {
+          "202": {
+            "description": "Account deletion accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "500": {
+            "description": "Workflow binding not configured"
+          }
+        }
+      }
+    },
     "/ai/search": {
       "post": {
         "operationId": "ai.search",

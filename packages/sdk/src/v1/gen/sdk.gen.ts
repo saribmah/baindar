@@ -9,6 +9,8 @@ import {
 } from "./client";
 import { client } from "./client.gen";
 import {
+  type AccountDeleteErrors,
+  type AccountDeleteResponses,
   type AiReadErrors,
   type AiReadInput,
   type AiReadResponses,
@@ -165,6 +167,21 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value);
+  }
+}
+
+export class Account extends HeyApiClient {
+  /**
+   * Delete the authenticated account
+   *
+   * Permanently deletes the caller's account. Returns 202 once the DELETE_USER workflow has been durably enqueued and the caller's active sessions have been revoked. Background cleanup tears down per-document and per-conversation Durable Objects, sweeps R2 storage, and drops the auth row (D1 cascades sessions, accounts, profile, billing, usage, and provider settings). The operation cannot be undone.
+   */
+  public delete<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).delete<
+      AccountDeleteResponses,
+      AccountDeleteErrors,
+      ThrowOnError
+    >({ url: "/account", ...options });
   }
 }
 
@@ -1612,6 +1629,11 @@ export class ApiClient extends HeyApiClient {
       PostTestResetErrors,
       ThrowOnError
     >({ url: "/__test__/reset", ...options });
+  }
+
+  private _account?: Account;
+  get account(): Account {
+    return (this._account ??= new Account({ client: this.client }));
   }
 
   private _ai?: Ai;

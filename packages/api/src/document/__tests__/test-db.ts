@@ -7,6 +7,7 @@ import { Binder } from "../../binder/binder";
 import type { Db } from "../../db/db";
 import { user } from "../../db/schema";
 import { Instance } from "../../instance";
+import { runDeletionInline as runAccountDeletionInline } from "../../account-deletion/deletion-steps";
 import { runEpubInline } from "../formats/epub/steps";
 import { runDeletionInline } from "../processing/deletion-steps";
 
@@ -104,6 +105,7 @@ export const createTestRuntime = (
     BUCKET: createFakeR2Bucket(),
     EPUB_PROCESSOR: createFakeEpubProcessor(),
     DELETE_DOCUMENT: createFakeDeleteDocumentBinding(),
+    DELETE_USER: createFakeDeleteUserBinding(),
     ChatAgent: createFakeChatAgentBinding(destroyedConversationIds),
     BINDER: createFakeBinderBinding(),
     DOCUMENT: createFakeDocumentBinding(),
@@ -986,6 +988,18 @@ class FakeBinder {
   async removeConversation(conversationId: string): Promise<boolean> {
     return this.conversations.delete(conversationId);
   }
+
+  // Mirror BinderDO.destroy: wipe every in-memory table this fake owns.
+  async destroy(): Promise<void> {
+    this.documents.clear();
+    this.progress.clear();
+    this.highlights.clear();
+    this.notes.clear();
+    this.shelves.clear();
+    this.shelfMemberships.length = 0;
+    this.conversations.clear();
+    this.chunks = [];
+  }
 }
 
 type FakeConversationRow = {
@@ -1326,6 +1340,20 @@ const createFakeDeleteDocumentBinding = (): Workflow => {
     create: async (init: { id?: string; params: { userId: string; documentId: string } }) => {
       await runDeletionInline(init.params);
       return { id: init.id ?? `delete-${init.params.documentId}` };
+    },
+  };
+  return fake as unknown as Workflow;
+};
+
+// DELETE_USER workflow fake. `AccountDeletion.request` calls the binding's
+// `create`; production enqueues an async workflow run. Here we run the
+// account-deletion steps inline so post-trigger state matches production
+// by the time `AccountDeletion.request` returns.
+const createFakeDeleteUserBinding = (): Workflow => {
+  const fake = {
+    create: async (init: { id?: string; params: { userId: string } }) => {
+      await runAccountDeletionInline(init.params);
+      return { id: init.id ?? `delete-user-${init.params.userId}` };
     },
   };
   return fake as unknown as Workflow;
