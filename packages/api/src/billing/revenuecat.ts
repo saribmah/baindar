@@ -81,6 +81,37 @@ export namespace RevenueCat {
     return { appUserId, customerId: appUserId, activeEntitlements, managementUrl };
   };
 
+  // Delete a subscriber from RevenueCat. Used by AccountDeletionWorkflow to
+  // free the app_user_id and drop any subscriber attributes/PII we've
+  // attached. This does NOT cancel the underlying App Store / Play Store
+  // subscription — that's tied to the platform account and the user must
+  // cancel through their platform's subscription management. RC will stop
+  // firing webhooks against the deleted id once the underlying sub lapses.
+  //
+  // Idempotent: 404 (subscriber never existed or already deleted) is a
+  // success — the workflow may re-run this step after a transient failure.
+  // If RevenueCat isn't configured (local dev without keys), this is a no-op
+  // so the workflow can still complete.
+  export const deleteSubscriber = async (appUserId: string): Promise<void> => {
+    const config = Config.getRevenueCat();
+    if (!config) return;
+    const url = `${config.apiBaseUrl.replace(/\/$/, "")}/v2/projects/${config.projectId}/customers/${encodeURIComponent(appUserId)}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${config.secretApiKey}`,
+        Accept: "application/json",
+      },
+    });
+    if (response.status === 404) return;
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `RevenueCat deleteSubscriber failed: ${response.status} ${response.statusText} ${body}`,
+      );
+    }
+  };
+
   // Webhook payload shape: { event: { app_user_id, type, ... } }. We only
   // need the app_user_id to know which subscriber to re-fetch; everything
   // else comes from the canonical fetch.

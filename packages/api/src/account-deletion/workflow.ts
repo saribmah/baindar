@@ -1,0 +1,119 @@
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import type { RuntimeEnv } from "../app/context";
+import { createDb } from "../db/db";
+import { Instance } from "../instance";
+import { createAnonymousAuth } from "../middleware/auth";
+import {
+  type AccountDeletionParams,
+  deleteAuthUser,
+  deleteRevenueCatSubscriber,
+  destroyAllConversations,
+  destroyAllDocuments,
+  destroyBinder,
+  revokeAppleTokens,
+  sweepUserR2,
+} from "./deletion-steps";
+
+// Account deletion workflow. Seven idempotent steps so retries are safe:
+//
+//   1. revokeAppleTokens — call Apple's REST revoke endpoint for every
+//      Sign in with Apple `account` row. MUST run before deleteAuthUser:
+//      the account rows cascade out with the user row and we need the
+//      refresh tokens to revoke. Required by App Store guideline
+//      5.1.1(v); without it, a user who re-signs in with the same Apple
+//      ID gets a sub but no email (Apple's "first-auth only" rule) and
+//      the new signup fails.
+//   2. deleteAuthUser — drop user row; D1 cascades sessions/accounts/
+//      profile/billing/provider settings. Closes off every sign-in path
+//      before we start tearing down user-owned storage, so a user who
+//      taps "delete" and then immediately tries to sign in again cannot
+//      land back in a half-deleted account. BinderDO is keyed by
+//      `idFromName(userId)` and lives independently of the D1 row, so
+//      subsequent steps can still enumerate documents/conversations.
+//   3. destroyAllDocuments — for each catalog doc: destroy DocumentDO + R2
+//   4. destroyAllConversations — for each catalog conv: destroy ChatAgent
+//   5. destroyBinder — wipe per-user BinderDO storage
+//   6. sweepUserR2 — safety-net sweep under `users/{userId}/`
+//   7. deleteRevenueCatSubscriber — drop RC subscriber record. Does NOT
+//      cancel the underlying App Store / Play Store subscription; the
+//      delete dialogs warn the user before they confirm.
+//
+// The route handler triggers this and returns 202 immediately. Step
+// bodies live in `./deletion-steps.ts` so the bun test runtime can
+// re-use them via a fake DELETE_USER binding.
+export class AccountDeletionWorkflow extends WorkflowEntrypoint<RuntimeEnv, AccountDeletionParams> {
+  override async run(
+    event: WorkflowEvent<AccountDeletionParams>,
+    step: WorkflowStep,
+  ): Promise<void> {
+    const params = event.payload;
+    const env = this.env;
+    const provide = <R>(fn: () => Promise<R>): Promise<R> => {
+      const db = createDb(env);
+      return Instance.provide({ auth: createAnonymousAuth(), env, db }, fn);
+    };
+
+    await step.do(
+      "revokeAppleTokens",
+      {
+        retries: { limit: 5, delay: "5 seconds", backoff: "exponential" },
+        timeout: "1 minute",
+      },
+      () => provide(() => revokeAppleTokens(params)),
+    );
+
+    await step.do(
+      "deleteAuthUser",
+      {
+        retries: { limit: 5, delay: "2 seconds", backoff: "exponential" },
+        timeout: "30 seconds",
+      },
+      () => provide(() => deleteAuthUser(params)),
+    );
+
+    await step.do(
+      "destroyAllDocuments",
+      {
+        retries: { limit: 5, delay: "5 seconds", backoff: "exponential" },
+        timeout: "10 minutes",
+      },
+      () => provide(() => destroyAllDocuments(params)),
+    );
+
+    await step.do(
+      "destroyAllConversations",
+      {
+        retries: { limit: 5, delay: "2 seconds", backoff: "exponential" },
+        timeout: "5 minutes",
+      },
+      () => provide(() => destroyAllConversations(params)),
+    );
+
+    await step.do(
+      "destroyBinder",
+      {
+        retries: { limit: 5, delay: "2 seconds", backoff: "exponential" },
+        timeout: "1 minute",
+      },
+      () => provide(() => destroyBinder(params)),
+    );
+
+    await step.do(
+      "sweepUserR2",
+      {
+        retries: { limit: 5, delay: "5 seconds", backoff: "exponential" },
+        timeout: "10 minutes",
+      },
+      () => provide(() => sweepUserR2(params)),
+    );
+
+    await step.do(
+      "deleteRevenueCatSubscriber",
+      {
+        retries: { limit: 5, delay: "5 seconds", backoff: "exponential" },
+        timeout: "30 seconds",
+      },
+      () => provide(() => deleteRevenueCatSubscriber(params)),
+    );
+  }
+}

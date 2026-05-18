@@ -63,6 +63,43 @@ export namespace Config {
     return ai;
   };
 
+  // ---- Sign in with Apple revoke ---------------------------------------
+
+  export const AppleRevokeNotConfiguredError = NamedError.create(
+    "AppleRevokeNotConfiguredError",
+    z.object({ message: z.string().optional() }),
+  );
+  export type AppleRevokeNotConfiguredError = InstanceType<typeof AppleRevokeNotConfiguredError>;
+
+  export type AppleRevokeConfig = {
+    // Service ID — the same value Better Auth uses as APPLE_CLIENT_ID.
+    clientId: string;
+    // 10-char Apple Developer team identifier.
+    teamId: string;
+    // 10-char identifier for the Sign in with Apple key.
+    keyId: string;
+    // PKCS#8 PEM contents of the .p8 file Apple gives you when you create
+    // the Sign in with Apple key. May arrive as a single line with escaped
+    // `\n` newlines (wrangler secret put strips real newlines on some
+    // shells) — `AppleRevoke.importPrivateKey` normalises both forms.
+    privateKey: string;
+  };
+
+  // Returns null when any of the four inputs are missing. The
+  // AccountDeletion workflow's revokeAppleTokens step treats null as
+  // "no Apple revoke configured" and skips the step, so environments
+  // without Sign in with Apple credentials (local dev) still complete
+  // account deletion end-to-end.
+  export const getAppleRevoke = (): AppleRevokeConfig | null => {
+    const env = Instance.env;
+    const clientId = env.APPLE_CLIENT_ID as string;
+    const teamId = env.APPLE_TEAM_ID as string;
+    const keyId = env.APPLE_KEY_ID as string;
+    const privateKey = env.APPLE_PRIVATE_KEY as string;
+    if (!clientId || !teamId || !keyId || !privateKey) return null;
+    return { clientId, teamId, keyId, privateKey };
+  };
+
   // ---- RevenueCat (billing provider) -----------------------------------
 
   export const RevenueCatNotConfiguredError = NamedError.create(

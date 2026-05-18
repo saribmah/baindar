@@ -67,6 +67,11 @@
 					"binding": "DELETE_DOCUMENT",
 					"name": "baindar-delete-document-dev",
 					"class_name": "DocumentDeletionWorkflow"
+				},
+				{
+					"binding": "DELETE_USER",
+					"name": "baindar-delete-user-dev",
+					"class_name": "AccountDeletionWorkflow"
 				}
 			],
 			"durable_objects": {
@@ -116,6 +121,9 @@
 					"GOOGLE_CLIENT_SECRET",
 					"APPLE_CLIENT_ID",
 					"APPLE_CLIENT_SECRET",
+					"APPLE_TEAM_ID",
+					"APPLE_KEY_ID",
+					"APPLE_PRIVATE_KEY",
 					"PLATFORM_LLM_API_KEY",
 					"REVENUECAT_SECRET_API_KEY",
 					"REVENUECAT_WEBHOOK_AUTH",
@@ -188,6 +196,11 @@
 					"binding": "DELETE_DOCUMENT",
 					"name": "baindar-delete-document",
 					"class_name": "DocumentDeletionWorkflow"
+				},
+				{
+					"binding": "DELETE_USER",
+					"name": "baindar-delete-user",
+					"class_name": "AccountDeletionWorkflow"
 				}
 			],
 			"durable_objects": {
@@ -236,6 +249,9 @@
 					"GOOGLE_CLIENT_SECRET",
 					"APPLE_CLIENT_ID",
 					"APPLE_CLIENT_SECRET",
+					"APPLE_TEAM_ID",
+					"APPLE_KEY_ID",
+					"APPLE_PRIVATE_KEY",
 					"PLATFORM_LLM_API_KEY",
 					"REVENUECAT_SECRET_API_KEY",
 					"REVENUECAT_WEBHOOK_AUTH",

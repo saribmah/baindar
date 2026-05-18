@@ -6,7 +6,9 @@ import { useLibraryDocuments } from "../../library/hooks/useLibraryDocuments";
 import { AppSidebar } from "../../library/components/AppSidebar";
 import { useLibraryShelves } from "../../library/hooks/useLibraryShelves";
 import { signOutProfile } from "../actions";
+import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { useProfile } from "../ProfileProvider";
+import { useDeleteAccount } from "../hooks/useDeleteAccount";
 import { useProfileName } from "../hooks/useProfileName";
 import { useUserProfile } from "../hooks/useUserProfile";
 
@@ -31,6 +33,7 @@ export function SettingsPage() {
   const { user } = useUserProfile();
   const { profile, update } = useProfile();
   const { billing } = useBillingStatus();
+  const deleteAccount = useDeleteAccount();
 
   const displayName = user?.name?.trim() || reader;
   const email = user?.email ?? "";
@@ -169,9 +172,32 @@ export function SettingsPage() {
                 />
               </Row>
             </Section>
+
+            <Section label="Danger zone">
+              <Row
+                label="Delete account"
+                sub="Permanently delete your account and binder. Cannot be undone."
+              >
+                <Button variant="wine" size="sm" onClick={deleteAccount.start}>
+                  Delete account
+                </Button>
+              </Row>
+            </Section>
           </div>
         </div>
       </section>
+
+      {deleteAccount.open && (
+        <DeleteAccountDialog
+          pending={deleteAccount.pending}
+          error={deleteAccount.error}
+          billing={billing}
+          onCancel={deleteAccount.cancel}
+          onConfirm={() => {
+            void deleteAccount.confirm();
+          }}
+        />
+      )}
     </main>
   );
 }
