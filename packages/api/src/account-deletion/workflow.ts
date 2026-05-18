@@ -6,13 +6,14 @@ import { createAnonymousAuth } from "../middleware/auth";
 import {
   type AccountDeletionParams,
   deleteAuthUser,
+  deleteRevenueCatSubscriber,
   destroyAllConversations,
   destroyAllDocuments,
   destroyBinder,
   sweepUserR2,
 } from "./deletion-steps";
 
-// Account deletion workflow. Five idempotent steps so retries are safe:
+// Account deletion workflow. Six idempotent steps so retries are safe:
 //
 //   1. deleteAuthUser — drop user row first; D1 cascades sessions/accounts/
 //      profile/billing/provider settings. Closes off every sign-in path
@@ -25,6 +26,9 @@ import {
 //   3. destroyAllConversations — for each catalog conv: destroy ChatAgent
 //   4. destroyBinder — wipe per-user BinderDO storage
 //   5. sweepUserR2 — safety-net sweep under `users/{userId}/`
+//   6. deleteRevenueCatSubscriber — drop RC subscriber record. Does NOT
+//      cancel the underlying App Store / Play Store subscription; the
+//      delete dialogs warn the user before they confirm.
 //
 // The route handler triggers this and returns 202 immediately. Step
 // bodies live in `./deletion-steps.ts` so the bun test runtime can
@@ -84,6 +88,15 @@ export class AccountDeletionWorkflow extends WorkflowEntrypoint<RuntimeEnv, Acco
         timeout: "10 minutes",
       },
       () => provide(() => sweepUserR2(params)),
+    );
+
+    await step.do(
+      "deleteRevenueCatSubscriber",
+      {
+        retries: { limit: 5, delay: "5 seconds", backoff: "exponential" },
+        timeout: "30 seconds",
+      },
+      () => provide(() => deleteRevenueCatSubscriber(params)),
     );
   }
 }

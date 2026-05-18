@@ -8,6 +8,7 @@ import { Instance } from "../../instance";
 import { AccountDeletion } from "../account-deletion";
 import {
   deleteAuthUser,
+  deleteRevenueCatSubscriber,
   destroyAllConversations,
   destroyAllDocuments,
   destroyBinder,
@@ -103,6 +104,74 @@ describe("AccountDeletion", () => {
         // Second run on an already-deleted user is a no-op.
         await deleteAuthUser({ userId: userA });
       });
+    });
+
+    it("deleteRevenueCatSubscriber no-ops when RC is not configured", async () => {
+      // Default test runtime has no REVENUECAT_* env vars, so the step
+      // should silently skip the network call rather than throwing.
+      await runtime.runAs(userA, async () => {
+        await deleteRevenueCatSubscriber({ userId: userA });
+      });
+    });
+
+    it("deleteRevenueCatSubscriber DELETEs against RC and treats 404 as success", async () => {
+      const rcRuntime = createTestRuntime(
+        [{ id: userA, name: "Alice", email: "alice@example.com" }],
+        {
+          REVENUECAT_PROJECT_ID: "proj_test",
+          REVENUECAT_SECRET_API_KEY: "sk_test",
+          REVENUECAT_WEBHOOK_AUTH: "wh_test",
+        },
+      );
+      const calls: Array<{ method: string; url: string }> = [];
+      const originalFetch = globalThis.fetch;
+      let nextStatus = 200;
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        calls.push({ method: init?.method ?? "GET", url });
+        return new Response(null, { status: nextStatus });
+      }) as unknown as typeof fetch;
+
+      try {
+        await rcRuntime.runAs(userA, async () => {
+          await deleteRevenueCatSubscriber({ userId: userA });
+          nextStatus = 404;
+          // Replay against an already-deleted subscriber should still succeed.
+          await deleteRevenueCatSubscriber({ userId: userA });
+        });
+        expect(calls).toHaveLength(2);
+        expect(calls[0]?.method).toBe("DELETE");
+        expect(calls[0]?.url).toContain(`/v2/projects/proj_test/customers/${userA}`);
+      } finally {
+        globalThis.fetch = originalFetch;
+        rcRuntime.close();
+      }
+    });
+
+    it("deleteRevenueCatSubscriber surfaces non-2xx/non-404 errors", async () => {
+      const rcRuntime = createTestRuntime(
+        [{ id: userA, name: "Alice", email: "alice@example.com" }],
+        {
+          REVENUECAT_PROJECT_ID: "proj_test",
+          REVENUECAT_SECRET_API_KEY: "sk_test",
+          REVENUECAT_WEBHOOK_AUTH: "wh_test",
+        },
+      );
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () =>
+        new Response("boom", { status: 500 })) as unknown as typeof fetch;
+
+      try {
+        await rcRuntime.runAs(userA, async () => {
+          await expect(deleteRevenueCatSubscriber({ userId: userA })).rejects.toThrow(
+            /deleteSubscriber failed: 500/,
+          );
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+        rcRuntime.close();
+      }
     });
   });
 

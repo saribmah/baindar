@@ -191,6 +191,7 @@ export function SettingsPage() {
         <DeleteAccountDialog
           pending={deleteAccount.pending}
           error={deleteAccount.error}
+          billing={billing}
           onCancel={deleteAccount.cancel}
           onConfirm={() => {
             void deleteAccount.confirm();

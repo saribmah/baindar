@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { Agent } from "../agent/agent";
+import { RevenueCat } from "../billing/revenuecat";
 import { Binder } from "../binder/binder";
 import { user } from "../db/schema";
 import { DocumentAssetStore } from "../document/asset-store";
@@ -27,6 +28,11 @@ import { Instance } from "../instance";
 //   4. destroyBinder — wipe per-user BinderDO storage
 //   5. sweepUserR2 — safety-net sweep under `users/{userId}/` for any
 //      keys the per-doc step missed
+//   6. deleteRevenueCatSubscriber — free the RC app_user_id and drop
+//      subscriber attributes. Does NOT cancel the underlying App Store /
+//      Play Store subscription — that's tied to the platform account and
+//      must be cancelled by the user via their platform settings. The
+//      delete dialogs surface this to the user before they confirm.
 
 export type AccountDeletionParams = { userId: string };
 
@@ -81,6 +87,13 @@ export const deleteAuthUser = async (input: AccountDeletionParams): Promise<void
   await Instance.db.delete(user).where(eq(user.id, input.userId));
 };
 
+// Remove the RevenueCat subscriber record. Idempotent — 404 is treated as
+// success and the call no-ops when RC isn't configured. Does NOT cancel
+// the underlying platform subscription; the delete dialogs warn the user.
+export const deleteRevenueCatSubscriber = async (input: AccountDeletionParams): Promise<void> => {
+  await RevenueCat.deleteSubscriber(input.userId);
+};
+
 // Inline runner used by tests via the fake DELETE_USER binding. Same
 // terminal state as the workflow run (each step is idempotent and replay-
 // safe, so re-running mid-sequence after a partial failure is fine).
@@ -90,4 +103,5 @@ export const runDeletionInline = async (input: AccountDeletionParams): Promise<v
   await destroyAllConversations(input);
   await destroyBinder(input);
   await sweepUserR2(input);
+  await deleteRevenueCatSubscriber(input);
 };

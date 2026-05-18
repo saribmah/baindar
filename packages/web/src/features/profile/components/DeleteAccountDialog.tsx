@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Sheet } from "@baindar/ui";
+import type { BillingStatus } from "@baindar/sdk";
 
 const CONFIRM_PHRASE = "delete my account";
 
 export function DeleteAccountDialog({
   pending,
   error,
+  billing,
   onCancel,
   onConfirm,
 }: {
   pending: boolean;
   error: string | null;
+  billing: BillingStatus | null;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const hasActiveSubscription = billing != null && billing.plan !== "free";
   const [typed, setTyped] = useState("");
   const canConfirm = typed.trim().toLowerCase() === CONFIRM_PHRASE && !pending;
 
@@ -46,6 +50,17 @@ export function DeleteAccountDialog({
               undone.
             </p>
           </div>
+
+          {hasActiveSubscription && (
+            <div className="rounded-[14px] border border-bd-border bg-bd-surface-raised px-4 py-3">
+              <div className="t-label-s mb-1 text-bd-fg">Subscription not cancelled</div>
+              <p className="t-body-s text-bd-fg-subtle">
+                Your subscription is billed through the App Store or Google Play and will not be
+                cancelled by deleting your account. Open your platform's subscription settings to
+                cancel it separately.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <label className="t-label-s text-bd-fg-muted" htmlFor="delete-account-confirm">
