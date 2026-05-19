@@ -223,6 +223,16 @@ function useReaderAsk() {
   return ctx;
 }
 
+// Counter bumped whenever the reader's layout-affecting panels (AI chat,
+// notes rail, TOC) toggle. The highlight layer subscribes and re-applies
+// its DOM marks on changes, so the colour overlay can't fall out of sync
+// with the text after a big reflow.
+const ReaderRefreshKeyContext = createContext<number>(0);
+
+function useReaderRefreshKey(): number {
+  return useContext(ReaderRefreshKeyContext);
+}
+
 function ReaderState({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bd-bg px-6 text-bd-fg">
@@ -400,217 +410,250 @@ function ReaderShell({
     [setSearchParams],
   );
 
+  const layoutRefreshKey = useReaderLayoutRefreshKey({
+    aiOpen,
+    notesOpen,
+    tocOpen,
+    isXl,
+    isLg,
+    fontScale,
+  });
+
   return (
     <ReaderAskContext.Provider value={openAsk}>
-      <main
-        className="flex h-dvh min-h-screen flex-col overflow-hidden"
-        style={{ background: "var(--bd-bg)", color: "var(--bd-fg)" }}
-      >
-        <header
-          className="z-10 flex h-16 shrink-0 items-center gap-5 border-b px-4 md:px-7"
-          style={{ background: "var(--bd-bg)", borderColor: "var(--bd-border)" }}
+      <ReaderRefreshKeyContext.Provider value={layoutRefreshKey}>
+        <main
+          className="flex h-dvh min-h-screen flex-col overflow-hidden"
+          style={{ background: "var(--bd-bg)", color: "var(--bd-fg)" }}
         >
-          <IconButton aria-label="Close reader" size="sm" onClick={onClose}>
-            <Icons.Close size={16} />
-          </IconButton>
-
-          <div className="hidden sm:block">
-            <Wordmark size="sm" color="var(--bd-fg)" />
-          </div>
-          <span
-            aria-hidden
-            className="hidden h-6 w-px sm:block"
-            style={{ background: "var(--bd-border)" }}
-          />
-
-          <div className="min-w-0 flex-1">
-            <div className="t-label-l truncate">{doc.title}</div>
-            <div className="t-body-s truncate" style={{ color: "var(--bd-fg-muted)" }}>
-              {authorLabel}
-            </div>
-          </div>
-
-          {progressLabel && (
-            <div
-              className="hidden shrink-0 font-mono text-xs tabular-nums md:block"
-              style={{ color: "var(--bd-fg-muted)" }}
-            >
-              {progressLabel}
-            </div>
-          )}
-        </header>
-
-        <div
-          className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden"
-          style={{
-            gridTemplateColumns: isXl
-              ? `${tocOpen ? "240px " : ""}minmax(0,1fr)${rightOpen ? (aiOpen ? " 460px" : " 240px") : ""}`
-              : isLg
-                ? `${tocOpen ? "240px " : ""}minmax(0,1fr)`
-                : undefined,
-          }}
-        >
-          {isLg && tocOpen && (
-            <aside
-              className="relative min-h-0 overflow-hidden border-r px-6 py-8"
-              style={{ borderColor: "var(--bd-border)" }}
-            >
-              <IconButton
-                aria-label="Close contents"
-                size="sm"
-                onClick={() => setTocOpen(false)}
-                className="absolute right-3 top-3 z-10"
-              >
-                <Icons.Close size={14} />
-              </IconButton>
-              {toc ? (
-                <ContentsRail
-                  toc={toc.toc}
-                  sections={toc.sections}
-                  currentOrder={toc.currentOrder}
-                  onJump={toc.onJump}
-                />
-              ) : (
-                <RailSkeleton label="Contents" />
-              )}
-            </aside>
-          )}
-
-          <section
-            data-reader-scroll
-            className="min-h-0 overflow-y-auto px-6 py-8 md:px-10 md:py-14"
+          <header
+            className="z-10 flex h-16 shrink-0 items-center gap-5 border-b px-4 md:px-7"
+            style={{ background: "var(--bd-bg)", borderColor: "var(--bd-border)" }}
           >
-            <article className="mx-auto max-w-[620px] pb-32 md:pb-12">
-              {withReaderFont(children, fontScale)}
-            </article>
-          </section>
+            <IconButton aria-label="Close reader" size="sm" onClick={onClose}>
+              <Icons.Close size={16} />
+            </IconButton>
 
-          {isXl && rightOpen && (
-            <aside
-              className="relative min-h-0 min-w-0 overflow-hidden border-l"
-              style={{ borderColor: "var(--bd-border)" }}
-            >
-              {aiOpen ? (
-                <ReaderChatPanel
-                  conversation={readerConversation}
-                  error={conversationError}
-                  pendingReferences={pendingReferences}
-                  contextReference={contextReference}
-                  draftSeed={draftSeed}
-                  draftSeedKey={draftSeedKey}
-                  onPendingReferencesChange={setPendingReferences}
-                  onClose={() => setAiOpen(false)}
-                  onNewConversation={() => void startNewReaderConversation()}
-                />
-              ) : (
-                <div className="h-full px-6 py-8">
-                  <IconButton
-                    aria-label="Close notes"
-                    size="sm"
-                    onClick={() => setNotesOpen(false)}
-                    className="absolute right-3 top-3 z-10"
-                  >
-                    <Icons.Close size={14} />
-                  </IconButton>
-                  <NotesRail
-                    documentId={doc.id}
-                    sections={toc?.sections}
-                    currentOrder={currentOrder}
-                    refreshToken={refresh?.refreshToken ?? 0}
-                    targetNoteId={targetNoteId}
-                    onJumpToTarget={jumpToReaderTarget}
+            <div className="hidden sm:block">
+              <Wordmark size="sm" color="var(--bd-fg)" />
+            </div>
+            <span
+              aria-hidden
+              className="hidden h-6 w-px sm:block"
+              style={{ background: "var(--bd-border)" }}
+            />
+
+            <div className="min-w-0 flex-1">
+              <div className="t-label-l truncate">{doc.title}</div>
+              <div className="t-body-s truncate" style={{ color: "var(--bd-fg-muted)" }}>
+                {authorLabel}
+              </div>
+            </div>
+
+            {progressLabel && (
+              <div
+                className="hidden shrink-0 font-mono text-xs tabular-nums md:block"
+                style={{ color: "var(--bd-fg-muted)" }}
+              >
+                {progressLabel}
+              </div>
+            )}
+          </header>
+
+          <div
+            className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden"
+            style={{
+              gridTemplateColumns: isXl
+                ? `${tocOpen ? "240px " : ""}minmax(0,1fr)${rightOpen ? (aiOpen ? " 460px" : " 240px") : ""}`
+                : isLg
+                  ? `${tocOpen ? "240px " : ""}minmax(0,1fr)`
+                  : undefined,
+            }}
+          >
+            {isLg && tocOpen && (
+              <aside
+                className="relative min-h-0 overflow-hidden border-r px-6 py-8"
+                style={{ borderColor: "var(--bd-border)" }}
+              >
+                <IconButton
+                  aria-label="Close contents"
+                  size="sm"
+                  onClick={() => setTocOpen(false)}
+                  className="absolute right-3 top-3 z-10"
+                >
+                  <Icons.Close size={14} />
+                </IconButton>
+                {toc ? (
+                  <ContentsRail
+                    toc={toc.toc}
+                    sections={toc.sections}
+                    currentOrder={toc.currentOrder}
+                    onJump={toc.onJump}
                   />
-                </div>
-              )}
-            </aside>
-          )}
-        </div>
+                ) : (
+                  <RailSkeleton label="Contents" />
+                )}
+              </aside>
+            )}
 
-        <div className="fixed bottom-5 left-1/2 z-10 -translate-x-1/2">
-          <FloatingToolbar>
-            {toc && (!isLg || !tocOpen) && (
-              <FloatingToolbarButton
-                aria-label="Table of contents"
-                onClick={() => setTocOpen(true)}
-              >
-                <Icons.BookOpen size={20} />
-              </FloatingToolbarButton>
-            )}
-            {(!isXl || !notesOpen || aiOpen) && (
-              <FloatingToolbarButton
-                aria-label="Notes"
-                onClick={() => {
-                  setNotesOpen(true);
-                  if (isXl) setAiOpen(false);
-                }}
-              >
-                <Icons.Note size={20} />
-              </FloatingToolbarButton>
-            )}
-            {(!isXl || !aiOpen) && (
-              <FloatingToolbarButton aria-label="Ask Baindar" onClick={() => openAsk()}>
-                <Icons.Sparkles size={20} />
-              </FloatingToolbarButton>
-            )}
-            <FloatingToolbarButton
-              aria-label={
-                fontScale === "standard" ? "Use larger reader type" : "Use standard reader type"
-              }
-              onClick={toggleFontScale}
+            <section
+              data-reader-scroll
+              className="min-h-0 overflow-y-auto px-6 py-8 md:px-10 md:py-14"
             >
-              <Icons.Type size={20} />
-            </FloatingToolbarButton>
-            <FloatingToolbarButton aria-label={`Theme: ${theme}`} onClick={cycleTheme}>
-              {theme === "dark" ? <Icons.Sun size={20} /> : <Icons.Moon size={20} />}
-            </FloatingToolbarButton>
-          </FloatingToolbar>
-        </div>
+              <article className="mx-auto max-w-[620px] pb-32 md:pb-12">
+                {withReaderFont(children, fontScale)}
+              </article>
+            </section>
 
-        {!isLg && toc && tocOpen && (
-          <TocSheet
-            toc={toc.toc}
-            sections={toc.sections}
-            currentOrder={toc.currentOrder}
-            onJump={(order) => {
-              toc.onJump(order);
-              setTocOpen(false);
-            }}
-            onClose={() => setTocOpen(false)}
-          />
-        )}
+            {isXl && rightOpen && (
+              <aside
+                className="relative min-h-0 min-w-0 overflow-hidden border-l"
+                style={{ borderColor: "var(--bd-border)" }}
+              >
+                {aiOpen ? (
+                  <ReaderChatPanel
+                    conversation={readerConversation}
+                    error={conversationError}
+                    pendingReferences={pendingReferences}
+                    contextReference={contextReference}
+                    draftSeed={draftSeed}
+                    draftSeedKey={draftSeedKey}
+                    onPendingReferencesChange={setPendingReferences}
+                    onClose={() => setAiOpen(false)}
+                    onNewConversation={() => void startNewReaderConversation()}
+                  />
+                ) : (
+                  <div className="h-full px-6 py-8">
+                    <IconButton
+                      aria-label="Close notes"
+                      size="sm"
+                      onClick={() => setNotesOpen(false)}
+                      className="absolute right-3 top-3 z-10"
+                    >
+                      <Icons.Close size={14} />
+                    </IconButton>
+                    <NotesRail
+                      documentId={doc.id}
+                      sections={toc?.sections}
+                      currentOrder={currentOrder}
+                      refreshToken={refresh?.refreshToken ?? 0}
+                      targetNoteId={targetNoteId}
+                      onJumpToTarget={jumpToReaderTarget}
+                    />
+                  </div>
+                )}
+              </aside>
+            )}
+          </div>
 
-        {!isXl && notesOpen && (
-          <NotesSheet
-            documentId={doc.id}
-            sections={toc?.sections}
-            currentOrder={currentOrder}
-            refreshToken={refresh?.refreshToken ?? 0}
-            targetNoteId={targetNoteId}
-            onJumpToTarget={(order, highlightId, noteId) => {
-              jumpToReaderTarget(order, highlightId, noteId);
-              setNotesOpen(false);
-            }}
-            onClose={() => setNotesOpen(false)}
-          />
-        )}
+          <div className="fixed bottom-5 left-1/2 z-10 -translate-x-1/2">
+            <FloatingToolbar>
+              {toc && (!isLg || !tocOpen) && (
+                <FloatingToolbarButton
+                  aria-label="Table of contents"
+                  onClick={() => setTocOpen(true)}
+                >
+                  <Icons.BookOpen size={20} />
+                </FloatingToolbarButton>
+              )}
+              {(!isXl || !notesOpen || aiOpen) && (
+                <FloatingToolbarButton
+                  aria-label="Notes"
+                  onClick={() => {
+                    setNotesOpen(true);
+                    if (isXl) setAiOpen(false);
+                  }}
+                >
+                  <Icons.Note size={20} />
+                </FloatingToolbarButton>
+              )}
+              {(!isXl || !aiOpen) && (
+                <FloatingToolbarButton aria-label="Ask Baindar" onClick={() => openAsk()}>
+                  <Icons.Sparkles size={20} />
+                </FloatingToolbarButton>
+              )}
+              <FloatingToolbarButton
+                aria-label={
+                  fontScale === "standard" ? "Use larger reader type" : "Use standard reader type"
+                }
+                onClick={toggleFontScale}
+              >
+                <Icons.Type size={20} />
+              </FloatingToolbarButton>
+              <FloatingToolbarButton aria-label={`Theme: ${theme}`} onClick={cycleTheme}>
+                {theme === "dark" ? <Icons.Sun size={20} /> : <Icons.Moon size={20} />}
+              </FloatingToolbarButton>
+            </FloatingToolbar>
+          </div>
 
-        {!isXl && aiOpen && (
-          <ReaderChatOverlay
-            theme={theme}
-            conversation={readerConversation}
-            error={conversationError}
-            pendingReferences={pendingReferences}
-            contextReference={contextReference}
-            draftSeed={draftSeed}
-            draftSeedKey={draftSeedKey}
-            onPendingReferencesChange={setPendingReferences}
-            onClose={() => setAiOpen(false)}
-            onNewConversation={() => void startNewReaderConversation()}
-          />
-        )}
-      </main>
+          {!isLg && toc && tocOpen && (
+            <TocSheet
+              toc={toc.toc}
+              sections={toc.sections}
+              currentOrder={toc.currentOrder}
+              onJump={(order) => {
+                toc.onJump(order);
+                setTocOpen(false);
+              }}
+              onClose={() => setTocOpen(false)}
+            />
+          )}
+
+          {!isXl && notesOpen && (
+            <NotesSheet
+              documentId={doc.id}
+              sections={toc?.sections}
+              currentOrder={currentOrder}
+              refreshToken={refresh?.refreshToken ?? 0}
+              targetNoteId={targetNoteId}
+              onJumpToTarget={(order, highlightId, noteId) => {
+                jumpToReaderTarget(order, highlightId, noteId);
+                setNotesOpen(false);
+              }}
+              onClose={() => setNotesOpen(false)}
+            />
+          )}
+
+          {!isXl && aiOpen && (
+            <ReaderChatOverlay
+              theme={theme}
+              conversation={readerConversation}
+              error={conversationError}
+              pendingReferences={pendingReferences}
+              contextReference={contextReference}
+              draftSeed={draftSeed}
+              draftSeedKey={draftSeedKey}
+              onPendingReferencesChange={setPendingReferences}
+              onClose={() => setAiOpen(false)}
+              onNewConversation={() => void startNewReaderConversation()}
+            />
+          )}
+        </main>
+      </ReaderRefreshKeyContext.Provider>
     </ReaderAskContext.Provider>
   );
+}
+
+function useReaderLayoutRefreshKey({
+  aiOpen,
+  notesOpen,
+  tocOpen,
+  isXl,
+  isLg,
+  fontScale,
+}: {
+  aiOpen: boolean;
+  notesOpen: boolean;
+  tocOpen: boolean;
+  isXl: boolean;
+  isLg: boolean;
+  fontScale: ReaderFontScale;
+}): number {
+  const [counter, setCounter] = useState(0);
+  useEffect(() => {
+    setCounter((n) => n + 1);
+  }, [aiOpen, notesOpen, tocOpen, isXl, isLg, fontScale]);
+  return counter;
 }
 
 function ReaderBody({ doc }: { doc: Document }) {
@@ -620,6 +663,7 @@ function ReaderBody({ doc }: { doc: Document }) {
   const { setMeta } = useReaderMeta();
   const { setToc } = useReaderToc();
   const openAsk = useReaderAsk();
+  const layoutRefreshKey = useReaderRefreshKey();
   const [manifest, setManifest] = useState<DocumentManifest | null>(null);
   const [chapterHtml, setChapterHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -887,6 +931,7 @@ function ReaderBody({ doc }: { doc: Document }) {
         contentKey={currentSection.sectionKey}
         targetHighlightId={targetHighlightId}
         targetRequestId={targetRequestId}
+        refreshKey={layoutRefreshKey}
         onAskSelection={(payload) => {
           const reference =
             payload.kind === "highlight"

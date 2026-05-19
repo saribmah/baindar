@@ -16,6 +16,7 @@ export type HighlightLayerProps = {
   contentKey: string;
   targetHighlightId?: string | null;
   targetRequestId?: string | null;
+  refreshKey?: number | string;
   onAskSelection?: (payload: HighlightAskPayload) => void;
 };
 
@@ -37,6 +38,7 @@ export function HighlightLayer({
   contentKey,
   targetHighlightId,
   targetRequestId,
+  refreshKey,
   onAskSelection,
 }: HighlightLayerProps) {
   const layer = useHighlightLayer({
@@ -47,6 +49,7 @@ export function HighlightLayer({
     enabled: sectionKey !== null,
     targetHighlightId,
     targetRequestId,
+    refreshKey,
   });
   const { profile } = useProfile();
   const defaultColor: HighlightColor = profile?.defaultHighlightColor ?? "pink";

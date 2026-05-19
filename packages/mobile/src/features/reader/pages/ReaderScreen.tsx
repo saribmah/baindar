@@ -172,10 +172,19 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
 
   const openAsk = useCallback(
     (references: MessageReference[], prompt = "") => {
-      setAskState({ references, prompt, seedKey: String(Date.now()) });
-      void ensureReaderConversation();
+      const next = { references, prompt, seedKey: String(Date.now()) };
+      // Avoid opening the AI sheet with a "Starting conversation" placeholder
+      // and then swapping in the chat pane — that layout switch reads as a
+      // double-card flash on iOS. If we already have a conversation, open
+      // immediately; otherwise wait for ensure() so the sheet opens once
+      // with the real chat pane already mounted.
+      if (readerConversation) {
+        setAskState(next);
+        return;
+      }
+      void ensureReaderConversation().finally(() => setAskState(next));
     },
-    [ensureReaderConversation],
+    [ensureReaderConversation, readerConversation],
   );
 
   const openCurrentAsk = useCallback(() => {
@@ -196,6 +205,16 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
   const toggleFontScale = useCallback(() => {
     setFontScale((curr) => (curr === "standard" ? "large" : "standard"));
   }, []);
+
+  // Bumped whenever a sheet/overlay panel toggles. The WebView gets a fresh
+  // injection of its highlight payload so the colour overlay can't fall out
+  // of sync after a big layout shift (notably opening the AI sheet from a
+  // highlight, which closes one Modal and opens another in the same frame).
+  const layoutRefreshKey = useMemo(
+    () =>
+      `${askState !== null ? 1 : 0}|${tocOpen ? 1 : 0}|${notesOpen ? 1 : 0}|${fontScale}|${theme}`,
+    [askState, tocOpen, notesOpen, fontScale, theme],
+  );
 
   return (
     <View style={[shellStyles.root, { backgroundColor: palette.bg }]}>
@@ -240,6 +259,7 @@ function ReaderShell({ doc, onClose }: { doc: Document; onClose: () => void }) {
           onTocChange={setTocState}
           onNotesChange={setNotesState}
           fontScale={fontScale}
+          refreshKey={layoutRefreshKey}
           onScrollToOffset={(offset) => {
             scrollRef.current?.scrollTo({ y: Math.max(0, offset - 120), animated: true });
           }}
@@ -362,6 +382,7 @@ const ReaderBody = forwardRef<
     onTocChange: (s: TocContext | null) => void;
     onNotesChange: (s: NotesContext | null) => void;
     fontScale: ReaderFontScale;
+    refreshKey?: number | string;
     onScrollToOffset: (offset: number) => void;
     onAskSelection: (reference: MessageReference, prompt?: string) => void;
     onSelectionChange: (selection: SelectionState | null) => void;
@@ -376,6 +397,7 @@ const ReaderBody = forwardRef<
     onTocChange,
     onNotesChange,
     fontScale,
+    refreshKey,
     onScrollToOffset,
     onAskSelection,
     onSelectionChange,
@@ -644,6 +666,7 @@ const ReaderBody = forwardRef<
         onRemoveHighlight={highlightLayer.remove}
         targetHighlightId={target?.highlightId}
         targetRequestId={target?.requestId}
+        refreshKey={refreshKey}
         onTargetHighlight={onScrollToOffset}
         onAskSelection={(payload) => {
           onAskSelection(

@@ -8,6 +8,8 @@ import { useRouter, type Href } from "expo-router";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import {
+  BlinkingCaret,
+  ChatAssistantHeader,
   ChatAssistantTurn,
   ChatComposer,
   ChatPanelHeader,
@@ -99,6 +101,10 @@ export function ConversationChatPane({
   const isStreaming = status === "streaming" || status === "submitted";
   const latestMessage = messages[messages.length - 1];
   const latestMessageText = latestMessage ? messageText(latestMessage.parts) : "";
+  // Render an assistant placeholder turn while we're waiting for the first
+  // chunk after the user submits. Without it the UI shows the user message
+  // with no signal anything is happening until the first token arrives.
+  const showAssistantPlaceholder = isStreaming && latestMessage?.role === "user";
   const composerBottomPadding = Math.max(insets.bottom, bottomTabBarHeight) + 12;
 
   const scrollToBottom = useCallback((animated = false) => {
@@ -217,15 +223,18 @@ export function ConversationChatPane({
           {messages.length === 0 ? (
             <EmptyConversation />
           ) : (
-            messages.map((message) => (
-              <MessageTurn
-                key={message.id}
-                role={message.role}
-                parts={message.parts}
-                streaming={isStreaming && message.id === messages[messages.length - 1]?.id}
-                onOpenReference={openReference}
-              />
-            ))
+            <>
+              {messages.map((message) => (
+                <MessageTurn
+                  key={message.id}
+                  role={message.role}
+                  parts={message.parts}
+                  streaming={isStreaming && message.id === messages[messages.length - 1]?.id}
+                  onOpenReference={openReference}
+                />
+              ))}
+              {showAssistantPlaceholder && <AssistantPlaceholder />}
+            </>
           )}
         </ChatThread>
       </ScrollView>
@@ -285,6 +294,21 @@ function EmptyConversation() {
   );
 }
 
+function AssistantPlaceholder() {
+  // Render the text and caret inline so the blinking block sits at the end
+  // of the line rather than on a row of its own.
+  const palette = useThemeColors();
+  return (
+    <View style={styles.placeholderTurn}>
+      <ChatAssistantHeader />
+      <View style={styles.placeholderRow}>
+        <Text style={[styles.placeholderText, { color: palette.fg }]}>Reading your binder...</Text>
+        <BlinkingCaret color={palette.fg} />
+      </View>
+    </View>
+  );
+}
+
 function MessageTurn({
   role,
   parts,
@@ -312,7 +336,7 @@ function MessageTurn({
   if (!text && tools.length > 0) {
     return (
       <View style={styles.toolsOnly}>
-        <ChatPanelHeader sub={streaming ? "working..." : undefined} />
+        <ChatPanelHeader />
         {tools.map((tool, index) => (
           <ChatToolCard key={tool.id ?? index} tool={tool} />
         ))}
@@ -321,12 +345,8 @@ function MessageTurn({
   }
 
   return (
-    <ChatAssistantTurn
-      sub={streaming ? "streaming" : undefined}
-      tools={tools}
-      streaming={streaming}
-    >
-      {renderedText || "Reading your binder..."}
+    <ChatAssistantTurn tools={tools} streaming={streaming}>
+      {renderedText || ""}
     </ChatAssistantTurn>
   );
 }
@@ -414,5 +434,18 @@ const styles = StyleSheet.create({
   toolsOnly: {
     gap: 8,
     marginBottom: 18,
+  },
+  placeholderTurn: {
+    marginBottom: 28,
+  },
+  placeholderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  placeholderText: {
+    fontFamily: font.nativeFamily.reading,
+    fontSize: 15,
+    lineHeight: 25,
   },
 });

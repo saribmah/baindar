@@ -154,6 +154,9 @@ function planAction({
   pendingPlan: BillingPlan | null;
 }): PlanCardAction {
   if (currentPlan === plan) {
+    if (plan === BillingPlan.Free) {
+      return { kind: "disabled", label: "Current plan" };
+    }
     return manageSubscriptionUrl
       ? { kind: "external", label: "Manage Plan", href: manageSubscriptionUrl }
       : { kind: "disabled", label: "Manage Plan" };
