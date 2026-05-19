@@ -45,6 +45,7 @@ export function useHighlightLayer({
   enabled,
   targetHighlightId,
   targetRequestId,
+  refreshKey,
 }: {
   containerRef: RefObject<HTMLElement | null>;
   documentId: string;
@@ -53,6 +54,11 @@ export function useHighlightLayer({
   enabled: boolean;
   targetHighlightId?: string | null;
   targetRequestId?: string | null;
+  // Bumped by the host (e.g. when an overlay panel toggles, font scale flips)
+  // to force a re-wrap. Marks are pure DOM nodes that can occasionally fall
+  // out of sync with React state after big layout shifts; re-running the
+  // wrap effect on demand keeps the colour overlay reliably visible.
+  refreshKey?: number | string;
 }) {
   const { client } = useSdk();
   const refresh = useReaderHighlights();
@@ -180,7 +186,7 @@ export function useHighlightLayer({
         marks[marks.length - 1]?.setAttribute("data-highlight-has-note", "true");
       }
     }
-  }, [highlights, notesByHighlightId, contentKey, containerRef, enabled]);
+  }, [highlights, notesByHighlightId, contentKey, containerRef, enabled, refreshKey]);
 
   useEffect(() => {
     if (!enabled || !targetHighlightId) return;

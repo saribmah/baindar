@@ -79,6 +79,10 @@ export function ConversationChatPane({
   const isStreaming = status === "streaming" || status === "submitted";
   const latestMessage = messages[messages.length - 1];
   const latestMessageText = latestMessage ? messageText(latestMessage.parts) : "";
+  // Render an assistant placeholder turn while we're waiting for the first
+  // chunk after the user submits. Without it the UI shows the user message
+  // with no signal anything is happening until the first token arrives.
+  const showAssistantPlaceholder = isStreaming && latestMessage?.role === "user";
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto", force = false) => {
     const scrollEl = scrollRef.current;
@@ -202,16 +206,19 @@ export function ConversationChatPane({
           {messages.length === 0 ? (
             <EmptyConversation />
           ) : (
-            messages.map((message) => (
-              <MessageTurn
-                key={message.id}
-                role={message.role}
-                parts={message.parts}
-                streaming={isStreaming && message.id === messages[messages.length - 1]?.id}
-                onOpenReference={openReference}
-                onContentChange={() => scrollToBottom("auto")}
-              />
-            ))
+            <>
+              {messages.map((message) => (
+                <MessageTurn
+                  key={message.id}
+                  role={message.role}
+                  parts={message.parts}
+                  streaming={isStreaming && message.id === messages[messages.length - 1]?.id}
+                  onOpenReference={openReference}
+                  onContentChange={() => scrollToBottom("auto")}
+                />
+              ))}
+              {showAssistantPlaceholder && <AssistantPlaceholder />}
+            </>
           )}
         </ChatThread>
       </div>
@@ -267,6 +274,16 @@ function EmptyConversation() {
   );
 }
 
+function AssistantPlaceholder() {
+  // Pass the text as an inline span (not a markdown string) so the streaming
+  // caret renders on the same line, right after the text.
+  return (
+    <ChatAssistantTurn streaming>
+      <span>Reading your binder...</span>
+    </ChatAssistantTurn>
+  );
+}
+
 function MessageTurn({
   role,
   parts,
@@ -309,7 +326,7 @@ function MessageTurn({
   if (!text && tools.length > 0) {
     return (
       <div className="mb-7">
-        <ChatPanelHeader sub={streaming ? "working..." : undefined} className="border-0 px-0" />
+        <ChatPanelHeader className="border-0 px-0" />
         {tools.map((tool, index) => (
           <ChatToolCard key={tool.id ?? index} tool={tool} />
         ))}
@@ -318,13 +335,8 @@ function MessageTurn({
   }
 
   return (
-    <ChatAssistantTurn
-      sub={streaming ? "streaming" : undefined}
-      tools={tools}
-      actions={actions}
-      streaming={streaming}
-    >
-      {renderedText || "Reading your binder..."}
+    <ChatAssistantTurn tools={tools} actions={actions} streaming={streaming}>
+      {renderedText || ""}
     </ChatAssistantTurn>
   );
 }

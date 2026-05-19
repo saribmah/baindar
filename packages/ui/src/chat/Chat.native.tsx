@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Linking,
   Pressable,
   ScrollView,
@@ -201,7 +202,7 @@ export function ChatAssistantTurn({
         ) : (
           children
         )}
-        {streaming && <View style={[styles.caret, { backgroundColor: palette.fg }]} />}
+        {streaming && <BlinkingCaret color={palette.fg} />}
       </View>
       {footerCitations && footerCitations.length > 0 && (
         <View style={styles.footerCitations}>
@@ -214,6 +215,29 @@ export function ChatAssistantTurn({
       {actions && actions.length > 0 && <ChatActions actions={actions} />}
     </View>
   );
+}
+
+export function BlinkingCaret({ color: caretColor }: { color: string }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.2,
+          duration: 550,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 550,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return <Animated.View style={[styles.caret, { backgroundColor: caretColor, opacity }]} />;
 }
 
 export type ChatMarkdownProps = {

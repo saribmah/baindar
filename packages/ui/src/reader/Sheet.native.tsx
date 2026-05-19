@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { useTheme } from "../theme/ThemeProvider.native.tsx";
 import { radius } from "../tokens/radius.ts";
 
@@ -19,7 +28,10 @@ export function Sheet({ visible, onClose, showHandle = true, children, style }: 
   const backdropColor = theme === "dark" ? BACKDROP_DARK : BACKDROP_LIGHT;
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close sheet"
@@ -32,7 +44,7 @@ export function Sheet({ visible, onClose, showHandle = true, children, style }: 
           )}
           {children}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

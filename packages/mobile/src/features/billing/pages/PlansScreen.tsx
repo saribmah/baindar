@@ -151,6 +151,7 @@ function MobilePlanCard({
 
   const onPress = () => {
     if (current) {
+      if (isFreePlan) return;
       if (manageSubscriptionUrl) void Linking.openURL(manageSubscriptionUrl);
       return;
     }
@@ -164,6 +165,7 @@ function MobilePlanCard({
 
   const disabled =
     pending ||
+    (current && isFreePlan) ||
     (current && !manageSubscriptionUrl) ||
     (signedIn && !billing) ||
     (signedIn && isFreePlan && !current) ||
@@ -227,7 +229,9 @@ function MobilePlanCard({
         {pending
           ? "Opening checkout…"
           : current
-            ? "Manage Plan"
+            ? isFreePlan
+              ? "Current plan"
+              : "Manage Plan"
             : !signedIn
               ? isFreePlan
                 ? "Start free"

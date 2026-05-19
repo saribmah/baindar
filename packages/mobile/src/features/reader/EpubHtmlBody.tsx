@@ -76,6 +76,12 @@ export type EpubHtmlBodyProps = {
   onRemoveHighlight: ReaderHighlights["remove"];
   targetHighlightId?: string | null;
   targetRequestId?: string | null;
+  // Bumped by the host (e.g. AI sheet open/close, sheet visibility) so the
+  // WebView re-receives its highlight payload. The injected runtime is the
+  // sole source of truth for the colour overlay; if RN ever drops a
+  // visibility-side-effect render, this prevents the marks from looking
+  // lost on the next frame.
+  refreshKey?: number | string;
   onTargetHighlight?: (offsetY: number) => void;
   onAskSelection?: (payload: EpubAskPayload) => void;
   onSelectionChange?: (selection: SelectionState | null) => void;
@@ -98,6 +104,7 @@ export const EpubHtmlBody = forwardRef<EpubHtmlBodyHandle, EpubHtmlBodyProps>(fu
     onRemoveHighlight,
     targetHighlightId,
     targetRequestId,
+    refreshKey,
     onTargetHighlight,
     onAskSelection,
     onSelectionChange,
@@ -143,6 +150,14 @@ export const EpubHtmlBody = forwardRef<EpubHtmlBodyHandle, EpubHtmlBodyProps>(fu
     return buildEpubHtml(resolvedHtml, palette.bg, palette.text, fontSize);
   }, [resolvedHtml, palette.bg, palette.text, fontSize]);
 
+  // When the WebView's source HTML is rebuilt (theme, font size), the page
+  // inside the WebView reloads from scratch. Reset `ready` so the next
+  // `ready` message re-fires the highlight injection effect — otherwise the
+  // freshly-loaded document has no marks applied.
+  useEffect(() => {
+    setReady(false);
+  }, [wrapped]);
+
   // Push highlights into the WebView once it signals ready, and again whenever
   // the highlights array changes. The injected payload carries a derived
   // `hasNote` flag so the in-page wrapper can paint the note indicator
@@ -152,7 +167,7 @@ export const EpubHtmlBody = forwardRef<EpubHtmlBodyHandle, EpubHtmlBodyProps>(fu
     const enriched = highlights.map((h) => ({ ...h, hasNote: notesByHighlightId.has(h.id) }));
     const json = JSON.stringify(enriched);
     webRef.current?.injectJavaScript(`window.bd_setHighlights(${json}); true;`);
-  }, [ready, highlights, notesByHighlightId, contentKey]);
+  }, [ready, highlights, notesByHighlightId, contentKey, refreshKey]);
 
   useEffect(() => {
     if (!ready || !targetHighlightId) return;
