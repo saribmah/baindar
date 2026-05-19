@@ -111,33 +111,31 @@ jobs:
           spctl --assess --type open --context context:primary-signature -v "$RELEASE_DMG"
           xcrun stapler validate "$RELEASE_DMG"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dmg-${{ matrix.asset_arch }}
-          path: ${{ env.RELEASE_DMG }}
-          retention-days: 7
-          if-no-files-found: error
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          pattern: dmg-*
-          merge-multiple: true
-
-      - name: Create GitHub Release
+      - name: Publish DMG to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           SEMVER="${TAG#desktop-v}"
-          gh release create "$TAG" \
+          # Each matrix runner publishes its own DMG as soon as it finishes
+          # so arm64 users don't have to wait on the slower intel build (and
+          # vice versa). Release creation is idempotent: the first runner
+          # wins, the second falls through to the upload step.
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Desktop $SEMVER" \
+              --notes "Baindar desktop $SEMVER for macOS. Apple Silicon and Intel builds attached." \
+              || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          fi
+          gh release upload "$TAG" "$RELEASE_DMG" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Desktop $SEMVER" \
-            --notes "Baindar desktop $SEMVER for macOS. Apple Silicon and Intel builds attached." \
-            dist/*.dmg
+            --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.asset_arch }}
+          path: ${{ env.RELEASE_DMG }}
+          retention-days: 7
+          if-no-files-found: error
