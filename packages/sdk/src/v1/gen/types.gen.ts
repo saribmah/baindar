@@ -776,6 +776,10 @@ export type DocumentCreateErrors = {
    */
   401: unknown;
   /**
+   * Document quota exceeded for the current plan
+   */
+  402: unknown;
+  /**
    * Upload exceeds size limit
    */
   413: unknown;

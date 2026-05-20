@@ -86,6 +86,11 @@ export class BinderDocumentStore {
     return rows.map(rowToDocument);
   }
 
+  count(): number {
+    const rows = this.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM documents`).toArray();
+    return rows[0]?.n ?? 0;
+  }
+
   listWithProgress(): DocumentWithProgressRow[] {
     const rows = this.sql
       .exec<DocumentWithProgressRowSql>(

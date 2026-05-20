@@ -3,9 +3,9 @@ import { Hono } from "hono";
 import type { AppEnv } from "../../app/context";
 import { Billing } from "../../billing/billing";
 import { BillingStore } from "../../billing/billing-store";
-import { createTestRuntime } from "../../document/__tests__/test-db";
+import { createTestRuntime, seedBinderDocument } from "../../document/__tests__/test-db";
 import { ProviderStore } from "../../provider/provider-store";
-import { requireChatQuota, requireSummarizeQuota } from "../quota";
+import { requireChatQuota, requireDocumentQuota, requireSummarizeQuota } from "../quota";
 
 const TEST_ENCRYPTION_KEY = "Q1mZ8oP9o3xKLLwM/jw3qb0H6L2nF6Pp/dXR5N6m9KE=";
 
@@ -14,9 +14,14 @@ const TEST_ENCRYPTION_KEY = "Q1mZ8oP9o3xKLLwM/jw3qb0H6L2nF6Pp/dXR5N6m9KE=";
 // "request, gated, response" loop is real — no shortcuts via direct calls
 // with a mock context.
 
-const buildApp = (kind: "chat" | "summary") => {
+const buildApp = (kind: "chat" | "summary" | "document") => {
   const app = new Hono<AppEnv>();
-  const middleware = kind === "chat" ? requireChatQuota : requireSummarizeQuota;
+  const middleware =
+    kind === "chat"
+      ? requireChatQuota
+      : kind === "summary"
+        ? requireSummarizeQuota
+        : requireDocumentQuota;
   app.get("/gated", middleware, (c) => c.json({ ok: true }));
   return app;
 };
@@ -167,6 +172,64 @@ describe("quota middleware", () => {
             inputTokens: 1,
             outputTokens: 1,
           });
+        }
+        const res = await app.request("/gated");
+        expect(res.status).toBe(200);
+      });
+    });
+  });
+
+  describe("requireDocumentQuota", () => {
+    it("passes through when the user is under the document cap", async () => {
+      const app = buildApp("document");
+      await runtime.runAs("user-a", async () => {
+        await seedBinderDocument("user-a");
+        await seedBinderDocument("user-a");
+        const res = await app.request("/gated");
+        expect(res.status).toBe(200);
+      });
+    });
+
+    it("returns 402 with a structured payload when at the document cap", async () => {
+      const app = buildApp("document");
+      await runtime.runAs("user-a", async () => {
+        // Free plan = 5 documents. Seed exactly the cap.
+        for (let i = 0; i < 5; i++) {
+          await seedBinderDocument("user-a");
+        }
+        const res = await app.request("/gated");
+        expect(res.status).toBe(402);
+        const body = (await res.json()) as {
+          name: string;
+          data: { kind: string; plan: string; limit: number; used: number; periodResetAt: string };
+        };
+        expect(body.name).toBe("BillingQuotaExceededError");
+        expect(body.data.kind).toBe("document");
+        expect(body.data.plan).toBe("free");
+        expect(body.data.limit).toBe(5);
+        expect(body.data.used).toBe(5);
+        expect(body.data.periodResetAt).toBeDefined();
+      });
+    });
+
+    it("allows BYOK users past any document cap (unlimited)", async () => {
+      const app = buildApp("document");
+      await runtime.runAs("user-a", async () => {
+        await BillingStore.upsertSubscriptionFromRevenueCat({
+          userId: "user-a",
+          plan: "byok",
+          status: "active",
+          providerCustomerId: "cus_byok",
+          providerSubscriptionId: "sub_byok",
+          currentPeriodStart: new Date("2026-05-01T00:00:00Z"),
+          currentPeriodEnd: new Date("2026-06-01T00:00:00Z"),
+          cancelAtPeriodEnd: false,
+        });
+        // Seed well past the free cap; BYOK is unlimited and skips the
+        // provider check because document uploads don't consume the
+        // platform LLM key.
+        for (let i = 0; i < 10; i++) {
+          await seedBinderDocument("user-a");
         }
         const res = await app.request("/gated");
         expect(res.status).toBe(200);

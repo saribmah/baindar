@@ -67,6 +67,10 @@ export class BinderDO extends DurableObject<RuntimeEnv> {
     return this.#store.listDocumentsWithProgress();
   }
 
+  async countDocuments(): Promise<number> {
+    return this.#store.countDocuments();
+  }
+
   async updateDocument(input: UpdateDocumentInput): Promise<DocumentRow | null> {
     return this.ctx.storage.transactionSync(() => this.#store.updateDocument(input));
   }
