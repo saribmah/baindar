@@ -14,11 +14,6 @@ import { authClient } from "../auth";
 import { useSdk } from "../../sdk";
 import { findPackageForPlan, initRevenueCat, isUserCancelledError } from "./revenuecat";
 
-// Refresh cadence while the tab is visible. The /billing/me endpoint is two
-// small D1 reads; 12s is fast enough that the sidebar meter feels live during
-// an active chat session without being a chatty background poll.
-const POLL_MS = 12_000;
-
 export type PurchaseOutcome =
   | { status: "success" }
   | { status: "cancelled" }
@@ -47,9 +42,10 @@ const BillingContext = createContext<BillingContextValue | null>(null);
 
 // Provider centralises the fetch so the sidebar UsageMeter and the
 // SettingsPage BillingSection share one in-flight request and one cached
-// value. Without this, each consumer fetched once on mount and never again —
-// causing the meter to lag indefinitely during a chat session. The polling
-// loop + visibility refetch keep the value within ~POLL_MS of reality.
+// value. Refresh is event-driven: initial fetch on sign-in, refetch on tab
+// visibility, post-purchase sync, and an explicit `refresh()` callers invoke
+// after a chat turn completes (the only thing that mutates usage counters
+// outside the purchase flow). No background polling.
 //
 // The RC SDK is configured the first time the provider mounts under a
 // signed-in user; we keep the Purchases instance + Offerings in state so
@@ -87,48 +83,23 @@ export function BillingProvider({ children }: { children: ReactNode }) {
     }
   }, [client]);
 
-  // Polling is gated on a signed-in session — `/plans` is a public marketing
-  // route mounted inside this provider too, and we don't want to hit
-  // /billing/me with 401s while an anonymous user compares pricing.
+  // Gated on a signed-in session — `/plans` is a public marketing route
+  // mounted inside this provider too, and we don't want to hit /billing/me
+  // with 401s while an anonymous user compares pricing.
   useEffect(() => {
     if (!isAuthed) {
       setBilling(null);
       setLoading(false);
       return;
     }
-    let cancelled = false;
     void fetchOnce();
-    let timer: ReturnType<typeof setInterval> | null = null;
-
-    const startTimer = () => {
-      if (timer) return;
-      timer = setInterval(() => {
-        if (cancelled) return;
-        void fetchOnce();
-      }, POLL_MS);
-    };
-    const stopTimer = () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    };
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void fetchOnce();
-        startTimer();
-      } else {
-        stopTimer();
-      }
+      if (document.visibilityState === "visible") void fetchOnce();
     };
-
-    if (document.visibilityState === "visible") startTimer();
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      cancelled = true;
-      stopTimer();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [fetchOnce, isAuthed]);

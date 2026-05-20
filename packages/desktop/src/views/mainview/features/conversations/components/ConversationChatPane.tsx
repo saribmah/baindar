@@ -60,7 +60,7 @@ export function ConversationChatPane({
   const navigate = useNavigate();
   const [draft, setDraft] = useState("");
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
-  const { billing } = useBillingStatus();
+  const { billing, refresh: refreshBilling } = useBillingStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const lastDraftSeedKeyRef = useRef<string | null>(null);
@@ -77,6 +77,11 @@ export function ConversationChatPane({
     { agent, credentials: "include" },
   );
   const isStreaming = status === "streaming" || status === "submitted";
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) void refreshBilling();
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, refreshBilling]);
   const latestMessage = messages[messages.length - 1];
   const latestMessageText = latestMessage ? messageText(latestMessage.parts) : "";
   // Render an assistant placeholder turn while we're waiting for the first
