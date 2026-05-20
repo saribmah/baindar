@@ -1,5 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, type LanguageModel } from "ai";
 import { z } from "zod";
 import { Config } from "../config/config";
@@ -172,7 +172,19 @@ export namespace Provider {
     if (config.spec === "anthropic") {
       return createAnthropic({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
     }
-    return createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl })(config.model);
+    // Use `@ai-sdk/openai-compatible` rather than the strict `@ai-sdk/openai`.
+    // The compatible adapter speaks `/chat/completions` (universally supported,
+    // unlike `/responses`) and natively round-trips `reasoning_content` for
+    // thinking-capable providers — parsing it from streamed deltas into
+    // `reasoning` content parts on the response, and emitting it back on the
+    // assistant message in subsequent steps. DeepSeek + similar models that
+    // require reasoning_content be passed back across tool-call rounds work
+    // out of the box. openai.com endpoints accept this shape too.
+    return createOpenAICompatible({
+      name: "openai",
+      apiKey: config.apiKey,
+      baseURL: config.baseUrl,
+    }).chatModel(config.model);
   };
 
   const validateKey = async (input: SetInput): Promise<void> => {
