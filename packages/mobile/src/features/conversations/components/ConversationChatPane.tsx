@@ -73,7 +73,7 @@ export function ConversationChatPane({
   const { authHeaders } = useSdk();
   const [draft, setDraft] = useState("");
   const [limitSheetOpen, setLimitSheetOpen] = useState(false);
-  const { billing } = useBillingStatus();
+  const { billing, refresh: refreshBilling } = useBillingStatus();
   const scrollRef = useRef<ScrollView>(null);
   const lastDraftSeedKeyRef = useRef<string | null>(null);
   const authedWebSocket = useMemo(() => createAuthedWebSocket(authHeaders), [authHeaders]);
@@ -99,6 +99,11 @@ export function ConversationChatPane({
     },
   );
   const isStreaming = status === "streaming" || status === "submitted";
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) void refreshBilling();
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, refreshBilling]);
   const latestMessage = messages[messages.length - 1];
   const latestMessageText = latestMessage ? messageText(latestMessage.parts) : "";
   // Render an assistant placeholder turn while we're waiting for the first

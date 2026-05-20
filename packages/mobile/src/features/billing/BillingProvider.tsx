@@ -15,11 +15,6 @@ import { authClient } from "../auth";
 import { useSdk } from "../../sdk/sdk.provider";
 import { findPackageForPlan, initRevenueCat, isUserCancelledError, Purchases } from "./revenuecat";
 
-// Refresh cadence while the app is foregrounded. The /billing/me endpoint is
-// two small D1 reads; 12s is fast enough that the Settings meter feels live
-// during an active session without being a chatty background poll.
-const POLL_MS = 12_000;
-
 export type PurchaseOutcome =
   | { status: "success" }
   | { status: "cancelled" }
@@ -43,10 +38,12 @@ type BillingContextValue = {
 
 const BillingContext = createContext<BillingContextValue | null>(null);
 
-// Provider centralises the fetch + polls in the background so the Settings
-// UsageMeter / BillingGroup stay current as the user chats from other tabs.
-// Without polling, the SettingsScreen mounted once at first visit and never
-// re-fetched (tab navigators keep screens mounted across tab switches).
+// Provider centralises the fetch so the Settings UsageMeter / BillingGroup
+// share one in-flight request and one cached value. Refresh is event-driven:
+// initial fetch on sign-in, refetch on app foreground, post-purchase sync,
+// and an explicit `refresh()` callers invoke after a chat turn completes
+// (the only thing that mutates usage counters outside the purchase flow).
+// No background polling.
 //
 // Gated on Better Auth session: until there's a signed-in user we don't
 // fetch — avoids spamming /billing/me with 401s while the user is on
@@ -95,39 +92,14 @@ export function BillingProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let cancelled = false;
     void fetchOnce();
-    let timer: ReturnType<typeof setInterval> | null = null;
-
-    const startTimer = () => {
-      if (timer) return;
-      timer = setInterval(() => {
-        if (cancelled) return;
-        void fetchOnce();
-      }, POLL_MS);
-    };
-    const stopTimer = () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    };
 
     const onAppState = (state: AppStateStatus) => {
-      if (state === "active") {
-        void fetchOnce();
-        startTimer();
-      } else {
-        stopTimer();
-      }
+      if (state === "active") void fetchOnce();
     };
-
-    if (AppState.currentState === "active") startTimer();
     const sub = AppState.addEventListener("change", onAppState);
 
     return () => {
-      cancelled = true;
-      stopTimer();
       sub.remove();
     };
   }, [fetchOnce, isAuthed]);
