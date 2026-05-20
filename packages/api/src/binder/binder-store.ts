@@ -92,6 +92,9 @@ export class BinderStore {
   listDocumentsWithProgress(): DocumentWithProgressRow[] {
     return this.documents.listWithProgress();
   }
+  countDocuments(): number {
+    return this.documents.count();
+  }
   updateDocument(input: UpdateDocumentInput): DocumentRow | null {
     return this.documents.update(input);
   }

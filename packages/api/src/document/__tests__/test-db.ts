@@ -379,6 +379,10 @@ class FakeBinder {
       .map((row) => this.withProgress(row));
   }
 
+  async countDocuments(): Promise<number> {
+    return this.documents.size;
+  }
+
   async updateDocument(input: {
     documentId: string;
     title?: string;

@@ -1,82 +1,82 @@
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "../app/context";
 import { Billing } from "../billing/billing";
+import { Document } from "../document/document";
 import { Instance } from "../instance";
 import { Provider } from "../provider/provider";
 
 // Quota enforcement middleware. Runs after requireAuth so Instance.userId is
 // always populated.
 //
-// Returns 402 Payment Required directly (mirroring `requireAuth`'s 401
-// pattern) rather than throwing a typed error, because the chat middleware
-// chain in app.ts has no error-mapper wrapper — middleware-thrown errors
-// would bubble to Hono's default 500 handler. The 402 payload carries
-// everything the frontend needs to render the upgrade dialog (plan,
+// Returns the typed 402 / 428 payload directly rather than throwing, because
+// the chat middleware chain in app.ts has no error-mapper wrapper. The payload
+// carries everything the frontend needs to render the upgrade dialog (plan,
 // periodResetAt) without a second roundtrip.
 //
-// Critical placement: this MUST run BEFORE the request reaches the model.
-// On chat, that means before agentsMiddleware fires the streamText call
-// (see app.ts). On summarize, before Ai.summarize hits the LLM.
+// Chat is doubly enforced: this middleware gates the WS upgrade, but the
+// `/agents/*` WebSocket stays open for many messages once handshake-time
+// quota passes — `ChatAgent.onChatMessage` runs the same Billing helper on
+// every message so a long-lived WS cannot outrun the user's plan. See
+// `agent/chat.ts`.
 
-const checkQuota = (
-  kind: Billing.UsageKind,
-  pickRemaining: (remaining: Billing.Remaining) => number,
-  pickLimit: (status: Billing.StatusResponse) => number,
-): MiddlewareHandler<AppEnv> => {
-  return async (c, next) => {
-    const userId = Instance.userId;
-    const status = await Billing.getStatus(userId);
-    const limit = pickLimit(status);
-    // limit < 0 means unlimited (BYOK plan). But BYOK only earns the
-    // unlimited grant when the user has actually configured a provider —
-    // otherwise we'd be giving away the platform Anthropic key for free.
-    if (limit < 0) {
-      const hasProvider = await Provider.hasConfigured(userId);
-      if (!hasProvider) {
-        return c.json(
-          {
-            name: "ProviderNotConfiguredError",
-            data: {
-              kind,
-              plan: status.plan,
-              message: "BYOK plan requires an AI provider key. Add one in Settings → AI Provider.",
-            },
-          },
-          428,
-        );
-      }
-      await next();
-      return;
-    }
-    const remaining = await Billing.getRemainingQuota(userId);
-    if (pickRemaining(remaining) <= 0) {
+export const requireChatQuota: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const result = await Billing.evaluateChatAccess(Instance.userId);
+  if (!result.ok) return c.json(result.payload, result.status);
+  await next();
+};
+
+// Documents are count-based (lifetime, not per-period). The Document store
+// owns the canonical count; Billing evaluates the limit. Free: 5, Personal:
+// 50, Pro: 500, BYOK: unlimited.
+export const requireDocumentQuota: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const userId = Instance.userId;
+  const currentCount = await Document.countOwned(userId);
+  const result = await Billing.evaluateDocumentAccess(userId, currentCount);
+  if (!result.ok) return c.json(result.payload, result.status);
+  await next();
+};
+
+// Summary is the legacy period-based path; chat moved to evaluateChatAccess
+// because it needs to be reusable from inside the WS. Kept inline here
+// because the summarize route is HTTP-only and doesn't share with the agent.
+export const requireSummarizeQuota: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const userId = Instance.userId;
+  const status = await Billing.getStatus(userId);
+  const limit = status.quota.summariesLimit;
+  if (limit < 0) {
+    const hasProvider = await Provider.hasConfigured(userId);
+    if (!hasProvider) {
       return c.json(
         {
-          name: "BillingQuotaExceededError",
+          name: "ProviderNotConfiguredError",
           data: {
-            kind,
+            kind: "summary" as const,
             plan: status.plan,
-            limit,
-            used: limit,
-            periodResetAt: status.periodResetAt,
-            message: `Out of ${kind} turns for this period — upgrade to continue.`,
+            message: "BYOK plan requires an AI provider key. Add one in Settings → AI Provider.",
           },
         },
-        402,
+        428,
       );
     }
     await next();
-  };
+    return;
+  }
+  const used = status.currentPeriod.summaries;
+  if (used >= limit) {
+    return c.json(
+      {
+        name: "BillingQuotaExceededError",
+        data: {
+          kind: "summary" as const,
+          plan: status.plan,
+          limit,
+          used,
+          periodResetAt: status.periodResetAt,
+          message: "Out of summary quota for this period — upgrade to continue.",
+        },
+      },
+      402,
+    );
+  }
+  await next();
 };
-
-export const requireChatQuota: MiddlewareHandler<AppEnv> = checkQuota(
-  "chat",
-  (r) => r.chatTurns,
-  (s) => s.quota.chatTurnsLimit,
-);
-
-export const requireSummarizeQuota: MiddlewareHandler<AppEnv> = checkQuota(
-  "summary",
-  (r) => r.summaries,
-  (s) => s.quota.summariesLimit,
-);

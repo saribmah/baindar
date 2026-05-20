@@ -69,6 +69,18 @@ export class ChatAgent extends AIChatAgent<RuntimeEnv> {
     }
 
     return Instance.provide({ auth: agentAuth(userId), env: this.env, db }, async () => {
+      // Per-message quota check. The /agents/* HTTP middleware only runs at
+      // WS upgrade; without this, a long-lived WS would let a user chat past
+      // their plan as long as the connection stays open. Same Billing helper
+      // as the middleware so policy stays in one place.
+      const access = await Billing.evaluateChatAccess(userId);
+      if (!access.ok) {
+        return new Response(JSON.stringify(access.payload), {
+          status: access.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
       const messages = this.messages as BaindarAgentMessage[];
       const referenceValidation = validateReferenceDataParts(messages);
       if (!referenceValidation.ok) {

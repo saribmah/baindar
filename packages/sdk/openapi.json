@@ -1962,6 +1962,9 @@
           "401": {
             "description": "Not authenticated"
           },
+          "402": {
+            "description": "Document quota exceeded for the current plan"
+          },
           "413": {
             "description": "Upload exceeds size limit"
           },

@@ -4,6 +4,7 @@ import type { AppEnv } from "../../app/context";
 import { Document } from "../../document/document";
 import { Instance } from "../../instance";
 import { requireAuth } from "../../middleware/auth";
+import { requireDocumentQuota } from "../../middleware/quota";
 import { Progress } from "../../progress/progress";
 import { Shelf } from "../../shelf/shelf";
 import { createErrorMapper } from "../error-mapper";
@@ -41,11 +42,13 @@ documentRouter.post(
       },
       400: { description: "Invalid request" },
       401: { description: "Not authenticated" },
+      402: { description: "Document quota exceeded for the current plan" },
       413: { description: "Upload exceeds size limit" },
       415: { description: "Unsupported file format" },
     },
   }),
   requireAuth,
+  requireDocumentQuota,
   async (c) => {
     let formData: FormData;
     try {

@@ -18,7 +18,9 @@ export namespace Billing {
     .meta({ ref: "BillingSubscriptionStatus" });
   export type SubscriptionStatus = z.infer<typeof SubscriptionStatus>;
 
-  export const UsageKind = z.enum(["chat", "summary"]).meta({ ref: "BillingUsageKind" });
+  export const UsageKind = z
+    .enum(["chat", "summary", "document"])
+    .meta({ ref: "BillingUsageKind" });
   export type UsageKind = z.infer<typeof UsageKind>;
 
   // Per-plan caps. Numbers match the approved plan doc (Free/Personal/Pro/BYOK).
@@ -192,6 +194,111 @@ export namespace Billing {
       plan: status.plan,
       periodResetAt: status.periodResetAt,
     };
+  };
+
+  // ---- Access evaluation ------------------------------------------------
+  // Shared policy helpers used by both HTTP middleware and the WS-bound
+  // ChatAgent. Returning a discriminated result (instead of throwing or
+  // shaping an HTTP response) lets the two callers compose the result into
+  // their own response type — `c.json(...)` in middleware, `new Response(...)`
+  // inside the Durable Object.
+  export type AccessDenial =
+    | {
+        status: 402;
+        payload: {
+          name: "BillingQuotaExceededError";
+          data: {
+            kind: UsageKind;
+            plan: Plan;
+            limit: number;
+            used: number;
+            periodResetAt: string;
+            message: string;
+          };
+        };
+      }
+    | {
+        status: 428;
+        payload: {
+          name: "ProviderNotConfiguredError";
+          data: { kind: UsageKind; plan: Plan; message: string };
+        };
+      };
+  export type AccessResult = { ok: true } | ({ ok: false } & AccessDenial);
+
+  const buildQuotaDenial = (
+    kind: UsageKind,
+    plan: Plan,
+    limit: number,
+    used: number,
+    periodResetAt: string,
+  ): AccessDenial => ({
+    status: 402,
+    payload: {
+      name: "BillingQuotaExceededError",
+      data: {
+        kind,
+        plan,
+        limit,
+        used,
+        periodResetAt,
+        message: `Out of ${kind} quota for this period — upgrade to continue.`,
+      },
+    },
+  });
+
+  // Chat access. BYOK earns unlimited turns only when the user has actually
+  // configured a provider — otherwise we'd hand out the platform key for
+  // free. Used by `requireChatQuota` middleware (gates WS upgrade) AND
+  // `ChatAgent.onChatMessage` (gates each turn on an already-open WS).
+  export const evaluateChatAccess = async (userId: string): Promise<AccessResult> => {
+    const status = await getStatus(userId);
+    const limit = status.quota.chatTurnsLimit;
+    if (limit < 0) {
+      const hasProvider = await Provider.hasConfigured(userId);
+      if (!hasProvider) {
+        return {
+          ok: false,
+          status: 428,
+          payload: {
+            name: "ProviderNotConfiguredError",
+            data: {
+              kind: "chat",
+              plan: status.plan,
+              message: "BYOK plan requires an AI provider key. Add one in Settings → AI Provider.",
+            },
+          },
+        };
+      }
+      return { ok: true };
+    }
+    const used = status.currentPeriod.chatTurns;
+    if (used >= limit) {
+      return {
+        ok: false,
+        ...buildQuotaDenial("chat", status.plan, limit, used, status.periodResetAt),
+      };
+    }
+    return { ok: true };
+  };
+
+  // Document access. Count-based — the caller supplies the user's current
+  // document row count rather than us reaching into Document storage from
+  // Billing (would create a circular dependency).
+  export const evaluateDocumentAccess = async (
+    userId: string,
+    currentCount: number,
+  ): Promise<AccessResult> => {
+    const status = await getStatus(userId);
+    const limit = status.quota.documentsLimit;
+    if (limit < 0) return { ok: true };
+    if (currentCount >= limit) {
+      return {
+        ok: false,
+        ...buildQuotaDenial("document", status.plan, limit, currentCount, status.periodResetAt),
+      };
+    }
+    return { ok: true };
   };
 
   // ---- RevenueCat integration ------------------------------------------

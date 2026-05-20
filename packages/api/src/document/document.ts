@@ -341,6 +341,10 @@ export namespace Document {
     return rows.map(fromBinderRow);
   };
 
+  export const countOwned = async (userId: string): Promise<number> => {
+    return Binder.require(userId).countDocuments();
+  };
+
   export const get = async (userId: string, id: string): Promise<Entity> => {
     const row = await Binder.require(userId).getDocumentWithProgress(id);
     if (!row) throw new NotFoundError({ id });
