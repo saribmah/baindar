@@ -73,6 +73,9 @@ type AppPlatform = {
   // Path appended to the SDK base URL when the card is clickable. Undefined
   // means the card renders as a non-interactive tile (e.g. unreleased apps).
   downloadPath?: string;
+  // Absolute URL used when the download target is hosted externally (e.g.
+  // the App Store). Takes precedence over `downloadPath` if both are set.
+  downloadHref?: string;
 };
 
 const appPlatforms: readonly AppPlatform[] = [
@@ -85,10 +88,11 @@ const appPlatforms: readonly AppPlatform[] = [
   },
   {
     name: "iOS app",
-    status: "Coming soon",
+    status: "Available now",
     description: "Your documents, highlights, notes, and conversations in your pocket.",
     Icon: AppleIcon,
-    available: false,
+    available: true,
+    downloadHref: "https://apps.apple.com/us/app/baindar/id6766164672",
   },
   {
     name: "macOS desktop app",
@@ -405,7 +409,7 @@ function AppsSection({ onSignUp }: { onSignUp: () => void }) {
             Your binder, synced across every device.
           </h2>
           <p className="t-body-l m-0 mt-5 max-w-[520px] text-bd-fg-subtle">
-            Read on the web or download the macOS app today. iOS is next, with the same documents,
+            Read on the web or download the macOS and iOS apps today, with the same documents,
             highlights, notes, and AI conversations following you everywhere.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -422,57 +426,60 @@ function AppsSection({ onSignUp }: { onSignUp: () => void }) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-3 lg:gap-4">
-          {appPlatforms.map(({ name, status, description, Icon, available, downloadPath }) => {
-            const cardClasses = [
-              "flex min-h-[220px] flex-col rounded-2xl border p-5",
-              available
-                ? "border-bd-fg bg-bd-fg text-bd-bg shadow-[var(--sh-lg)]"
-                : "border-bd-border bg-bd-surface-raised text-bd-fg",
-              downloadPath ? "transition hover:opacity-90" : "",
-            ].join(" ");
-            const inner = (
-              <>
-                <div className="flex items-start justify-between gap-3">
-                  <span
+          {appPlatforms.map(
+            ({ name, status, description, Icon, available, downloadPath, downloadHref }) => {
+              const href = downloadHref ?? (downloadPath ? `${baseUrl}${downloadPath}` : undefined);
+              const cardClasses = [
+                "flex min-h-[220px] flex-col rounded-2xl border p-5",
+                available
+                  ? "border-bd-fg bg-bd-fg text-bd-bg shadow-[var(--sh-lg)]"
+                  : "border-bd-border bg-bd-surface-raised text-bd-fg",
+                href ? "transition hover:opacity-90" : "",
+              ].join(" ");
+              const inner = (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={[
+                        "flex h-10 w-10 items-center justify-center rounded-full",
+                        available ? "bg-bd-bg/10 text-bd-bg" : "bg-bd-bg text-bd-fg",
+                      ].join(" ")}
+                    >
+                      <Icon />
+                    </span>
+                    <span
+                      className={[
+                        "rounded-full px-2.5 py-1 font-ui text-[11px] font-medium",
+                        available ? "bg-bd-bg text-bd-fg" : "bg-bd-bg text-bd-fg-muted",
+                      ].join(" ")}
+                    >
+                      {status}
+                    </span>
+                  </div>
+                  <h3 className="m-0 mt-6 font-display text-[24px] font-medium leading-tight tracking-normal">
+                    {name}
+                  </h3>
+                  <p
                     className={[
-                      "flex h-10 w-10 items-center justify-center rounded-full",
-                      available ? "bg-bd-bg/10 text-bd-bg" : "bg-bd-bg text-bd-fg",
+                      "t-body-m m-0 mt-3 leading-[1.5]",
+                      available ? "text-bd-bg/70" : "text-bd-fg-subtle",
                     ].join(" ")}
                   >
-                    <Icon />
-                  </span>
-                  <span
-                    className={[
-                      "rounded-full px-2.5 py-1 font-ui text-[11px] font-medium",
-                      available ? "bg-bd-bg text-bd-fg" : "bg-bd-bg text-bd-fg-muted",
-                    ].join(" ")}
-                  >
-                    {status}
-                  </span>
-                </div>
-                <h3 className="m-0 mt-6 font-display text-[24px] font-medium leading-tight tracking-normal">
-                  {name}
-                </h3>
-                <p
-                  className={[
-                    "t-body-m m-0 mt-3 leading-[1.5]",
-                    available ? "text-bd-bg/70" : "text-bd-fg-subtle",
-                  ].join(" ")}
-                >
-                  {description}
-                </p>
-              </>
-            );
-            return downloadPath ? (
-              <a key={name} href={`${baseUrl}${downloadPath}`} className={cardClasses}>
-                {inner}
-              </a>
-            ) : (
-              <article key={name} className={cardClasses}>
-                {inner}
-              </article>
-            );
-          })}
+                    {description}
+                  </p>
+                </>
+              );
+              return href ? (
+                <a key={name} href={href} className={cardClasses}>
+                  {inner}
+                </a>
+              ) : (
+                <article key={name} className={cardClasses}>
+                  {inner}
+                </article>
+              );
+            },
+          )}
         </div>
       </div>
     </section>
