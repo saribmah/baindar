@@ -358,7 +358,7 @@ imports. Remove unused imports.
   ship a broken build to production users.
 - Before any `git commit` or `git push`, verify the current branch with
   `git branch --show-current`. If it's `main`, stop and create a feature
-  branch first (`git switch -c sarib/<short-slug>`).
+  branch first (`git switch -c <your-handle>/<short-slug>`).
 - Treat a prior PR approval as scoped to that PR only. A merged PR does
   not authorize follow-up commits on main, even for the same logical fix.
 - Never use `git push --force` or `git push --force-with-lease` against

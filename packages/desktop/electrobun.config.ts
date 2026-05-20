@@ -29,7 +29,7 @@ export default {
       // passes that flag; the plain `build` script stays as a fast unsigned
       // local build. Required env vars when --env=stable:
       //   ELECTROBUN_DEVELOPER_ID       — cert Common Name, e.g.
-      //     "Developer ID Application: Sarib Mahmood (GJ9TVVR7HY)"
+      //     "Developer ID Application: <Your Name> (<TEAMID>)"
       //   ELECTROBUN_APPLEAPIISSUER     — App Store Connect API Issuer ID (UUID)
       //   ELECTROBUN_APPLEAPIKEY        — App Store Connect API Key ID (10 chars)
       //   ELECTROBUN_APPLEAPIKEYPATH    — absolute path to AuthKey_<KEYID>.p8
