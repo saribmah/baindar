@@ -17,26 +17,7 @@
 				"EMAIL_FROM": "",
 				// Default off; the `dev:test` script overrides via
 				// `wrangler dev --var TEST_MODE:true`. Production never sets this.
-				"TEST_MODE": "false",
-				// Platform LLM defaults. Same shape as user-supplied
-				// `Provider` settings so BYOK and platform code paths share
-				// one model builder. `_SPEC` picks the wire protocol
-				// ("anthropic" or "openai"); BASE_URL/MODEL/API_KEY mirror
-				// the `ProviderSetInput` fields.
-				"PLATFORM_LLM_SPEC": "anthropic",
-				"PLATFORM_LLM_BASE_URL": "https://opencode.ai/zen/go/v1",
-				"PLATFORM_LLM_MODEL": "minimax-m2.7",
-				// RevenueCat (billing). Project + entitlement IDs are not secrets
-				// (they're stable handles in the RC dashboard) so they live in
-				// vars; the V2 REST API key + webhook shared secret live in
-				// `secrets.required`. Entitlement lookup_keys ("personal",
-				// "pro", "byok") double as our internal plan names, so a
-				// missing/unknown entitlement is logged and ignored rather
-				// than corrupting the user's plan.
-				"REVENUECAT_PROJECT_ID": "projf22386f8",
-				"REVENUECAT_ENTITLEMENT_PERSONAL": "entla0a92a1fbb",
-				"REVENUECAT_ENTITLEMENT_PRO": "entl4f223478d6",
-				"REVENUECAT_ENTITLEMENT_BYOK": "entl9bd3704a98"
+				"TEST_MODE": "false"
 			},
 			"d1_databases": [
 				{
@@ -126,7 +107,15 @@
 					"PLATFORM_LLM_API_KEY",
 					"REVENUECAT_SECRET_API_KEY",
 					"REVENUECAT_WEBHOOK_AUTH",
-					"PROVIDER_ENCRYPTION_KEY"
+					"PROVIDER_ENCRYPTION_KEY",
+					"PROVIDER_ENCRYPTION_KEY",
+					"PLATFORM_LLM_SPEC",
+					"PLATFORM_LLM_BASE_URL",
+					"PLATFORM_LLM_MODEL",
+					"REVENUECAT_PROJECT_ID",
+					"REVENUECAT_ENTITLEMENT_PERSONAL",
+					"REVENUECAT_ENTITLEMENT_PRO",
+					"REVENUECAT_ENTITLEMENT_BYOK"
 				]
 			}
 		},
@@ -155,16 +144,7 @@
 				"EMAIL_FROM": "no-reply@baindar.com",
 				// Production keeps TEST_MODE off. The flag is part of the env
 				// shape so `Config.isTestMode()` type-checks against both envs.
-				"TEST_MODE": "false",
-				// Platform LLM defaults. See dev block above for shape rationale.
-				"PLATFORM_LLM_SPEC": "anthropic",
-				"PLATFORM_LLM_BASE_URL": "https://opencode.ai/zen/go/v1",
-				"PLATFORM_LLM_MODEL": "minimax-m2.7",
-				// RevenueCat (billing). See dev block above for the rationale.
-				"REVENUECAT_PROJECT_ID": "projf22386f8",
-				"REVENUECAT_ENTITLEMENT_PERSONAL": "entla0a92a1fbb",
-				"REVENUECAT_ENTITLEMENT_PRO": "entl4f223478d6",
-				"REVENUECAT_ENTITLEMENT_BYOK": "entl9bd3704a98"
+				"TEST_MODE": "false"
 			},
 			"d1_databases": [
 				{
@@ -253,7 +233,14 @@
 					"PLATFORM_LLM_API_KEY",
 					"REVENUECAT_SECRET_API_KEY",
 					"REVENUECAT_WEBHOOK_AUTH",
-					"PROVIDER_ENCRYPTION_KEY"
+					"PROVIDER_ENCRYPTION_KEY",
+					"PLATFORM_LLM_SPEC",
+					"PLATFORM_LLM_BASE_URL",
+					"PLATFORM_LLM_MODEL",
+					"REVENUECAT_PROJECT_ID",
+					"REVENUECAT_ENTITLEMENT_PERSONAL",
+					"REVENUECAT_ENTITLEMENT_PRO",
+					"REVENUECAT_ENTITLEMENT_BYOK"
 				]
 			}
 		}

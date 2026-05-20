@@ -35,6 +35,8 @@ jobs:
           bun run ts-check
 
       - name: Build web assets
+        env:
+          VITE_REVENUECAT_WEB_BILLING_API_KEY: ${{ secrets.VITE_REVENUECAT_WEB_BILLING_API_KEY }}
         run: bun run --filter @baindar/web build
 
       - name: Apply D1 migrations

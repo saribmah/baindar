@@ -91,6 +91,7 @@ jobs:
 
       - name: Build, sign, notarize, staple
         env:
+          VITE_REVENUECAT_WEB_BILLING_API_KEY: ${{ secrets.VITE_REVENUECAT_WEB_BILLING_API_KEY }}
           ELECTROBUN_APPLEAPIISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
           ELECTROBUN_APPLEAPIKEY: ${{ secrets.APPLE_API_KEY_ID }}
         run: bun run --filter @baindar/desktop build:release
